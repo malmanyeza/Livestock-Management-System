@@ -75,7 +75,7 @@ export default function GeneticsScreen() {
   );
 }
 
-function GeneticsContent(): JSX.Element {
+function GeneticsContent() {
   const [activeTab, setActiveTab] = useState('herds');
 
   const renderBreedingHerds = () => (
@@ -293,7 +293,7 @@ function GeneticsContent(): JSX.Element {
               <Text variant="caption" style={[styles.tableCell, { flex: 2 }]}>
                 {bull.date}
               </Text>
-              <Text variant="caption" style={[styles.tableCell, { flex: 1.5, fontFamily: 'Inter_600SemiBold' }]}>
+              <Text variant="caption" style={[styles.tableCell, { flex: 1.5, fontWeight: '600' }]}>
                 {bull.id}
               </Text>
               <Text variant="caption" style={[styles.tableCell, { flex: 2.5 }]}>
@@ -463,5 +463,3 @@ const styles = StyleSheet.create({
     borderBottomColor: Colors.neutral[200],
   },
 });
-
-export default GeneticsScreen;

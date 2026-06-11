@@ -1,7 +1,8 @@
+import React from 'react';
 import { Stack } from 'expo-router';
 import { Platform, StatusBar as RNStatusBar } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
-import Colors from '../constants/Colors';
+import Colors from '@/constants/Colors';
 
 export default function RootLayout() {
   const androidStatusBarHeight = RNStatusBar.currentHeight || 0;
@@ -24,12 +25,6 @@ export default function RootLayout() {
           },
           headerShadowVisible: false,
           headerTintColor: Colors.neutral[900],
-          headerTitleContainerStyle: Platform.select({
-            android: {
-              paddingTop: androidStatusBarHeight,
-            },
-            default: undefined,
-          }),
           headerStyle: Platform.select({
             android: {
               height: 80 + androidStatusBarHeight,

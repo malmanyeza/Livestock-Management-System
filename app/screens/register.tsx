@@ -196,13 +196,13 @@ interface PregnancyCalvingRecord {
   firstTrimesterPD: 'Positive' | 'Negative' | 'Inconclusive' | 'Not Tested';
   secondTrimesterPD: 'Positive' | 'Negative' | 'Inconclusive' | 'Not Tested';
   thirdTrimesterPD: 'Positive' | 'Negative' | 'Inconclusive' | 'Not Tested';
-  gestationPeriod: string; // in days
+  gestationPeriod: number; // in days
   expectedCalvingDate: string;
   actualCalvingDate?: string;
   calfId?: string;
   calfSex?: 'Male' | 'Female';
   deliveryType?: 'Natural' | 'Assisted' | 'C-Section';
-  averageBCS: string;
+  averageBCS: number;
   expectedReturnToHeatDate: string;
   actualFirstHeatDate?: string;
   expectedSecondHeatDate?: string;
@@ -343,6 +343,7 @@ const pregnancyCalvingData: PregnancyCalvingRecord[] = [
 const bullBreedingSoundnessData: BullBreedingRecord[] = [
   {
     id: 'B001',
+    bullId: 'B001',
     date: '2025-06-15',
     age: '2.5 years',
     pe: 'Excellent',
@@ -355,6 +356,7 @@ const bullBreedingSoundnessData: BullBreedingRecord[] = [
   },
   {
     id: 'B002',
+    bullId: 'B002',
     date: '2025-06-20',
     age: '3 years',
     pe: 'Good',
@@ -367,6 +369,7 @@ const bullBreedingSoundnessData: BullBreedingRecord[] = [
   },
   {
     id: 'B003',
+    bullId: 'B003',
     date: '2025-06-25',
     age: '4 years',
     pe: 'Poor',
@@ -379,6 +382,7 @@ const bullBreedingSoundnessData: BullBreedingRecord[] = [
   },
   {
     id: 'B004',
+    bullId: 'B004',
     date: '2025-07-01',
     age: '2 years',
     pe: 'Good',
@@ -429,9 +433,9 @@ const initialHerdRegisterData: AnimalData[] = [
 
 // Sample data for drug register
 const initialDrugRegisterData: DrugData[] = [
-  { id: '1', drugClass: 'Antibiotic', type: 'Injectable', name: 'Oxytetracycline', unit: 'bottle', withdrawalPeriod: '21 days', pregnancySafe: 'Yes', stockStatus: 'In Stock' },
-  { id: '2', drugClass: 'Vitamin', type: 'Oral', name: 'Vitamin B Complex', unit: 'tablet', withdrawalPeriod: '0 days', pregnancySafe: 'Yes', stockStatus: 'In Stock' },
-  { id: '3', drugClass: 'Antiparasitic', type: 'Pour-on', name: 'Ivermectin', unit: 'ml', withdrawalPeriod: '35 days', pregnancySafe: 'No', stockStatus: 'Low Stock' },
+  { id: '1', drugClass: 'Antibiotic', type: 'Injectable', name: 'Oxytetracycline', withdrawalPeriod: '21 days', pregnancySafe: 'Yes', stockStatus: 'In Stock' },
+  { id: '2', drugClass: 'Vitamin', type: 'Oral', name: 'Vitamin B Complex', withdrawalPeriod: '0 days', pregnancySafe: 'Yes', stockStatus: 'In Stock' },
+  { id: '3', drugClass: 'Antiparasitic', type: 'Pour-on', name: 'Ivermectin', withdrawalPeriod: '35 days', pregnancySafe: 'No', stockStatus: 'Low Stock' },
 ];
 
 
@@ -765,6 +769,7 @@ function RegisterContent() {
     expectedCalvingDate: false,
     actualCalvingDate: false
   });
+  const [showBirthDatePicker, setShowBirthDatePicker] = useState(false);
   
   const toggleDatePicker = (field: 'lastServiceDate' | 'expectedCalvingDate' | 'actualCalvingDate') => {
     setShowDatePicker(prev => ({
@@ -835,14 +840,14 @@ function RegisterContent() {
   
   // Function to handle editing a calf record
   const handleEditCalf = (calf: AnimalData) => {
-    // Set default values if they don't exist
+    // Set default values if they don't exists
     const calfWithDefaults = {
       observer: '',
       birthWeight: '',
       deliveryType: 'Natural',
       ...calf
     };
-    setEditingCalf(calfWithDefaults);
+    setEditingCalf(calfWithDefaults as AnimalData);
     setIsEditCalfModalVisible(true);
   };
   
@@ -1466,7 +1471,7 @@ function RegisterContent() {
             <View style={styles.formGroup}>
               <Text variant="body2" style={styles.label}>Transaction Type</Text>
               <View style={{ flexDirection: 'row', marginTop: 4, flexWrap: 'wrap' }}>
-                {['Sale', 'Purchase'].map((type: 'Sale' | 'Purchase') => (
+                {(['Sale', 'Purchase'] as const).map((type) => (
                   <TouchableOpacity 
                     key={type}
                     style={[
@@ -1563,7 +1568,7 @@ function RegisterContent() {
                 <Picker
                   label="Sex"
                   value={newTransaction.purchaseDetails.sex}
-                  onValueChange={(value) => setNewTransaction({ ...newTransaction, purchaseDetails: { ...newTransaction.purchaseDetails, sex: value } })}
+                  onValueChange={(value) => setNewTransaction({ ...newTransaction, purchaseDetails: { ...newTransaction.purchaseDetails, sex: value as 'Male' | 'Female' } })}
                   items={[{ label: 'Male', value: 'Male' }, { label: 'Female', value: 'Female' }]}
                 />
                 <Picker
@@ -1906,21 +1911,21 @@ function RegisterContent() {
               <Text variant="body2" style={styles.label}>Date of Birth *</Text>
               <TouchableOpacity 
                 style={styles.input}
-                onPress={() => setShowDatePicker(true)}
+                onPress={() => setShowBirthDatePicker(true)}
               >
                 <Text style={newAnimal.dateOfBirth ? {} : {color: '#999'}}>
                   {newAnimal.dateOfBirth || 'Select date'}
                 </Text>
               </TouchableOpacity>
               
-              {showDatePicker && (
+              {showBirthDatePicker && (
                 <DateTimePicker
                   textColor={Colors.neutral[800]}
                   value={selectedDate}
                   mode="date"
                   display={Platform.OS === 'ios' ? 'spinner' : 'default'}
                   onChange={(event, date) => {
-                    setShowDatePicker(Platform.OS === 'ios');
+                    setShowBirthDatePicker(Platform.OS === 'ios');
                     if (date) {
                       const formattedDate = date.toISOString().split('T')[0];
                       setSelectedDate(date);
@@ -1953,24 +1958,20 @@ function RegisterContent() {
               ) : null}
             </View>
             
-            <View style={styles.formGroup}>
-              <Text variant="body2" style={styles.label}>Breed</Text>
-              <View style={styles.input}>
-                <Picker
-                  value={newAnimal.breed}
-                  onValueChange={(value) => setNewAnimal({...newAnimal, breed: value})}
-                  items={[
-                    { label: 'Select Breed', value: '' },
-                    { label: 'Angus', value: 'Angus' },
-                    { label: 'Brahman', value: 'Brahman' },
-                    { label: 'Hereford', value: 'Hereford' },
-                    { label: 'Mashona', value: 'Mashona' },
-                    { label: 'Tuli', value: 'Tuli' },
-                    { label: 'Other', value: 'Other' }
-                  ]}
-                />
-              </View>
-            </View>
+            <Picker
+              label="Breed"
+              value={newAnimal.breed}
+              onValueChange={(value) => setNewAnimal({...newAnimal, breed: value})}
+              items={[
+                { label: 'Select Breed', value: '' },
+                { label: 'Angus', value: 'Angus' },
+                { label: 'Brahman', value: 'Brahman' },
+                { label: 'Hereford', value: 'Hereford' },
+                { label: 'Mashona', value: 'Mashona' },
+                { label: 'Tuli', value: 'Tuli' },
+                { label: 'Other', value: 'Other' }
+              ]}
+            />
             
             <View style={styles.formGroup}>
               <Text variant="body2" style={styles.label}>Sex</Text>
@@ -1990,40 +1991,32 @@ function RegisterContent() {
               </View>
             </View>
             
-            <View style={styles.formGroup}>
-              <Text variant="body2" style={styles.label}>Stock Type</Text>
-              <View style={styles.input}>
-                <Picker
-                  value={newAnimal.stockType}
-                  onValueChange={(value) => setNewAnimal({...newAnimal, stockType: value})}
-                  items={[
-                    { label: 'Select Stock Type', value: '' },
-                    { label: 'Bull', value: 'Bull' },
-                    { label: 'Cow', value: 'Cow' },
-                    { label: 'Heifer', value: 'Heifer' },
-                    { label: 'Steer', value: 'Steer' },
-                    { label: 'Calf', value: 'Calf' }
-                  ]}
-                />
-              </View>
-            </View>
+            <Picker
+              label="Stock Type"
+              value={newAnimal.stockType}
+              onValueChange={(value) => setNewAnimal({...newAnimal, stockType: value})}
+              items={[
+                { label: 'Select Stock Type', value: '' },
+                { label: 'Bull', value: 'Bull' },
+                { label: 'Cow', value: 'Cow' },
+                { label: 'Heifer', value: 'Heifer' },
+                { label: 'Steer', value: 'Steer' },
+                { label: 'Calf', value: 'Calf' }
+              ]}
+            />
             
-            <View style={styles.formGroup}>
-              <Text variant="body2" style={styles.label}>Source</Text>
-              <View style={styles.input}>
-                <Picker
-                  value={newAnimal.source}
-                  onValueChange={(value) => setNewAnimal({...newAnimal, source: value})}
-                  items={[
-                    { label: 'Select Source', value: '' },
-                    { label: 'Born on Farm', value: 'Born' },
-                    { label: 'Purchased', value: 'Purchased' },
-                    { label: 'Gift/Donation', value: 'Gift' },
-                    { label: 'Other', value: 'Other' }
-                  ]}
-                />
-              </View>
-            </View>
+            <Picker
+              label="Source"
+              value={newAnimal.source}
+              onValueChange={(value) => setNewAnimal({...newAnimal, source: value})}
+              items={[
+                { label: 'Select Source', value: '' },
+                { label: 'Born on Farm', value: 'Born' },
+                { label: 'Purchased', value: 'Purchased' },
+                { label: 'Gift/Donation', value: 'Gift' },
+                { label: 'Other', value: 'Other' }
+              ]}
+            />
           </ScrollView>
           
           <View style={styles.modalButtons}>
@@ -2056,13 +2049,16 @@ function RegisterContent() {
       setPregnancyCalvingRecords([...pregnancyCalvingRecords, newRecord]);
       setNewPregnancyRecord({
         cowEarTag: '',
-        bodyConditionScore: '3.0',
+        bodyConditionScore: 3.0,
         lastServiceDate: new Date().toISOString().split('T')[0],
         firstTrimesterPD: 'Not Tested',
         secondTrimesterPD: 'Not Tested',
         thirdTrimesterPD: 'Not Tested',
-        gestationPeriod: '',
-        averageBCS: '3.0',
+        gestationPeriod: 0,
+        expectedCalvingDate: '',
+        actualCalvingDate: '',
+        averageBCS: 3.0,
+        expectedReturnToHeatDate: ''
       });
       setIsAddPregnancyModalVisible(false);
     };
@@ -2138,13 +2134,13 @@ function RegisterContent() {
                 <Text variant="body2" style={styles.label}>Body Condition Score (1-5) *</Text>
                 <TextInput
                   style={styles.input}
-                  value={newPregnancyRecord.bodyConditionScore}
+                  value={newPregnancyRecord.bodyConditionScore ? newPregnancyRecord.bodyConditionScore.toString() : ''}
                   onChangeText={(text) => {
                     // Allow empty string, decimal point, and numbers
                     if (text === '' || /^\d*\.?\d*$/.test(text)) {
                       const num = parseFloat(text);
                       if (text === '' || (!isNaN(num) && num >= 1 && num <= 5)) {
-                        setNewPregnancyRecord({...newPregnancyRecord, bodyConditionScore: text});
+                        setNewPregnancyRecord({...newPregnancyRecord, bodyConditionScore: text === '' ? 0 : num});
                       }
                     }
                   }}
@@ -2227,21 +2223,19 @@ function RegisterContent() {
                 <Text variant="body2" style={styles.label}>Gestation Period (days)</Text>
                 <TextInput
                   style={styles.input}
-                  value={newPregnancyRecord.gestationPeriod}
+                  value={newPregnancyRecord.gestationPeriod ? newPregnancyRecord.gestationPeriod.toString() : ''}
                   onChangeText={(text) => {
                     // Allow only numbers
                     if (text === '' || /^\d+$/.test(text)) {
                       setNewPregnancyRecord(prev => {
-                        const updated = {...prev, gestationPeriod: text};
+                        const num = text === '' ? 0 : parseInt(text, 10);
+                        const updated = {...prev, gestationPeriod: num};
                         // Only calculate expected date if we have a valid number
-                        if (text) {
-                          const num = parseInt(text, 10);
-                          if (!isNaN(num)) {
-                            const lastServiceDate = new Date(prev.lastServiceDate);
-                            const expectedDate = new Date(lastServiceDate);
-                            expectedDate.setDate(lastServiceDate.getDate() + num);
-                            updated.expectedCalvingDate = expectedDate.toISOString().split('T')[0];
-                          }
+                        if (num > 0) {
+                          const lastServiceDate = new Date(prev.lastServiceDate);
+                          const expectedDate = new Date(lastServiceDate);
+                          expectedDate.setDate(lastServiceDate.getDate() + num);
+                          updated.expectedCalvingDate = expectedDate.toISOString().split('T')[0];
                         } else {
                           updated.expectedCalvingDate = 'N/A';
                         }
@@ -2431,7 +2425,7 @@ function RegisterContent() {
                     setNewHeatBreedingRecord({
                       ...newHeatBreedingRecord,
                       earTagNumber: value,
-                      stockType: selectedAnimal?.stockType || 'Cow'
+                      stockType: (selectedAnimal?.stockType || 'Cow') as HeatBreedingRecord['stockType']
                     });
                   }}
                   items={[
@@ -2450,7 +2444,7 @@ function RegisterContent() {
                 <Picker
                   label="Stock Type"
                   value={newHeatBreedingRecord.stockType}
-                  onValueChange={(value) => setNewHeatBreedingRecord({...newHeatBreedingRecord, stockType: value})}
+                  onValueChange={(value) => setNewHeatBreedingRecord({...newHeatBreedingRecord, stockType: value as HeatBreedingRecord['stockType']})}
                   items={[
                     { label: 'Cow', value: 'Cow' },
                     { label: 'Heifer', value: 'Heifer' },
@@ -2624,10 +2618,10 @@ function RegisterContent() {
               </View>
 
               {renderRadioGroup('Breeding Status', newHeatBreedingRecord.breedingStatus, breedingStatusOptions, 
-                (value) => setNewHeatBreedingRecord({...newHeatBreedingRecord, breedingStatus: value}))}
+                (value) => setNewHeatBreedingRecord({...newHeatBreedingRecord, breedingStatus: value as HeatBreedingRecord['breedingStatus']}))}
               
-              {renderRadioGroup('Breeding Method', newHeatBreedingRecord.breedingMethod, breedingMethodOptions, 
-                (value) => setNewHeatBreedingRecord({...newHeatBreedingRecord, breedingMethod: value}))}
+              {renderRadioGroup('Breeding Method', newHeatBreedingRecord.breedingMethod || '', breedingMethodOptions, 
+                (value) => setNewHeatBreedingRecord({...newHeatBreedingRecord, breedingMethod: value as HeatBreedingRecord['breedingMethod']}))}
 
              
                 
@@ -2665,8 +2659,8 @@ function RegisterContent() {
                     <Text variant="body2" style={styles.label}>Semen Viability (%)</Text>
                     <TextInput
                       style={styles.input}
-                      value={newHeatBreedingRecord.semenViability}
-                      onChangeText={(text) => setNewHeatBreedingRecord({...newHeatBreedingRecord, semenViability: text})}
+                      value={newHeatBreedingRecord.semenViability !== undefined ? newHeatBreedingRecord.semenViability.toString() : ''}
+                      onChangeText={(text) => setNewHeatBreedingRecord({...newHeatBreedingRecord, semenViability: text === '' ? undefined : (parseInt(text, 10) || 0)})}
                       placeholder="Enter percentage"
                       keyboardType="numeric"
                     />
@@ -2705,8 +2699,8 @@ function RegisterContent() {
                 </TouchableOpacity>
               </View>
 
-              {renderRadioGroup('Breeding Method (2nd)', newHeatBreedingRecord.breedingMethod2, breedingMethodOptions, 
-                (value) => setNewHeatBreedingRecord({...newHeatBreedingRecord, breedingMethod2: value}))}
+              {renderRadioGroup('Breeding Method (2nd)', newHeatBreedingRecord.breedingMethod2 || '', breedingMethodOptions, 
+                (value) => setNewHeatBreedingRecord({...newHeatBreedingRecord, breedingMethod2: value as HeatBreedingRecord['breedingMethod2']}))}
 
               <View style={styles.formGroup}>
                 <Text variant="body2" style={styles.label}>Sire Used (2nd)</Text>
@@ -2817,9 +2811,6 @@ function RegisterContent() {
                 data={breedDistribution}
                 height={200}
                 width={300}
-                accessor="population"
-                backgroundColor="transparent"
-                paddingLeft="0"
               />
             </View>
             <View style={styles.chart}>
@@ -2828,9 +2819,6 @@ function RegisterContent() {
                 data={sourceDistribution}
                 height={200}
                 width={300}
-                accessor="population"
-                backgroundColor="transparent"
-                paddingLeft="0"
               />
             </View>
             <View style={styles.chart}>
@@ -2839,9 +2827,6 @@ function RegisterContent() {
                 data={sourceDistribution}
                 height={200}
                 width={300}
-                accessor="population"
-                backgroundColor="transparent"
-                paddingLeft="0"
               />
             </View>
             <View style={styles.chart}>
@@ -2850,9 +2835,6 @@ function RegisterContent() {
                 data={stockTypeBreakdown}
                 height={200}
                 width={300}
-                accessor="population"
-                backgroundColor="transparent"
-                paddingLeft="0"
               />
             </View>
           </ScrollView>
@@ -3182,7 +3164,7 @@ function RegisterContent() {
                           setDrugRegisterData(drugRegisterData.filter(drug => drug.id !== row.id));
                         } else if (value) {
                           setDrugRegisterData(drugRegisterData.map(drug => 
-                            drug.id === row.id ? { ...drug, stockStatus: value } : drug
+                            drug.id === row.id ? { ...drug, stockStatus: value as DrugData['stockStatus'] } : drug
                           ));
                         }
                       }}
@@ -3191,7 +3173,7 @@ function RegisterContent() {
                         { label: 'In Stock', value: 'In Stock' },
                         { label: 'Running Low', value: 'Low Stock' },
                         { label: 'Out of Stock', value: 'Out of Stock' },
-                        { label: 'Delete Drug', value: 'delete', style: { color: Colors.error[500] } }
+                        { label: 'Delete Drug', value: 'delete' }
                       ]}
                       style={{ 
                         borderRadius: 6,
@@ -3199,7 +3181,6 @@ function RegisterContent() {
                         paddingVertical: 4,
                         minWidth: 120
                       }}
-                      textStyle={{ fontSize: 14 }}
                     />
                 )
               },
@@ -3262,12 +3243,10 @@ function RegisterContent() {
           {renderAddMortalityModal()}
         </Card>
 
-        {/* Edit Calf Modal */}
-        <Modal
-          visible={isEditCalfModalVisible}
-          transparent
-          animationType="slide"
-          onRequestClose={() => setIsEditCalfModalVisible(false)}
+        {/* Animal Health Records Section */}
+        <Card
+          title="Animal Health Records"
+          style={styles.card}
           headerRight={
             <Button size="sm" onPress={() => setIsAddHealthRecordModalVisible(true)} style={styles.addButton}>
               + Add Record
@@ -3308,7 +3287,7 @@ function RegisterContent() {
             data={healthRecords}
           />
           {renderAddHealthRecordModal()}
-        </Modal>
+        </Card>
 
         {/* Bull Breeding Soundness Section */}
         <Card 
@@ -3758,6 +3737,10 @@ const styles = StyleSheet.create({
     color: Colors.neutral[900],
     backgroundColor: Colors.white,
   },
+  textArea: {
+    height: 80,
+    textAlignVertical: 'top',
+  },
   dateInput: {
     borderWidth: 1,
     borderColor: Colors.neutral[300],
@@ -3767,19 +3750,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     minHeight: 44,
     backgroundColor: Colors.white,
-  },
-  modalContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-  },
-  modalContent: {
-    width: '90%',
-    backgroundColor: 'white',
-    borderRadius: 8,
-    padding: 16,
-    maxHeight: '60%',
   },
   modalHeader: {
     flexDirection: 'row',
@@ -3797,6 +3767,15 @@ const styles = StyleSheet.create({
     paddingTop: 12,
     borderTopWidth: 1,
     borderTopColor: Colors.neutral[200],
+  },
+  modalContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+  },
+  modalBody: {
+    paddingVertical: 12,
   },
   modalButton: {
     marginLeft: 8,
@@ -3828,6 +3807,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'flex-end',
     marginTop: 20,
+  },
+  modalActions: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    marginTop: 16,
   },
   cancelButton: {
     marginRight: 10,
@@ -3892,23 +3876,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     color: Colors.neutral[600],
   },
-  modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 16,
-    paddingBottom: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.neutral[200],
-  },
-  modalFooter: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-    marginTop: 16,
-    paddingTop: 16,
-    borderTopWidth: 1,
-    borderTopColor: Colors.neutral[200],
-  },
+
   incompleteIndicator: {
     width: 8,
     height: 8,
@@ -3922,8 +3890,6 @@ const styles = StyleSheet.create({
   disabledInput: {
     opacity: 0.6,
     backgroundColor: Colors.neutral[100],
-    color: Colors.neutral[600],
-    cursor: 'not-allowed',
   },
   disabledInputText: {
     color: Colors.neutral[600],

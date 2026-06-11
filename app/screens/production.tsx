@@ -4,7 +4,6 @@ import { Text } from '../../components/typography/Text';
 import { ScreenContainer } from '../../components/layout/ScreenContainer';
 import { Card } from '../../components/ui/Card';
 import { ProgressIndicator } from '../../components/metrics/ProgressIndicator';
-import { PieChart } from '../../components/charts/PieChart';
 import Colors from '../../constants/Colors';
 import { Stack } from 'expo-router';
 

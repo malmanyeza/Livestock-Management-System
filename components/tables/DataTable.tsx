@@ -15,9 +15,10 @@ interface DataTableProps {
   columns: Column[];
   data: any[];
   emptyText?: string;
+  emptyState?: React.ReactNode;
 }
 
-export function DataTable({ columns, data, emptyText = 'No data available' }: DataTableProps) {
+export function DataTable({ columns, data, emptyText = 'No data available', emptyState }: DataTableProps) {
   return (
     <View style={styles.container}>
       <ScrollView horizontal showsHorizontalScrollIndicator={false}>
@@ -64,11 +65,15 @@ export function DataTable({ columns, data, emptyText = 'No data available' }: Da
                 </View>
               ))
             ) : (
-              <View style={styles.emptyContainer}>
-                <Text variant="body" color="neutral.500">
-                  {emptyText}
-                </Text>
-              </View>
+              emptyState ? (
+                emptyState
+              ) : (
+                <View style={styles.emptyContainer}>
+                  <Text variant="body" color="neutral.500">
+                    {emptyText}
+                  </Text>
+                </View>
+              )
             )}
           </View>
         </View>

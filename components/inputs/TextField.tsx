@@ -36,7 +36,7 @@ export function TextField({
   return (
     <View style={[styles.container, containerStyle]}>
       {label && (
-        <Text variant="body2\" color="neutral.700\" style={styles.label}>
+        <Text variant="body2" color="neutral.700" style={styles.label}>
           {label}
         </Text>
       )}
@@ -44,15 +44,15 @@ export function TextField({
         style={[
           styles.inputContainer,
           isFocused && styles.focused,
-          error && styles.error,
+          error ? styles.error : null,
         ]}
       >
         {startIcon && <View style={styles.iconContainer}>{startIcon}</View>}
         <TextInput
           style={[
             styles.input,
-            startIcon && styles.inputWithStartIcon,
-            (endIcon || isPassword) && styles.inputWithEndIcon,
+            startIcon ? styles.inputWithStartIcon : null,
+            (endIcon || isPassword) ? styles.inputWithEndIcon : null,
           ]}
           value={value}
           onFocus={() => setIsFocused(true)}

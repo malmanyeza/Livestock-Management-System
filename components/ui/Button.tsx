@@ -89,7 +89,7 @@ export function Button({
           <Text
             variant="button"
             color={getTextColor()}
-            style={[startIcon && styles.textWithStartIcon, endIcon && styles.textWithEndIcon]}
+            style={[startIcon ? styles.textWithStartIcon : null, endIcon ? styles.textWithEndIcon : null]}
           >
             {children}
           </Text>

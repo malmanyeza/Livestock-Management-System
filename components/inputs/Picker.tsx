@@ -10,10 +10,10 @@ interface PickerItem {
 }
 
 interface PickerProps {
-  label: string;
+  label?: string;
   value: string;
   onValueChange: (value: string) => void;
-  items: PickerItem[];
+  items: PickerItem[] | readonly PickerItem[];
   style?: any;
 }
 
@@ -23,9 +23,11 @@ export function Picker({ label, value, onValueChange, items = [], style }: Picke
 
   return (
     <View style={[styles.container, style]}>
-      <Text variant="body2" color="neutral.600" style={styles.label}>
-        {label}
-      </Text>
+      {label ? (
+        <Text variant="body2" color="neutral.600" style={styles.label}>
+          {label}
+        </Text>
+      ) : null}
       <TouchableOpacity
         style={styles.pickerContainer}
         onPress={() => setModalVisible(true)}
@@ -47,7 +49,7 @@ export function Picker({ label, value, onValueChange, items = [], style }: Picke
         >
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
-              <Text variant="h6" weight="medium">{label}</Text>
+              <Text variant="h6" weight="medium">{label || 'Select'}</Text>
               <TouchableOpacity onPress={() => setModalVisible(false)}>
                 <Text variant="body2" color="primary.500">Done</Text>
               </TouchableOpacity>

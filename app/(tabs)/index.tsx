@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import { View, StyleSheet, TouchableOpacity, ScrollView, Dimensions, Platform, Text as RNText } from 'react-native';
-import { BarChart } from 'react-native-chart-kit';
 
 import { router } from 'expo-router';
 import { Bell, Heart, Dna, Wheat, BarChart3, ClipboardList, FileEdit, ShoppingCart, Settings, User, TrendingUp } from 'lucide-react-native';
@@ -11,7 +10,6 @@ import { Picker } from '../../components/inputs/Picker';
 import { Card } from '../../components/ui/Card';
 import Colors from '../../constants/Colors';
 import { ColorValue } from 'react-native';
-import { LineChart } from 'react-native-chart-kit';
 
 interface NavigationCard {
   id: string;
@@ -153,13 +151,86 @@ const navigationCards: NavigationCard[] = [
   },
 ];
 
+function CustomLineChart({ data, width, height }: { data: any; width: number; height: number }) {
+  const dataset = data.datasets[0].data;
+  const labels = data.labels;
+  const maxVal = Math.max(...dataset, 100);
+  const minVal = Math.min(...dataset, 0);
+  const range = maxVal - minVal;
+
+  return (
+    <View style={{ width, height, flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', paddingHorizontal: 16, paddingBottom: 16 }}>
+      {dataset.map((val: number, idx: number) => {
+        const barHeight = ((val - minVal) / (range || 1)) * (height - 60) + 10;
+        return (
+          <View key={idx} style={{ alignItems: 'center', flex: 1 }}>
+            <Text variant="caption" color="primary.500" style={{ fontSize: 9, marginBottom: 4, fontWeight: '600' }}>
+              {val}%
+            </Text>
+            <View style={{ width: 8, height: barHeight, backgroundColor: Colors.primary[500], borderRadius: 4 }} />
+            <Text variant="caption" color="neutral.500" style={{ fontSize: 8, marginTop: 4 }}>
+              {labels[idx]}
+            </Text>
+          </View>
+        );
+      })}
+    </View>
+  );
+}
+
+function CustomBarChart({ data, width, height }: { data: any; width: number; height: number }) {
+  const dataset = data.datasets[0].data;
+  const labels = data.labels;
+  const maxVal = 100;
+
+  return (
+    <View style={{ width, height, flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-around', paddingHorizontal: 16, paddingBottom: 16 }}>
+      {dataset.map((val: number, idx: number) => {
+        const barHeight = (val / maxVal) * (height - 60) + 10;
+        return (
+          <View key={idx} style={{ alignItems: 'center', width: 55 }}>
+            <Text variant="caption" color="secondary.500" style={{ fontSize: 10, marginBottom: 4, fontWeight: '600' }}>
+              {val}%
+            </Text>
+            <View style={{ width: 16, height: barHeight, backgroundColor: Colors.secondary[500], borderRadius: 4 }} />
+            <Text variant="caption" color="neutral.600" style={{ fontSize: 9, marginTop: 6, textAlign: 'center' }}>
+              {labels[idx]}
+            </Text>
+          </View>
+        );
+      })}
+    </View>
+  );
+}
+
 export default function HomeScreen() {
+  console.log("DEBUG - HomeScreen Components:");
+  console.log("  Text:", typeof Text !== 'undefined' ? Text : 'UNDEFINED');
+  console.log("  ScreenContainer:", typeof ScreenContainer !== 'undefined' ? ScreenContainer : 'UNDEFINED');
+  console.log("  Picker:", typeof Picker !== 'undefined' ? Picker : 'UNDEFINED');
+  console.log("  Card:", typeof Card !== 'undefined' ? Card : 'UNDEFINED');
+  console.log("  CustomBarChart:", typeof CustomBarChart !== 'undefined' ? CustomBarChart : 'UNDEFINED');
+  console.log("  CustomLineChart:", typeof CustomLineChart !== 'undefined' ? CustomLineChart : 'UNDEFINED');
+  console.log("  LinearGradient:", typeof LinearGradient !== 'undefined' ? LinearGradient : 'UNDEFINED');
+
+  // Verify navigationCards icons are valid react elements with defined types
+  navigationCards.forEach((item) => {
+    if (React.isValidElement(item.icon)) {
+      if (typeof item.icon.type === 'undefined' || item.icon.type === null) {
+        throw new Error(`CRITICAL RUNTIME ERROR: Icon for card "${item.id}" is undefined. Lucide import failed.`);
+      }
+    } else {
+      throw new Error(`CRITICAL RUNTIME ERROR: Icon for card "${item.id}" is not a valid React element.`);
+    }
+  });
+
   const [selectedSpecies, setSelectedSpecies] = useState<string>('beef-cattle');
   const [activeSlide, setActiveSlide] = useState(0);
   const [timeframe, setTimeframe] = useState<'monthly' | 'yearly'>('monthly');
 
   const renderNavigationCard = ({ item }: { item: NavigationCard }) => (
     <TouchableOpacity
+      key={item.id}
       style={styles.navCardContainer}
       onPress={() => router.push(item.route as any)}
       activeOpacity={0.7}
@@ -299,56 +370,18 @@ export default function HomeScreen() {
               scrollEventThrottle={16}
             >
               <View key="line-chart" style={styles.chartContainer}>
-                <LineChart
+                <CustomLineChart
                   data={timeframe === 'monthly' ? dlshiftMonthlyData : dlshiftYearlyData}
                   width={Dimensions.get('window').width - 70}
                   height={180}
-                  chartConfig={{
-                    backgroundColor: Colors.white,
-                    backgroundGradientFrom: Colors.white,
-                    backgroundGradientTo: Colors.white,
-                    decimalPlaces: 0,
-                    color: (opacity = 1) => Colors.primary[500],
-                    labelColor: (opacity = 1) => `rgba(0, 0, 0, ${opacity})`,
-                    style: {
-                      borderRadius: 16,
-                    },
-                  }}
-                  bezier
-                  style={{
-                    marginVertical: 8,
-                    borderRadius: 16,
-                  }}
                 />
               </View>
               
               <View key="bar-chart" style={styles.chartContainer}>
-                <BarChart
+                <CustomBarChart
                   data={categoryScores}
                   width={Dimensions.get('window').width - 100}
                   height={180}
-                  yAxisLabel=""
-                  yAxisSuffix="%"
-                  yAxisInterval={1}
-                  chartConfig={{
-                    backgroundColor: Colors.white,
-                    backgroundGradientFrom: Colors.white,
-                    backgroundGradientTo: Colors.white,
-                    decimalPlaces: 0,
-                    color: (opacity = 1) => `rgba(0, 0, 0, ${opacity})`,
-                    labelColor: (opacity = 1) => `rgba(0, 0, 0, ${opacity})`,
-                    style: {
-                      borderRadius: 16,
-                    },
-                    barPercentage: 0.5,
-                    propsForLabels: {
-                      fontSize: 10,
-                    },
-                  }}
-                  style={{
-                    marginVertical: 8,
-                    borderRadius: 16,
-                  }}
                 />
               </View>
             </ScrollView>
