@@ -1,11 +1,13 @@
 import React, { useState } from 'react';
-import { View, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
 import { Text } from '../../components/typography/Text';
+
 import { ScreenContainer } from '../../components/layout/ScreenContainer';
 import { Card } from '../../components/ui/Card';
 import { ProgressIndicator } from '../../components/metrics/ProgressIndicator';
 import Colors from '../../constants/Colors';
 import { Stack } from 'expo-router';
+import { useFarmData } from '../../context/FarmDataContext';
 
 interface ProductionMetric {
   title: string;
@@ -13,53 +15,6 @@ interface ProductionMetric {
   target: number;
   unit: string;
 }
-
-const productionMetrics: ProductionMetric[] = [
-  {
-    title: 'Calf Crop %',
-    value: 85,
-    target: 95,
-    unit: '%',
-  },
-  {
-    title: 'Average Daily Gain (ADG)',
-    value: 1.25,
-    target: 1.5,
-    unit: 'kg/day',
-  },
-  {
-    title: 'Pre-weaning DLWG',
-    value: 0.8,
-    target: 1.0,
-    unit: 'kg/day',
-  },
-  {
-    title: 'Post-weaning DLWG',
-    value: 1.2,
-    target: 1.5,
-    unit: 'kg/day',
-  },
-  {
-    title: 'Calf Mortality Rate',
-    value: 5,
-    target: 3,
-    unit: '%',
-  },
-  {
-    title: 'Herd Mortality Rate',
-    value: 2,
-    target: 1,
-    unit: '%',
-  },
-  {
-    title: 'Weaning Rate',
-    value: 82,
-    target: 90,
-    unit: '%',
-  },
-];
-
-
 
 export default function ProductionScreen() {
   return (
@@ -75,7 +30,52 @@ export default function ProductionScreen() {
 }
 
 function ProductionContent() {
+  const { metrics } = useFarmData();
 
+  const productionMetrics: ProductionMetric[] = [
+    {
+      title: 'Calf Crop % (Weaning %)',
+      value: metrics.weaningPercentage,
+      target: 94,
+      unit: '%',
+    },
+    {
+      title: 'Average Daily Gain (ADG)',
+      value: metrics.adg.cattle,
+      target: 0.9, // target 0.9 - 1.13 kg/day
+      unit: 'kg/day',
+    },
+    {
+      title: 'Pre-weaning DLWG',
+      value: metrics.preWeaningDLWG,
+      target: 0.7, // target >0.7 kg/day
+      unit: 'kg/day',
+    },
+    {
+      title: 'Post-weaning DLWG',
+      value: metrics.postWeaningDLWG,
+      target: 0.9, // target >0.8-1.0 kg/day
+      unit: 'kg/day',
+    },
+    {
+      title: 'Pre-weaning Mortality Rate',
+      value: metrics.mortalityRates.preWeaning,
+      target: 5.0, // target <5%
+      unit: '%',
+    },
+    {
+      title: 'Herd Mortality Rate',
+      value: metrics.mortalityRates.herd,
+      target: 5.0, // target <5%
+      unit: '%',
+    },
+    {
+      title: 'Weaning Rate',
+      value: metrics.weaningRate,
+      target: 75, // target 70-80%
+      unit: '%',
+    },
+  ];
 
   const renderContent = () => (
     <>
@@ -92,10 +92,13 @@ function ProductionContent() {
 
   return (
     <ScreenContainer style={styles.container}>
-      {renderContent()}
+      <ScrollView showsVerticalScrollIndicator={false} style={{ flex: 1, paddingVertical: 16 }}>
+        {renderContent()}
+      </ScrollView>
     </ScreenContainer>
   );
 }
+
 
 interface ProductionMetricCardProps {
   metric: ProductionMetric;

@@ -1,10 +1,11 @@
-import React from 'react';
-import { View, StyleSheet, Image, TouchableOpacity, ScrollView } from 'react-native';
-import { Settings, LogOut, HelpCircle, Bell, User } from 'lucide-react-native';
+import { View, StyleSheet, TouchableOpacity, ScrollView, Alert, Platform } from 'react-native';
+import { Settings, LogOut, HelpCircle, Bell, User, ShieldCheck } from 'lucide-react-native';
 import { Text } from '../../components/typography/Text';
 import { ScreenContainer } from '../../components/layout/ScreenContainer';
 import Colors from '../../constants/Colors';
 import { Stack, router } from 'expo-router';
+import { useFarmData } from '../../context/FarmDataContext';
+import * as WebBrowser from 'expo-web-browser';
 
 export default function ProfileScreen() {
   return (
@@ -20,6 +21,41 @@ export default function ProfileScreen() {
 }
 
 function ProfileContent() {
+  const { profile, animals, logout } = useFarmData();
+
+  const handleLogout = () => {
+    const performLogout = async () => {
+      try {
+        await logout();
+        setTimeout(() => {
+          router.replace('/(auth)/login');
+        }, 100);
+      } catch (err) {
+        console.error("Logout execution error:", err);
+      }
+    };
+
+    if (Platform.OS === 'web') {
+      const confirmed = window.confirm('Are you sure you want to log out?');
+      if (confirmed) {
+        performLogout();
+      }
+    } else {
+      Alert.alert(
+        'Log Out',
+        'Are you sure you want to log out?',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Log Out',
+            style: 'destructive',
+            onPress: performLogout,
+          },
+        ]
+      );
+    }
+  };
+
   const menuItems = [
     {
       id: 'settings',
@@ -40,12 +76,22 @@ function ProfileContent() {
       route: '/screens/help',
     },
     {
+      id: 'privacy',
+      title: 'Privacy Policy',
+      icon: <ShieldCheck size={24} color={Colors.neutral[600]} />,
+      onPress: () => WebBrowser.openBrowserAsync('https://malmanyeza.github.io/Livestock-Management-System/'),
+    },
+    {
       id: 'logout',
       title: 'Log Out',
       icon: <LogOut size={24} color={Colors.error[500]} />,
       textColor: Colors.error[500],
+      onPress: handleLogout,
     },
   ];
+
+  const displayName = profile?.full_name || profile?.email || 'Farmer';
+  const roleLabel = profile?.role === 'admin' ? 'Administrator' : 'Farm Owner';
 
   return (
     <ScreenContainer style={styles.container}>
@@ -53,33 +99,43 @@ function ProfileContent() {
         <View style={styles.header}>
           <View style={styles.profileInfo}>
             <View style={styles.avatar}>
-              <User size={48} color={Colors.neutral[600]} />
+              {profile?.role === 'admin' ? (
+                <ShieldCheck size={48} color={Colors.primary[600]} />
+              ) : (
+                <User size={48} color={Colors.neutral[600]} />
+              )}
             </View>
             <View style={styles.nameContainer}>
               <Text variant="h4" weight="bold">
-                John Farmer
+                {displayName}
               </Text>
               <Text variant="body" color="neutral.500">
-                Farm Owner
+                {roleLabel}
               </Text>
+              {profile?.email && (
+                <Text variant="caption" color="neutral.400" style={{ marginTop: 4 }}>
+                  {profile.email}
+                </Text>
+              )}
             </View>
           </View>
 
           <View style={styles.statsContainer}>
             <View style={styles.statItem}>
               <Text variant="h4" weight="bold" color="primary.500">
-                247
+                {animals.length}
               </Text>
               <Text variant="caption" color="neutral.500">
                 Animals
               </Text>
             </View>
+            <View style={styles.statDivider} />
             <View style={styles.statItem}>
               <Text variant="h4" weight="bold" color="primary.500">
-                12
+                {profile?.role === 'admin' ? '👑' : '🌾'}
               </Text>
               <Text variant="caption" color="neutral.500">
-                Years
+                {profile?.role === 'admin' ? 'Admin' : 'Farmer'}
               </Text>
             </View>
           </View>
@@ -90,7 +146,7 @@ function ProfileContent() {
             <TouchableOpacity
               key={item.id}
               style={styles.menuItem}
-              onPress={() => item.route && router.push(item.route as any)}
+              onPress={item.onPress ?? (() => item.route && router.push(item.route as any))}
             >
               {item.icon}
               <Text
@@ -144,12 +200,19 @@ const styles = StyleSheet.create({
   statsContainer: {
     flexDirection: 'row',
     justifyContent: 'space-around',
+    alignItems: 'center',
     paddingTop: 16,
     borderTopWidth: 1,
     borderTopColor: Colors.neutral[100],
   },
   statItem: {
     alignItems: 'center',
+    flex: 1,
+  },
+  statDivider: {
+    width: 1,
+    height: 40,
+    backgroundColor: Colors.neutral[200],
   },
   menuContainer: {
     backgroundColor: Colors.white,

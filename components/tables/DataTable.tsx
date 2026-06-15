@@ -30,7 +30,7 @@ export function DataTable({ columns, data, emptyText = 'No data available', empt
                 key={column.key}
                 style={[
                   styles.headerCell,
-                  column.width ? { width: column.width } : {},
+                  column.width ? { width: column.width, minWidth: column.width, paddingHorizontal: 8 } : {},
                   column.align ? { justifyContent: getAlignment(column.align) } : {},
                 ]}
               >
@@ -51,7 +51,7 @@ export function DataTable({ columns, data, emptyText = 'No data available', empt
                       key={`${rowIndex}-${column.key}`}
                       style={[
                         styles.dataCell,
-                        column.width ? { width: column.width } : {},
+                        column.width ? { width: column.width, minWidth: column.width, paddingHorizontal: 8 } : {},
                         column.align ? { justifyContent: getAlignment(column.align) } : {},
                       ]}
                     >

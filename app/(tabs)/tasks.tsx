@@ -1,5 +1,5 @@
-import React, { useState, useCallback,useMemo } from 'react';
-import { View, StyleSheet, ScrollView, TouchableOpacity, FlatList } from 'react-native';
+import React, { useState, useCallback, useMemo } from 'react';
+import { View, StyleSheet, ScrollView, TouchableOpacity, FlatList, Modal, Pressable, KeyboardAvoidingView, Platform } from 'react-native';
 import { Calendar } from 'react-native-calendars';
 import { format, parseISO, isSameDay, isSameWeek, isSameMonth, isSameYear, addDays, subDays, addMonths, subMonths, addYears, subYears, startOfWeek, endOfWeek, eachDayOfInterval, getDay } from 'date-fns';
 import { Text } from '../../components/typography/Text';
@@ -10,95 +10,9 @@ import { Button } from '../../components/ui/Button';
 import { Plus, Check, X, CircleAlert as AlertCircle } from 'lucide-react-native';
 import Colors from '../../constants/Colors';
 import { Stack } from 'expo-router';
-
-interface Event {
-  id: string;
-  date: string;
-  type: string;
-  event: string;
-  tag: string;
-  diagnosis: string;
-  notes: string;
-  doneBy: string;
-  status: 'pending' | 'completed' | 'overdue';
-}
-
-interface Todo {
-  id: string;
-  date: string;
-  description: string;
-  status: 'pending' | 'completed' | 'overdue';
-  createdBy: string;
-  lastEdited: string;
-  priority: 'high' | 'medium' | 'low';
-}
-
-interface Observation {
-  id: string;
-  date: string;
-  tag: string;
-  observation: string;
-  observer: string;
-  severity: 'high' | 'medium' | 'low';
-}
-
-// Helper function to generate random dates within the next 30 days
-const getRandomDate = () => {
-  const randomDays = Math.floor(Math.random() * 30);
-  return format(addDays(new Date(), randomDays), 'yyyy-MM-dd');
-};
-
-// Sample data for farm events (5 random events)
-const farmEvents: Event[] = Array.from({ length: 5 }, (_, i) => ({
-  id: `fe-${i + 1}`,
-  date: getRandomDate(),
-  type: ['Vaccination', 'Treatment', 'Check-up', 'Breeding', 'Weaning'][Math.floor(Math.random() * 5)],
-  event: ['Vaccine A', 'Antibiotics', 'Deworming', 'Pregnancy Check', 'Hoof Trimming'][Math.floor(Math.random() * 5)],
-  tag: `#${Math.floor(100 + Math.random() * 900)}`,
-  diagnosis: ['Preventive', 'Infection', 'Routine', 'Injury', 'Nutritional'][Math.floor(Math.random() * 5)],
-  notes: ['First dose', 'Monitor closely', 'Follow up needed', 'All good', 'Needs attention'][Math.floor(Math.random() * 5)],
-  doneBy: ['John Doe', 'Jane Smith', 'Dr. Wilson', 'Farm Hand'][Math.floor(Math.random() * 4)],
-  status: ['pending', 'completed', 'overdue'][Math.floor(Math.random() * 3)] as 'pending' | 'completed' | 'overdue',
-}));
-
-// Sample data for todo list (8 random todos)
-const todoList: Todo[] = Array.from({ length: 8 }, (_, i) => ({
-  id: `td-${i + 1}`,
-  date: getRandomDate(),
-  description: [
-    'Clean the barn',
-    'Order more feed',
-    'Schedule vet visit',
-    'Fix broken fence',
-    'Check water supply',
-    'Vaccination reminder',
-    'Move herd to new pasture',
-    'Inspect equipment'
-  ][Math.floor(Math.random() * 8)],
-  status: ['pending', 'completed', 'overdue'][Math.floor(Math.random() * 3)] as 'pending' | 'completed' | 'overdue',
-  createdBy: ['John Doe', 'Jane Smith', 'Farm Manager'][Math.floor(Math.random() * 3)],
-  lastEdited: getRandomDate(),
-  priority: ['high', 'medium', 'low'][Math.floor(Math.random() * 3)] as 'high' | 'medium' | 'low',
-}));
-
-// Sample data for observations (6 random observations)
-const observations: Observation[] = Array.from({ length: 6 }, (_, i) => ({
-  id: `obs-${i + 1}`,
-  date: getRandomDate(),
-  tag: `#${Math.floor(100 + Math.random() * 900)}`,
-  observation: [
-    'Reduced appetite',
-    'Slight limp',
-    'Low egg production',
-    'Unusual behavior',
-    'Weight loss',
-    'Scratching post',
-    'Water intake low',
-    'Aggressive behavior'
-  ][Math.floor(Math.random() * 8)],
-  severity: ['high', 'medium', 'low'][Math.floor(Math.random() * 3)] as 'high' | 'medium' | 'low',
-  observer: ['John Doe', 'Jane Smith', 'Farm Hand', 'Dr. Wilson'][Math.floor(Math.random() * 4)],
-}));
+import { useFarmData, FarmEvent as Event, TodoTask as Todo, Observation } from '../../context/FarmDataContext';
+import { TextField } from '../../components/inputs/TextField';
+import { Picker } from '../../components/inputs/Picker';
 
 export default function TasksScreen() {
   return (
@@ -117,9 +31,111 @@ type ViewType = 'day' | 'week' | 'month' | 'year' | 'list';
 type CalendarEvent = Event | Todo | Observation;
 
 function TasksContent() {
+  const {
+    farmEvents,
+    todoList,
+    observations,
+    addFarmEvent,
+    addTodoTask,
+    addObservation,
+    toggleTodoStatus,
+  } = useFarmData();
+
   const [activeTab, setActiveTab] = useState<'events' | 'todo' | 'observations'>('events');
   const [viewType, setViewType] = useState<ViewType>('month');
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
+
+  // Modal & Form States
+  const [modalVisible, setModalVisible] = useState(false);
+  const [formError, setFormError] = useState('');
+
+  // Event Form States
+  const [eventType, setEventType] = useState('Vaccination');
+  const [eventName, setEventName] = useState('');
+  const [eventTag, setEventTag] = useState('');
+  const [eventDiagnosis, setEventDiagnosis] = useState('');
+  const [eventNotes, setEventNotes] = useState('');
+  const [eventDoneBy, setEventDoneBy] = useState('');
+
+  // Todo Form States
+  const [todoDesc, setTodoDesc] = useState('');
+  const [todoPriority, setTodoPriority] = useState<'high' | 'medium' | 'low'>('medium');
+  const [todoCreatedBy, setTodoCreatedBy] = useState('');
+
+  // Observation Form States
+  const [obsText, setObsText] = useState('');
+  const [obsTag, setObsTag] = useState('');
+  const [obsSeverity, setObsSeverity] = useState<'high' | 'medium' | 'low'>('medium');
+  const [obsObserver, setObsObserver] = useState('');
+
+  const handleSave = async () => {
+    setFormError('');
+    const dateStr = format(selectedDate, 'yyyy-MM-dd');
+
+    try {
+      if (activeTab === 'events') {
+        if (!eventName || !eventTag || !eventDoneBy) {
+          setFormError('Please fill out all required fields.');
+          return;
+        }
+        await addFarmEvent({
+          date: dateStr,
+          type: eventType,
+          event: eventName,
+          tag: eventTag,
+          diagnosis: eventDiagnosis || 'Routine',
+          notes: eventNotes || 'No notes',
+          doneBy: eventDoneBy,
+          status: 'pending',
+        });
+        // Reset
+        setEventName('');
+        setEventTag('');
+        setEventDiagnosis('');
+        setEventNotes('');
+        setEventDoneBy('');
+      } else if (activeTab === 'todo') {
+        if (!todoDesc || !todoCreatedBy) {
+          setFormError('Please fill out all required fields.');
+          return;
+        }
+        await addTodoTask({
+          date: dateStr,
+          description: todoDesc,
+          status: 'pending',
+          createdBy: todoCreatedBy,
+          lastEdited: dateStr,
+          priority: todoPriority,
+        });
+        // Reset
+        setTodoDesc('');
+        setTodoCreatedBy('');
+        setTodoPriority('medium');
+      } else if (activeTab === 'observations') {
+        if (!obsText || !obsTag || !obsObserver) {
+          setFormError('Please fill out all required fields.');
+          return;
+        }
+        await addObservation({
+          date: dateStr,
+          tag: obsTag,
+          observation: obsText,
+          severity: obsSeverity,
+          observer: obsObserver,
+        });
+        // Reset
+        setObsText('');
+        setObsTag('');
+        setObsObserver('');
+        setObsSeverity('medium');
+      }
+      setModalVisible(false);
+    } catch (err: any) {
+      console.error(err);
+      setFormError(err.message || 'Failed to save record.');
+    }
+  };
+
   const markedDates = useMemo(() => {
     const marked: { [date: string]: any } = {};
     
@@ -326,7 +342,7 @@ function TasksContent() {
             <Text variant="caption" color="neutral.600">{item.type} • {item.tag}</Text>
           </View>
           <View style={styles.eventTime}>
-            <Text variant="caption">{format(parseISO(item.date), 'h:mm a')}</Text>
+            <Text variant="caption">{format(parseISO(item.date), 'MMM d, yyyy')}</Text>
             {renderStatusBadge(item.status)}
           </View>
         </View>
@@ -334,17 +350,23 @@ function TasksContent() {
     } else if ('description' in item) {
       // Todo
       return (
-        <View style={styles.eventItem}>
+        <TouchableOpacity 
+          style={styles.eventItem} 
+          onPress={() => toggleTodoStatus(item.id, item.status)}
+          activeOpacity={0.7}
+        >
           <View style={[styles.eventDot, { backgroundColor: Colors.warning[500] }]} />
           <View style={styles.eventContent}>
-            <Text weight="medium">{item.description}</Text>
+            <Text weight="medium" style={item.status === 'completed' ? styles.completedText : undefined}>
+              {item.description}
+            </Text>
             <Text variant="caption" color="neutral.600">Priority: {item.priority}</Text>
           </View>
           <View style={styles.eventTime}>
-            <Text variant="caption">{format(parseISO(item.date), 'h:mm a')}</Text>
+            <Text variant="caption">{format(parseISO(item.date), 'MMM d, yyyy')}</Text>
             {renderStatusBadge(item.status)}
           </View>
-        </View>
+        </TouchableOpacity>
       );
     } else if ('observation' in item) {
       // Observation
@@ -356,7 +378,7 @@ function TasksContent() {
             <Text variant="caption" color="neutral.600">Tag: {item.tag}</Text>
           </View>
           <View style={styles.eventTime}>
-            <Text variant="caption">{format(parseISO(item.date), 'h:mm a')}</Text>
+            <Text variant="caption">{format(parseISO(item.date), 'MMM d, yyyy')}</Text>
             <View style={[
               styles.severityBadge,
               {
@@ -616,6 +638,7 @@ function TasksContent() {
             variant="primary"
             startIcon={<Plus size={20} color={Colors.white} />}
             style={styles.addButton}
+            onPress={() => setModalVisible(true)}
           >
             Add {activeTab === 'events' ? 'Event' : activeTab === 'todo' ? 'Task' : 'Observation'}
           </Button>
@@ -646,6 +669,166 @@ function TasksContent() {
           </View>
         )}
       </ScrollView>
+
+      <Modal
+        visible={modalVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setModalVisible(false)}
+      >
+        <Pressable 
+          style={styles.modalOverlay}
+          onPress={() => setModalVisible(false)}
+        >
+          <KeyboardAvoidingView 
+            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+            style={styles.modalContentWrapper}
+          >
+            <Pressable style={styles.modalContent} onPress={(e) => e.stopPropagation()}>
+              <View style={styles.modalHeader}>
+                <Text variant="h6" weight="medium">
+                  Add {activeTab === 'events' ? 'Event' : activeTab === 'todo' ? 'Task' : 'Observation'}
+                </Text>
+                <TouchableOpacity onPress={() => setModalVisible(false)}>
+                  <X size={20} color={Colors.neutral[500]} />
+                </TouchableOpacity>
+              </View>
+
+              <ScrollView contentContainerStyle={styles.formContainer}>
+                {formError ? (
+                  <View style={styles.errorBanner}>
+                    <Text variant="caption" color="error.600">{formError}</Text>
+                  </View>
+                ) : null}
+
+                {activeTab === 'events' && (
+                  <>
+                    <Picker
+                      label="Event Type"
+                      value={eventType}
+                      onValueChange={setEventType}
+                      items={[
+                        { label: 'Vaccination', value: 'Vaccination' },
+                        { label: 'Treatment', value: 'Treatment' },
+                        { label: 'Check-up', value: 'Check-up' },
+                        { label: 'Breeding', value: 'Breeding' },
+                        { label: 'Weaning', value: 'Weaning' },
+                      ]}
+                    />
+                    <TextField
+                      label="Event Name (Required)"
+                      value={eventName}
+                      onChangeText={setEventName}
+                      placeholder="e.g. Vaccine A, Antibiotics"
+                    />
+                    <TextField
+                      label="Animal Tag (Required)"
+                      value={eventTag}
+                      onChangeText={setEventTag}
+                      placeholder="e.g. #120"
+                    />
+                    <TextField
+                      label="Diagnosis"
+                      value={eventDiagnosis}
+                      onChangeText={setEventDiagnosis}
+                      placeholder="e.g. Preventive, Infection"
+                    />
+                    <TextField
+                      label="Notes"
+                      value={eventNotes}
+                      onChangeText={setEventNotes}
+                      placeholder="Any relevant notes"
+                    />
+                    <TextField
+                      label="Done By (Required)"
+                      value={eventDoneBy}
+                      onChangeText={setEventDoneBy}
+                      placeholder="e.g. Dr. Wilson, John Doe"
+                    />
+                  </>
+                )}
+
+                {activeTab === 'todo' && (
+                  <>
+                    <TextField
+                      label="Task Description (Required)"
+                      value={todoDesc}
+                      onChangeText={setTodoDesc}
+                      placeholder="e.g. Clean the barn, Order feed"
+                    />
+                    <Picker
+                      label="Priority"
+                      value={todoPriority}
+                      onValueChange={(val: any) => setTodoPriority(val)}
+                      items={[
+                        { label: 'High', value: 'high' },
+                        { label: 'Medium', value: 'medium' },
+                        { label: 'Low', value: 'low' },
+                      ]}
+                    />
+                    <TextField
+                      label="Created By (Required)"
+                      value={todoCreatedBy}
+                      onChangeText={setTodoCreatedBy}
+                      placeholder="e.g. Farm Manager"
+                    />
+                  </>
+                )}
+
+                {activeTab === 'observations' && (
+                  <>
+                    <TextField
+                      label="Observation (Required)"
+                      value={obsText}
+                      onChangeText={setObsText}
+                      placeholder="e.g. Reduced appetite, slight limp"
+                    />
+                    <TextField
+                      label="Animal Tag (Required)"
+                      value={obsTag}
+                      onChangeText={setObsTag}
+                      placeholder="e.g. #123"
+                    />
+                    <Picker
+                      label="Severity"
+                      value={obsSeverity}
+                      onValueChange={(val: any) => setObsSeverity(val)}
+                      items={[
+                        { label: 'High', value: 'high' },
+                        { label: 'Medium', value: 'medium' },
+                        { label: 'Low', value: 'low' },
+                      ]}
+                    />
+                    <TextField
+                      label="Observer (Required)"
+                      value={obsObserver}
+                      onChangeText={setObsObserver}
+                      placeholder="e.g. John Doe"
+                    />
+                  </>
+                )}
+              </ScrollView>
+
+              <View style={styles.modalFooter}>
+                <Button
+                  variant="outline"
+                  onPress={() => setModalVisible(false)}
+                  style={styles.footerButton}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  variant="primary"
+                  onPress={handleSave}
+                  style={styles.footerButton}
+                >
+                  Save
+                </Button>
+              </View>
+            </Pressable>
+          </KeyboardAvoidingView>
+        </Pressable>
+      </Modal>
     </ScreenContainer>
   );
 }
@@ -861,5 +1044,60 @@ const styles = StyleSheet.create({
   },
   observer: {
     fontStyle: 'italic',
+  },
+  completedText: {
+    textDecorationLine: 'line-through',
+    color: Colors.neutral[400],
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'flex-end',
+  },
+  modalContentWrapper: {
+    width: '100%',
+    maxHeight: '90%',
+  },
+  modalContent: {
+    backgroundColor: Colors.white,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    paddingBottom: Platform.OS === 'ios' ? 40 : 24,
+    shadowColor: Colors.black,
+    shadowOffset: { width: 0, height: -2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 10,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingBottom: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.neutral[100],
+    marginBottom: 16,
+  },
+  formContainer: {
+    paddingBottom: 16,
+  },
+  errorBanner: {
+    backgroundColor: Colors.error[50],
+    borderWidth: 1,
+    borderColor: Colors.error[200],
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 16,
+  },
+  modalFooter: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 16,
+    gap: 12,
+  },
+  footerButton: {
+    flex: 1,
   },
 });

@@ -53,14 +53,16 @@ export default function TabLayout() {
 const styles = StyleSheet.create({
   tabBar: {
     height: Platform.select({
-      android: 75, // Increased height for Android
-      default: 65,
+      ios: 90, // Substantially increased for iOS home indicators
+      android: 82, // Increased for Android screen bottom padding
+      default: 75,
     }),
     paddingBottom: Platform.select({
-      android: 12,
-      default: 8,
+      ios: 28, // Clear home indicator and lift labels
+      android: 18, // Lift labels for Android devices
+      default: 16,
     }),
-    paddingTop: 8,
+    paddingTop: 10,
     backgroundColor: Platform.select({
       ios: 'transparent',
       android: Colors.white,

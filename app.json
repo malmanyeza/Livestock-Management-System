@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "bolt-expo-nativewind",
-    "slug": "bolt-expo-nativewind",
+    "name": "Zvipfuwo",
+    "slug": "zvipfuwo",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
@@ -9,7 +9,11 @@
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.app.zvipfuwo",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "web": {
       "bundler": "metro",
@@ -28,12 +32,11 @@
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "c71c3a7e-1cce-4227-a818-e1c5ba67ffce"
+        "projectId": "212dcb8b-cdec-4335-ae6d-e969b174fb9c"
       }
     },
-    "owner": "malverneas",
     "android": {
-      "package": "com.malverneas.boltexponativewind"
+      "package": "com.app.zvipfuwo"
     }
   }
 }

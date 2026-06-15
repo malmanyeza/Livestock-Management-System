@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
-import { View, StyleSheet, TouchableOpacity, ScrollView, Dimensions, Platform, Text as RNText } from 'react-native';
+import { View, StyleSheet, TouchableOpacity, ScrollView, Dimensions, Platform, Text as RNText, Modal, TextInput } from 'react-native';
 
 import { router } from 'expo-router';
-import { Bell, Heart, Dna, Wheat, BarChart3, ClipboardList, FileEdit, ShoppingCart, Settings, User, TrendingUp } from 'lucide-react-native';
+import { Bell, Heart, Dna, Wheat, BarChart3, ClipboardList, FileEdit, ShoppingCart, Settings, User, TrendingUp, ShieldCheck, ChevronDown, Search, X, Check } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Text } from '../../components/typography/Text';
 import { ScreenContainer } from '../../components/layout/ScreenContainer';
@@ -10,6 +10,8 @@ import { Picker } from '../../components/inputs/Picker';
 import { Card } from '../../components/ui/Card';
 import Colors from '../../constants/Colors';
 import { ColorValue } from 'react-native';
+import { useFarmData } from '../../context/FarmDataContext';
+
 
 interface NavigationCard {
   id: string;
@@ -161,7 +163,7 @@ function CustomLineChart({ data, width, height }: { data: any; width: number; he
   return (
     <View style={{ width, height, flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', paddingHorizontal: 16, paddingBottom: 16 }}>
       {dataset.map((val: number, idx: number) => {
-        const barHeight = ((val - minVal) / (range || 1)) * (height - 60) + 10;
+        const barHeight = val > 0 ? ((val - minVal) / (range || 1)) * (height - 60) + 10 : 0;
         return (
           <View key={idx} style={{ alignItems: 'center', flex: 1 }}>
             <Text variant="caption" color="primary.500" style={{ fontSize: 9, marginBottom: 4, fontWeight: '600' }}>
@@ -186,7 +188,7 @@ function CustomBarChart({ data, width, height }: { data: any; width: number; hei
   return (
     <View style={{ width, height, flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-around', paddingHorizontal: 16, paddingBottom: 16 }}>
       {dataset.map((val: number, idx: number) => {
-        const barHeight = (val / maxVal) * (height - 60) + 10;
+        const barHeight = val > 0 ? (val / maxVal) * (height - 60) + 10 : 0;
         return (
           <View key={idx} style={{ alignItems: 'center', width: 55 }}>
             <Text variant="caption" color="secondary.500" style={{ fontSize: 10, marginBottom: 4, fontWeight: '600' }}>
@@ -204,6 +206,55 @@ function CustomBarChart({ data, width, height }: { data: any; width: number; hei
 }
 
 export default function HomeScreen() {
+  const { metrics, animals, profile, farmers, selectedFarmer, setSelectedFarmer, todoList } = useFarmData();
+  const currentDLShiftScore = metrics.scoreDLShift;
+  const isAdmin = profile?.role === 'admin';
+  const displayName = profile?.full_name || profile?.email || 'Farmer';
+  const viewingName = isAdmin && selectedFarmer
+    ? (selectedFarmer.full_name || selectedFarmer.email || 'Farmer')
+    : displayName;
+  const currentCategoryScores = [
+    metrics.scoreNutrition,
+    metrics.scoreRecords,
+    metrics.scoreGenetics,
+    metrics.scoreProduction,
+    metrics.scoreHealth
+  ];
+
+  const currentCategoryData = {
+    labels: ['Nutrition', 'Records', 'Genetics', 'Production', 'Health'],
+    datasets: [
+      {
+        data: currentCategoryScores,
+      },
+    ],
+  };
+
+  const targetUserId = isAdmin ? selectedFarmer?.id : profile?.id;
+  const isDemo = targetUserId === '76408c11-021a-4fdd-a17c-6b90065182b7';
+
+  const dynamicMonthlyData = {
+    ...dlshiftMonthlyData,
+    datasets: [
+      {
+        data: isDemo
+          ? [65, 72, 68, 75, 82, 78, 80, 85, 82, 78, 80, currentDLShiftScore]
+          : [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, currentDLShiftScore],
+      },
+    ],
+  };
+
+  const dynamicYearlyData = {
+    ...dlshiftYearlyData,
+    datasets: [
+      {
+        data: isDemo
+          ? [58, 65, 70, 72, 78, currentDLShiftScore]
+          : [0, 0, 0, 0, 0, currentDLShiftScore],
+      },
+    ],
+  };
+
   console.log("DEBUG - HomeScreen Components:");
   console.log("  Text:", typeof Text !== 'undefined' ? Text : 'UNDEFINED');
   console.log("  ScreenContainer:", typeof ScreenContainer !== 'undefined' ? ScreenContainer : 'UNDEFINED');
@@ -224,9 +275,40 @@ export default function HomeScreen() {
     }
   });
 
-  const [selectedSpecies, setSelectedSpecies] = useState<string>('beef-cattle');
+  const [selectedSpecies, setSelectedSpecies] = useState<string>('beef-production');
   const [activeSlide, setActiveSlide] = useState(0);
   const [timeframe, setTimeframe] = useState<'monthly' | 'yearly'>('monthly');
+  const [isFarmerModalVisible, setIsFarmerModalVisible] = useState(false);
+  const [farmerSearchQuery, setFarmerSearchQuery] = useState('');
+
+  const filteredFarmers = farmers.filter(f => {
+    const name = (f.full_name || '').toLowerCase();
+    const email = (f.email || '').toLowerCase();
+    const query = farmerSearchQuery.toLowerCase();
+    return name.includes(query) || email.includes(query);
+  });
+
+  const getFilteredAnimalsCount = () => {
+    if (selectedSpecies === 'beef-production') {
+      return animals.filter(a => a.stockType === 'Cow' || a.stockType === 'Heifer' || a.stockType === 'Bull' || a.stockType === 'Steer').length;
+    }
+    if (selectedSpecies === 'dairy-production') {
+      return animals.filter(a => a.stockType === 'Cow' || a.stockType === 'Heifer').length;
+    }
+    if (selectedSpecies === 'goats') {
+      return animals.filter(a => a.stockType === 'Goat').length;
+    }
+    if (selectedSpecies === 'pigs') {
+      return animals.filter(a => a.stockType === 'Pig').length;
+    }
+    if (selectedSpecies === 'sheep' || selectedSpecies === 'pen-fattening') {
+      return animals.filter(a => a.stockType === 'Sheep').length;
+    }
+    if (selectedSpecies === 'poultry') {
+      return animals.filter(a => a.stockType === 'Chicken').length;
+    }
+    return animals.length;
+  };
 
   const renderNavigationCard = ({ item }: { item: NavigationCard }) => (
     <TouchableOpacity
@@ -261,15 +343,17 @@ export default function HomeScreen() {
       <ScrollView showsVerticalScrollIndicator={false}>
         <View style={styles.header}>
           <View style={styles.userInfoContainer}>
-            <View style={styles.avatar}>
-              <User size={24} color={Colors.neutral[700]} />
+            <View style={[styles.avatar, isAdmin && { backgroundColor: Colors.primary[50] }]}>
+              {isAdmin
+                ? <ShieldCheck size={24} color={Colors.primary[600]} />
+                : <User size={24} color={Colors.neutral[700]} />}
             </View>
             <View style={styles.userTextContainer}>
               <Text variant="body2" color="neutral.600">
-                Welcome back,
+                {isAdmin ? '🛡️ Admin Portal' : 'Welcome back,'}
               </Text>
               <Text variant="h5" weight="bold">
-                John Farmer
+                {displayName}
               </Text>
             </View>
           </View>
@@ -281,6 +365,35 @@ export default function HomeScreen() {
           </View>
         </View>
 
+        {/* Admin Farmer Selector Panel */}
+        {isAdmin && (
+          <TouchableOpacity 
+            style={styles.adminBanner}
+            onPress={() => setIsFarmerModalVisible(true)}
+            activeOpacity={0.8}
+          >
+            <View style={styles.adminBannerLeft}>
+              <View style={styles.adminIndicator}>
+                <ShieldCheck size={16} color={Colors.primary[600]} />
+              </View>
+              <View style={{ marginLeft: 10 }}>
+                <Text variant="caption" color="neutral.500" weight="medium">
+                  ADMIN VIEWING PORTAL
+                </Text>
+                <Text variant="body" color="neutral.900" weight="bold">
+                  {viewingName}
+                </Text>
+              </View>
+            </View>
+            <View style={styles.adminBannerRight}>
+              <Text variant="caption" color="primary.600" weight="bold" style={{ marginRight: 4 }}>
+                Change
+              </Text>
+              <ChevronDown size={16} color={Colors.primary[600]} />
+            </View>
+          </TouchableOpacity>
+        )}
+
         <View style={styles.summaryContainer}>
           <LinearGradient
             colors={[Colors.primary[400], Colors.primary[600]]}
@@ -291,7 +404,7 @@ export default function HomeScreen() {
             <View style={styles.summaryContent}>
               <View>
                 <Text variant="h3" weight="bold" color="white">
-                  247 {speciesEmojis[selectedSpecies]}
+                  {getFilteredAnimalsCount()} {speciesEmojis[selectedSpecies] || '🐂'}
                 </Text>
                 <Text variant="body" color="white" style={{ opacity: 0.9 }}>
                   {species.find(s => s.value === selectedSpecies)?.label || 'Animals'}
@@ -299,7 +412,7 @@ export default function HomeScreen() {
               </View>
               <View>
                 <Text variant="h3" weight="bold" color="white">
-                  8
+                  {todoList.length}
                 </Text>
                 <Text variant="body" color="white" style={{ opacity: 0.9 }}>
                   Tasks Today
@@ -326,15 +439,17 @@ export default function HomeScreen() {
                 DLShift Score
               </Text>
               <Text variant="h3" weight="bold" color="primary.500" style={styles.dlshiftScore}>
-                {activeSlide === 0 ? '78' : averageCategoryScore}%
+                {currentDLShiftScore}%
               </Text>
             </View>
-            <View style={styles.dlshiftTrend}>
-              <TrendingUp size={20} color={Colors.success[500]} />
-              <Text variant="caption" color="success.500">
-                {activeSlide === 0 ? '+5% this month' : `+3% from last period`}
-              </Text>
-            </View>
+            {isDemo && (
+              <View style={styles.dlshiftTrend}>
+                <TrendingUp size={20} color={Colors.success[500]} />
+                <Text variant="caption" color="success.500">
+                  +5% this month
+                </Text>
+              </View>
+            )}
           </View>
           
           <View style={styles.timeframeSelector}>
@@ -371,7 +486,7 @@ export default function HomeScreen() {
             >
               <View key="line-chart" style={styles.chartContainer}>
                 <CustomLineChart
-                  data={timeframe === 'monthly' ? dlshiftMonthlyData : dlshiftYearlyData}
+                  data={timeframe === 'monthly' ? dynamicMonthlyData : dynamicYearlyData}
                   width={Dimensions.get('window').width - 70}
                   height={180}
                 />
@@ -379,12 +494,13 @@ export default function HomeScreen() {
               
               <View key="bar-chart" style={styles.chartContainer}>
                 <CustomBarChart
-                  data={categoryScores}
+                  data={currentCategoryData}
                   width={Dimensions.get('window').width - 100}
                   height={180}
                 />
               </View>
             </ScrollView>
+
             
             <View style={styles.paginationContainer}>
               {[0, 1].map((_, index) => (
@@ -408,6 +524,93 @@ export default function HomeScreen() {
           {navigationCards.map((item) => renderNavigationCard({ item }))}
         </View>
       </ScrollView>
+      {/* Farmer Selection Modal */}
+      <Modal
+        visible={isFarmerModalVisible}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => {
+          setIsFarmerModalVisible(false);
+          setFarmerSearchQuery('');
+        }}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text variant="h5" weight="bold" color="neutral.900">
+                Select Farmer Portal
+              </Text>
+              <TouchableOpacity onPress={() => {
+                setIsFarmerModalVisible(false);
+                setFarmerSearchQuery('');
+              }}>
+                <X size={20} color={Colors.neutral[600]} />
+              </TouchableOpacity>
+            </View>
+
+            {/* Search Input */}
+            <View style={styles.searchContainer}>
+              <Search size={18} color={Colors.neutral[400]} style={styles.searchIcon} />
+              <TextInput
+                style={styles.searchInput}
+                placeholder="Search farmers by name or email..."
+                placeholderTextColor={Colors.neutral[400]}
+                value={farmerSearchQuery}
+                onChangeText={setFarmerSearchQuery}
+                autoCapitalize="none"
+                autoCorrect={false}
+              />
+              {farmerSearchQuery.length > 0 && (
+                <TouchableOpacity onPress={() => setFarmerSearchQuery('')}>
+                  <X size={16} color={Colors.neutral[400]} />
+                </TouchableOpacity>
+              )}
+            </View>
+
+            {/* Scrollable list */}
+            <ScrollView style={styles.farmerList} showsVerticalScrollIndicator={false}>
+              {filteredFarmers.length === 0 ? (
+                <View style={styles.emptySearch}>
+                  <Text variant="body" color="neutral.500" align="center">
+                    No farmers found matching "{farmerSearchQuery}"
+                  </Text>
+                </View>
+              ) : (
+                filteredFarmers.map((f) => {
+                  const isSelected = selectedFarmer?.id === f.id;
+                  return (
+                    <TouchableOpacity
+                      key={f.id}
+                      style={[
+                        styles.farmerItem,
+                        isSelected && styles.farmerItemSelected
+                      ]}
+                      onPress={() => {
+                        setSelectedFarmer(f);
+                        setIsFarmerModalVisible(false);
+                        setFarmerSearchQuery('');
+                      }}
+                      activeOpacity={0.7}
+                    >
+                      <View style={styles.farmerItemInfo}>
+                        <Text variant="body" weight="bold" color={isSelected ? 'primary.600' : 'neutral.900'}>
+                          {f.full_name || 'Farmer'}
+                        </Text>
+                        <Text variant="caption" color="neutral.500">
+                          {f.email}
+                        </Text>
+                      </View>
+                      {isSelected && (
+                        <Check size={18} color={Colors.primary[600]} />
+                      )}
+                    </TouchableOpacity>
+                  );
+                })
+              )}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
     </ScreenContainer>
   );
 }
@@ -416,6 +619,106 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: Colors.neutral[50],
+  },
+  adminBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginHorizontal: 16,
+    marginBottom: 16,
+    backgroundColor: Colors.white,
+    borderRadius: 14,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderWidth: 1.5,
+    borderColor: Colors.primary[100],
+    shadowColor: Colors.primary[300],
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  adminBannerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  adminIndicator: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: Colors.primary[50],
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  adminBannerRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.primary[50],
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+  },
+  // Modal Styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: Colors.white,
+  },
+  modalContent: {
+    flex: 1,
+    backgroundColor: Colors.white,
+    paddingHorizontal: 24,
+    paddingTop: Platform.OS === 'ios' ? 60 : 40,
+    paddingBottom: Platform.OS === 'ios' ? 44 : 24,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  searchContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.neutral[50],
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    height: 48,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: Colors.neutral[200],
+  },
+  searchIcon: {
+    marginRight: 10,
+  },
+  searchInput: {
+    flex: 1,
+    height: '100%',
+    color: Colors.neutral[900],
+    fontSize: 15,
+    fontWeight: '500',
+  },
+  farmerList: {
+    marginBottom: 8,
+  },
+  emptySearch: {
+    paddingVertical: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  farmerItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.neutral[100],
+  },
+  farmerItemSelected: {
+    borderBottomColor: Colors.primary[100],
+  },
+  farmerItemInfo: {
+    flex: 1,
+    gap: 4,
   },
   header: {
     flexDirection: 'row',
