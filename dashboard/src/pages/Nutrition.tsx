@@ -305,7 +305,7 @@ export default function Nutrition() {
         <p className="font-semibold text-base mb-1" style={{ color: C.neutral900 }}>Nutrition Assessment</p>
         <p className="text-sm mb-4" style={{ color: C.neutral600 }}>Review your livestock's nutritional metrics and make adjustments as needed.</p>
         <div className="overflow-x-auto">
-          <table className="w-full data-table">
+          <table className="w-full data-table" style={{ minWidth: '850px' }}>
             <thead>
               <tr>
                 <th>Category</th>

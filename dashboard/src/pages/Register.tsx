@@ -110,9 +110,10 @@ interface ColDef {
 }
 
 function Table({ data, cols }: { data: any[]; cols: ColDef[] }) {
+  const minWidth = cols.length > 10 ? '1200px' : cols.length > 6 ? '900px' : '750px'
   return (
     <div className="overflow-x-auto">
-      <table className="w-full data-table">
+      <table className="w-full data-table" style={{ minWidth }}>
         <thead>
           <tr>
             {cols.map(c => (

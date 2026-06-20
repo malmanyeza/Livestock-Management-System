@@ -353,7 +353,7 @@ export default function Genetics() {
             </div>
           ) : (
             <div className="overflow-x-auto rounded-xl" style={{ border: `1px solid ${C.neutral200}` }}>
-              <table className="w-full data-table">
+              <table className="w-full data-table" style={{ minWidth: '750px' }}>
                 <thead>
                   <tr>
                     <th>Date</th>
