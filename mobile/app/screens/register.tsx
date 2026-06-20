@@ -9,7 +9,7 @@ import { Picker } from '../../components/inputs/Picker';
 import { DataTable } from '../../components/tables/DataTable';
 import { PieChart } from '../../components/charts/PieChart';
 import Colors from '../../constants/Colors';
-import { Stack, useRouter } from 'expo-router';
+import { Stack, useRouter, useLocalSearchParams } from 'expo-router';
 import { useFarmData } from '../../context/FarmDataContext';
 
 
@@ -364,6 +364,7 @@ export default function RegisterScreen() {
 }
 
 function RegisterContent() {
+  const { tab } = useLocalSearchParams<{ tab?: string }>();
   const {
     animals,
     healthRecords: ctxHealthRecords,
@@ -908,7 +909,13 @@ function RegisterContent() {
       color: colorsMap[name] || chartColors[index % chartColors.length]
     }));
   }, [aliveAnimals, selectedBreed, selectedSource]);
-  const [activeTab, setActiveTab] = useState('overview');
+  const [activeTab, setActiveTab] = useState(tab || 'overview');
+
+  useEffect(() => {
+    if (tab) {
+      setActiveTab(tab);
+    }
+  }, [tab]);
   const [isAddModalVisible, setIsAddModalVisible] = useState(false);
   const [isAddHealthRecordModalVisible, setIsAddHealthRecordModalVisible] = useState(false);
   const [isAddBreedingRecordModalVisible, setIsAddBreedingRecordModalVisible] = useState(false);

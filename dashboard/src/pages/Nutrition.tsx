@@ -368,7 +368,7 @@ export default function Nutrition() {
             <p className="text-sm mb-3" style={{ color: C.neutral600 }}>
               Track and manage your feed inventory, monitor consumption rates, and plan feed requirements.
             </p>
-            <button onClick={() => navigate('/register')}
+            <button onClick={() => navigate('/register?tab=feed')}
               className="flex items-center gap-1.5 font-semibold text-sm"
               style={{ color: C.primary500 }}>
               View Inventory

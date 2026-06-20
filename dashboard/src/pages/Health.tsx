@@ -392,7 +392,7 @@ export default function Health() {
             <Activity size={24} style={{ color: C.primary500 }} />
             <span className="font-semibold text-base" style={{ color: C.neutral900 }}>Animal Health Records</span>
           </div>
-          <button onClick={() => navigate('/register')}
+          <button onClick={() => navigate('/register?tab=health')}
             className="flex items-center gap-1 text-sm font-semibold"
             style={{ color: C.primary500 }}>
             View Records

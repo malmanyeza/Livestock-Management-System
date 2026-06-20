@@ -496,7 +496,7 @@ function NutritionContent() {
           </Text>
           <TouchableOpacity 
             style={[styles.inventoryButton, { marginTop: 12, justifyContent: 'center' }]}
-            onPress={() => router.push('/(tabs)/tasks')}
+            onPress={() => router.push('/screens/register?tab=feed')}
           >
             <Text variant="button" color="primary.500" style={{ marginRight: 6 }}>View Inventory</Text>
             <ArrowRight size={20} color={Colors.primary[500]} />

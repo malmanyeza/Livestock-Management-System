@@ -713,7 +713,7 @@ function HealthContent() {
             </View>
             <TouchableOpacity 
               style={styles.inventoryButton}
-              onPress={() => router.push('./register')}
+              onPress={() => router.push('/screens/register?tab=health')}
             >
               <Text variant="button" color="primary.500">View Records</Text>
               <ArrowRight size={20} color={Colors.primary[500]} />

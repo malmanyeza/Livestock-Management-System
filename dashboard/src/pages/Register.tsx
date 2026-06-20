@@ -2,8 +2,9 @@ import { useEffect, useState, useMemo } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import {
-  Plus, Search, X, Database, ClipboardList, Heart, Dna, ShieldAlert, Scale, ChevronDown
+  Plus, Search, X, Database, ClipboardList, Heart, Dna, ShieldAlert, Scale, ChevronDown, Package
 } from 'lucide-react'
+import { useSearchParams } from 'react-router-dom'
 
 // ─── Color constants ──────────────────────────────────────────────────────────
 const C = {
@@ -18,7 +19,7 @@ const C = {
   neutral700: '#343A40', neutral900: '#121416', white: '#FFFFFF',
 }
 
-type Tab = 'herd' | 'drugs' | 'health' | 'breeding' | 'mortality' | 'weight'
+type Tab = 'herd' | 'drugs' | 'health' | 'breeding' | 'mortality' | 'weight' | 'feed'
 
 const TABS: { key: Tab; label: string; icon: any }[] = [
   { key: 'herd',      label: 'Herd Register',   icon: Database },
@@ -27,6 +28,7 @@ const TABS: { key: Tab; label: string; icon: any }[] = [
   { key: 'breeding',  label: 'Breeding Logs',   icon: Dna },
   { key: 'mortality', label: 'Mortality Logs',  icon: ShieldAlert },
   { key: 'weight',    label: 'Weight Logs',     icon: Scale },
+  { key: 'feed',      label: 'Feed Inventory',  icon: Package },
 ]
 
 // Badge helpers
@@ -295,7 +297,9 @@ function AddMortalityModal({ animals, onClose, onSave }: { animals: any[]; onClo
 // ─── Main Component ───────────────────────────────────────────────────────────
 export default function Register() {
   const { session, targetUserId } = useAuth()
-  const [activeTab, setActiveTab]   = useState<Tab>('herd')
+  const [searchParams] = useSearchParams()
+  const tabParam = searchParams.get('tab') as Tab
+  const [activeTab, setActiveTab]   = useState<Tab>(tabParam || 'herd')
   const [search, setSearch]         = useState('')
   const [loading, setLoading]       = useState(true)
 
@@ -306,6 +310,13 @@ export default function Register() {
   const [breedingRecords, setBreeding]  = useState<any[]>([])
   const [mortalityRecords, setMortality]= useState<any[]>([])
   const [weightRecords, setWeights]     = useState<any[]>([])
+  const [feedInventory, setFeedInventory] = useState<any[]>([])
+
+  useEffect(() => {
+    if (tabParam && TABS.some(t => t.key === tabParam)) {
+      setActiveTab(tabParam)
+    }
+  }, [tabParam])
 
   // Modal state
   const [showAddDrug, setShowAddDrug]           = useState(false)
@@ -321,13 +332,15 @@ export default function Register() {
       supabase.from('breeding_records').select('*').eq('user_id', targetUserId).order('heat_detection_date', { ascending: false }),
       supabase.from('mortality_records').select('*').eq('user_id', targetUserId).order('date', { ascending: false }),
       supabase.from('animal_weights').select('*').eq('user_id', targetUserId).order('animal_tag'),
-    ]).then(([a, d, h, b, m, w]) => {
+      supabase.from('feed_inventory').select('*').eq('user_id', targetUserId).order('name'),
+    ]).then(([a, d, h, b, m, w, f]) => {
       setAnimals(a.data ?? [])
       setDrugs(d.data ?? [])
       setHealthRecords(h.data ?? [])
       setBreeding(b.data ?? [])
       setMortality(m.data ?? [])
       setWeights(w.data ?? [])
+      setFeedInventory(f.data ?? [])
       setLoading(false)
     })
   }, [targetUserId])
@@ -340,6 +353,7 @@ export default function Register() {
   const filteredBreeding = breedingRecords.filter(r => !q || r.ear_tag_number?.toLowerCase().includes(q))
   const filteredMortality= mortalityRecords.filter(r => !q || r.animal_tag?.toLowerCase().includes(q) || r.cause?.toLowerCase().includes(q))
   const filteredWeights  = weightRecords.filter(r => !q || r.animal_tag?.toLowerCase().includes(q))
+  const filteredFeed     = feedInventory.filter(f => !q || f.name?.toLowerCase().includes(q) || f.type?.toLowerCase().includes(q) || f.supplier?.toLowerCase().includes(q))
 
   // Herd stats
   const herdTotals = useMemo(() => ({
@@ -546,6 +560,23 @@ export default function Register() {
                   render: (v: any) => v ? <span className="font-bold text-neutral-800">{v}</span> : <span style={{ color: C.neutral300 }}>—</span>,
                   align: 'center' as const
                 }))
+              ]} />
+            </>
+          )}
+
+          {/* FEED INVENTORY */}
+          {activeTab === 'feed' && (
+            <>
+              <div className="px-6 py-4 border-b font-bold text-sm bg-neutral-50/50" style={{ borderColor: C.neutral100, color: C.neutral900 }}>
+                Feed Inventory ({filteredFeed.length})
+              </div>
+              <Table data={filteredFeed} cols={[
+                { key: 'name',         label: 'Feed Name', render: (v) => <span className="font-semibold text-neutral-800">{v}</span> },
+                { key: 'type',         label: 'Type' },
+                { key: 'quantity',     label: 'Quantity', render: (v, row) => <span>{v} {row.unit}</span> },
+                { key: 'supplier',     label: 'Supplier' },
+                { key: 'last_updated', label: 'Last Updated', render: (v) => v ? <span>{new Date(v).toLocaleDateString()}</span> : '—' },
+                { key: 'status',       label: 'Status', render: statusBadge, align: 'center' },
               ]} />
             </>
           )}
