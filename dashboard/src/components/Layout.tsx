@@ -4,7 +4,7 @@ import {
   FileEdit, ShoppingCart, Settings, User, Menu, X, ShieldCheck, LogOut,
   Search, Check, ChevronDown
 } from 'lucide-react'
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { useAuth } from '../context/AuthContext'
 
 const NAV = [
@@ -38,11 +38,23 @@ const C = {
 }
 
 export default function Layout({ children }: { children: React.ReactNode }) {
-  const [sidebarOpen, setSidebarOpen] = useState(true)
+  const [sidebarOpen, setSidebarOpen] = useState(() => typeof window !== 'undefined' && window.innerWidth >= 1024)
   const {
     signOut, session, profile, farmers, selectedFarmer, setSelectedFarmer,
     farmerModalOpen, setFarmerModalOpen
   } = useAuth()
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const handleResize = () => {
+      // Auto-collapse sidebar on screens smaller than 1024px (e.g. iPad landscape/portrait)
+      setSidebarOpen(window.innerWidth >= 1024)
+    }
+    // Set initial on mount
+    handleResize()
+    window.addEventListener('resize', handleResize)
+    return () => window.removeEventListener('resize', handleResize)
+  }, [])
   const location = useLocation()
   const isAdmin = profile?.role === 'admin'
 

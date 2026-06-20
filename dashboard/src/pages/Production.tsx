@@ -192,15 +192,17 @@ export default function Production() {
   )
 
   return (
-    <div className="space-y-5 max-w-3xl mx-auto">
+    <div className="space-y-5 max-w-4xl mx-auto">
       <div>
         <h2 className="text-xl font-bold" style={{ color: C.neutral900 }}>Production Metrics</h2>
       </div>
 
-      {/* Metric cards — same layout as mobile */}
-      {productionMetrics.map(m => (
-        <ProductionMetricCard key={m.key} metric={m} isAdmin onEdit={() => openEdit(m)} />
-      ))}
+      {/* Metric cards — responsive grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {productionMetrics.map(m => (
+          <ProductionMetricCard key={m.key} metric={m} isAdmin onEdit={() => openEdit(m)} />
+        ))}
+      </div>
 
       {/* Per-metric target edit modal — same as mobile */}
       {editingKey && editingMetric && (

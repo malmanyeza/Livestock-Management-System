@@ -215,7 +215,7 @@ export default function Genetics() {
   )
 
   return (
-    <div className="space-y-5 max-w-3xl mx-auto">
+    <div className="space-y-5 max-w-4xl mx-auto">
       <div>
         <h2 className="text-xl font-bold" style={{ color: C.neutral900 }}>Genetics &amp; Production</h2>
         <p className="text-sm mt-0.5" style={{ color: C.neutral500 }}>Herd composition, breeding, and pregnancy statistics</p>
@@ -236,7 +236,7 @@ export default function Genetics() {
 
       {/* ── BREEDING (herds) tab ────────────────────────────────────────────── */}
       {activeTab === 'herds' && (
-        <>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-start">
           {/* Herd Composition card */}
           <div className="card">
             <p className="font-semibold text-base mb-4" style={{ color: C.neutral900 }}>Herd Composition</p>
@@ -274,7 +274,7 @@ export default function Genetics() {
               ))}
             </div>
           </div>
-        </>
+        </div>
       )}
 
       {/* ── BREEDS tab ─────────────────────────────────────────────────────── */}

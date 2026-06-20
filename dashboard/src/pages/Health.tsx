@@ -317,7 +317,7 @@ export default function Health() {
   )
 
   return (
-    <div className="space-y-5 max-w-3xl mx-auto">
+    <div className="space-y-5 max-w-4xl mx-auto">
       {/* Page header */}
       <div className="flex items-center justify-between">
         <div>
@@ -328,59 +328,61 @@ export default function Health() {
         </div>
       </div>
 
-      {/* Metric cards — exact mobile layout */}
-      {metrics.map(metric => {
-        const lastDate = assessmentDates[metric.title]
-        const assessed = metric.score > 0
-        return (
-          <div key={metric.title} className="card"
-            style={{ borderColor: metric.borderColor, borderWidth: 1 }}>
-
-            {/* Card header: title + pass/fail icon */}
-            <div className="flex items-center justify-between mb-1">
-              <span className="font-bold text-base" style={{ color: C.neutral900 }}>{metric.title}</span>
-              {assessed
-                ? metric.passed
-                  ? <CheckCircle2 size={24} style={{ color: C.success500 }} />
-                  : <XCircle size={24} style={{ color: C.error500 }} />
-                : <XCircle size={24} style={{ color: C.neutral300 }} />
-              }
-            </div>
-
-            {/* Last analysis row */}
-            <p className="text-xs mb-4"
-              style={{ color: assessed ? C.neutral500 : C.warning600, fontStyle: assessed ? 'normal' : 'italic' }}>
-              {assessed
-                ? `Last analyzed: ${lastDate || globalDate || 'Previously recorded'}`
-                : '⚠️ Analysis not yet performed'}
-            </p>
-
-            {/* Score + progress bar */}
-            <div className="flex items-center gap-4 mb-3">
-              <div className="text-center">
-                <p className="text-3xl font-bold" style={{ color: metric.color }}>{metric.score.toFixed(1)}</p>
-                <p className="text-xs" style={{ color: C.neutral500 }}>Score</p>
+      {/* Metric cards — responsive grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {metrics.map(metric => {
+          const lastDate = assessmentDates[metric.title]
+          const assessed = metric.score > 0
+          return (
+            <div key={metric.title} className="card"
+              style={{ borderColor: metric.borderColor, borderWidth: 1 }}>
+  
+              {/* Card header: title + pass/fail icon */}
+              <div className="flex items-center justify-between mb-1">
+                <span className="font-bold text-base" style={{ color: C.neutral900 }}>{metric.title}</span>
+                {assessed
+                  ? metric.passed
+                    ? <CheckCircle2 size={24} style={{ color: C.success500 }} />
+                    : <XCircle size={24} style={{ color: C.error500 }} />
+                  : <XCircle size={24} style={{ color: C.neutral300 }} />
+                }
               </div>
-              <div className="flex-1">
-                <div className="h-3 rounded-full mb-1" style={{ backgroundColor: C.neutral100 }}>
-                  <div className="h-3 rounded-full transition-all duration-500"
-                    style={{ width: `${metric.percentage}%`, backgroundColor: metric.color }} />
+  
+              {/* Last analysis row */}
+              <p className="text-xs mb-4"
+                style={{ color: assessed ? C.neutral500 : C.warning600, fontStyle: assessed ? 'normal' : 'italic' }}>
+                {assessed
+                  ? `Last analyzed: ${lastDate || globalDate || 'Previously recorded'}`
+                  : '⚠️ Analysis not yet performed'}
+              </p>
+  
+              {/* Score + progress bar */}
+              <div className="flex items-center gap-4 mb-3">
+                <div className="text-center">
+                  <p className="text-3xl font-bold" style={{ color: metric.color }}>{metric.score.toFixed(1)}</p>
+                  <p className="text-xs" style={{ color: C.neutral500 }}>Score</p>
                 </div>
-                <p className="text-xs text-right" style={{ color: C.neutral500 }}>{metric.percentage}%</p>
+                <div className="flex-1">
+                  <div className="h-3 rounded-full mb-1" style={{ backgroundColor: C.neutral100 }}>
+                    <div className="h-3 rounded-full transition-all duration-500"
+                      style={{ width: `${metric.percentage}%`, backgroundColor: metric.color }} />
+                  </div>
+                  <p className="text-xs text-right" style={{ color: C.neutral500 }}>{metric.percentage}%</p>
+                </div>
+              </div>
+  
+              {/* Assess button — matches mobile cardAssessButton */}
+              <div className="pt-3 border-t" style={{ borderColor: C.neutral100 }}>
+                <button onClick={() => openAssess(metric)}
+                  className="text-sm font-semibold transition-colors"
+                  style={{ color: C.primary500 }}>
+                  {metric.assessLabel}
+                </button>
               </div>
             </div>
-
-            {/* Assess button — matches mobile cardAssessButton */}
-            <div className="pt-3 border-t" style={{ borderColor: C.neutral100 }}>
-              <button onClick={() => openAssess(metric)}
-                className="text-sm font-semibold transition-colors"
-                style={{ color: C.primary500 }}>
-                {metric.assessLabel}
-              </button>
-            </div>
-          </div>
-        )
-      })}
+          )
+        })}
+      </div>
 
       {/* Animal Health Records navigation card — matches mobile */}
       <div className="card"
