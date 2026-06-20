@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Help & Support | Zvipfuwo</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@500;700;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-color: #f8fafc;
+            --card-bg: #ffffff;
+            --border-color: #e2e8f0;
+            --text-main: #0f172a;
+            --text-muted: #64748b;
+            --primary: #10b981;
+            --primary-hover: #059669;
+            --primary-light: rgba(16, 185, 129, 0.08);
+            --shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05);
+        }
+        [data-theme="dark"] {
+            --bg-color: #0b0f19;
+            --card-bg: #111827;
+            --border-color: #1f2937;
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+            --primary: #34d399;
+            --primary-hover: #10b981;
+            --primary-light: rgba(52, 211, 153, 0.12);
+            --shadow: 0 20px 30px -10px rgba(0, 0, 0, 0.3);
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; transition: background-color 0.2s, border-color 0.2s, color 0.2s; }
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            line-height: 1.6;
+            padding: 40px 20px;
+        }
+        .container { max-width: 800px; margin: 0 auto; }
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 40px;
+        }
+        .logo {
+            font-family: 'Outfit', sans-serif;
+            font-size: 28px;
+            font-weight: 800;
+            color: var(--text-main);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .logo span { color: var(--primary); }
+        .theme-btn {
+            background-color: var(--card-bg);
+            border: 1px solid var(--border-color);
+            color: var(--text-main);
+            padding: 8px 16px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 500;
+            box-shadow: var(--shadow);
+        }
+        .theme-btn:hover { border-color: var(--primary); background-color: var(--primary-light); }
+        .hero {
+            background-color: var(--card-bg);
+            border: 1px solid var(--border-color);
+            padding: 40px;
+            border-radius: 16px;
+            margin-bottom: 30px;
+            box-shadow: var(--shadow);
+            text-align: center;
+        }
+        .hero h1 { font-family: 'Outfit', sans-serif; font-size: 36px; margin-bottom: 8px; }
+        .hero p { color: var(--text-muted); font-size: 16px; }
+        .section {
+            background-color: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            padding: 30px;
+            margin-bottom: 20px;
+            box-shadow: var(--shadow);
+        }
+        .section h2 {
+            font-family: 'Outfit', sans-serif;
+            font-size: 22px;
+            margin-bottom: 15px;
+            color: var(--text-main);
+            border-bottom: 2px solid var(--primary-light);
+            padding-bottom: 8px;
+        }
+        .section p { margin-bottom: 12px; color: var(--text-muted); font-size: 15px; }
+        .contact-details {
+            background-color: var(--primary-light);
+            border-left: 4px solid var(--primary);
+            padding: 20px;
+            border-radius: 0 8px 8px 0;
+            margin-top: 20px;
+        }
+        .contact-details h4 { color: var(--primary); margin-bottom: 6px; }
+        .contact-details a { color: var(--primary); text-decoration: none; font-weight: 600; }
+        .contact-details a:hover { text-decoration: underline; }
+        .faq-item {
+            border-bottom: 1px solid var(--border-color);
+            padding: 15px 0;
+        }
+        .faq-item:last-child { border-bottom: none; }
+        .faq-question {
+            font-weight: 600;
+            font-size: 16px;
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .faq-answer {
+            display: none;
+            margin-top: 10px;
+            color: var(--text-muted);
+            font-size: 14px;
+        }
+        .faq-item.active .faq-answer { display: block; }
+        .faq-item.active .faq-question { color: var(--primary); }
+        footer {
+            text-align: center;
+            margin-top: 50px;
+            color: var(--text-muted);
+            font-size: 14px;
+            border-top: 1px solid var(--border-color);
+            padding-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <div class="logo">Zvipfuwo<span>.</span></div>
+            <button class="theme-btn" id="themeToggle">Toggle Mode</button>
+        </header>
+
+        <div class="hero">
+            <h1>Help & Support</h1>
+            <p>Need assistance with Zvipfuwo? Find guides, FAQs, and contact information below.</p>
+        </div>
+
+        <div class="section">
+            <h2>Frequently Asked Questions</h2>
+            <div class="faq-item">
+                <div class="faq-question">How do I create a Zvipfuwo account? <span>+</span></div>
+                <div class="faq-answer">
+                    Download the app and navigate to the Sign Up screen. Provide your name, email, and choose a strong password. You will immediately be set up with a secure farmer profile.
+                </div>
+            </div>
+            <div class="faq-item">
+                <div class="faq-question">Is my livestock data secure? <span>+</span></div>
+                <div class="faq-answer">
+                    Yes, absolutely. Zvipfuwo uses PostgreSQL Row-Level Security (RLS) to isolate your farm database records. Your animals, treatments, and transaction histories can only be accessed by you.
+                </div>
+            </div>
+            <div class="faq-item">
+                <div class="faq-question">Does the app require internet to run? <span>+</span></div>
+                <div class="faq-answer">
+                    Yes, Zvipfuwo requires an internet connection to securely synchronize your data with the cloud database. If connection is lost, the app will advise you of the offline status.
+                </div>
+            </div>
+            <div class="faq-item">
+                <div class="faq-question">How can I delete my data? <span>+</span></div>
+                <div class="faq-answer">
+                    You can request account deletion by contacting support. Deleting your account will trigger a complete cascade, permanently erasing your profile and all associated livestock records from our databases.
+                </div>
+            </div>
+        </div>
+
+        <div class="section">
+            <h2>Get in Touch</h2>
+            <p>Our support team is happy to assist you with bugs, feature requests, or queries regarding data management.</p>
+            <div class="contact-details">
+                <h4>Support Contact Details</h4>
+                <p>Email: <a href="mailto:support@zvipfuwo.co.zw">support@zvipfuwo.co.zw</a></p>
+                <p>GitHub Repo: <a href="https://github.com/malmanyeza/Livestock-Management-System" target="_blank">malmanyeza/Livestock-Management-System</a></p>
+            </div>
+        </div>
+
+        <footer>
+            <p>&copy; 2026 Zvipfuwo. All rights reserved.</p>
+        </footer>
+    </div>
+
+    <script>
+        // Theme Toggle
+        const themeToggle = document.getElementById('themeToggle');
+        themeToggle.addEventListener('click', () => {
+            const currentTheme = document.documentElement.getAttribute('data-theme');
+            document.documentElement.setAttribute('data-theme', currentTheme === 'dark' ? 'light' : 'dark');
+        });
+
+        // FAQ Toggle
+        document.querySelectorAll('.faq-question').forEach(q => {
+            q.addEventListener('click', () => {
+                const item = q.parentElement;
+                item.classList.toggle('active');
+                const span = q.querySelector('span');
+                span.textContent = item.classList.contains('active') ? '-' : '+';
+            });
+        });
+    </script>
+</body>
+</html>
