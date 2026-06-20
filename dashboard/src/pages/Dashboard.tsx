@@ -339,6 +339,7 @@ export default function Dashboard() {
       const scoreNutrition = nutritionCount > 0 ? Math.round((adgPts + fcrPts + bcsPts + subjNutrition) / nutritionCount) : (isDemo ? 85 : 0)
 
       // 2. GENETICS
+      const hasBreeding = mappedBreeding.length > 0 || isDemo
       const conceptionPts = !hasBreeding ? 0 : (repro.conceptionRate >= 65 ? 100 : (repro.conceptionRate / 65) * 100)
       const calvingPts = !hasBreeding ? 0 : (repro.calvingPercentage >= 95 ? 100 : 80)
       const subjGenetics = (!farmInspection || farmInspection.overallGeneticReproductivePerformance === 0) ? 0 : ((farmInspection.overallGeneticReproductivePerformance || 0) + (farmInspection.overallGeneticQuality || 0)) / 10 * 100
