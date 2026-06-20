@@ -32,11 +32,13 @@ export default function Login() {
       <div className="w-full max-w-sm">
         {/* Logo block */}
         <div className="flex flex-col items-center mb-8">
-          <div className="w-20 h-20 rounded-3xl flex items-center justify-center mb-4"
-            style={{ background: 'linear-gradient(135deg, #92CC4E, #4C7327)', boxShadow: '0 8px 24px rgba(122,193,66,0.3)' }}>
-            <ShieldCheck size={36} color="#fff" />
-          </div>
-          <h1 className="text-2xl font-bold" style={{ color: '#121416' }}>Livestock Management</h1>
+          <img
+            src={`${import.meta.env.BASE_URL}logo.jpg`}
+            className="w-20 h-20 rounded-3xl object-cover mb-4"
+            style={{ boxShadow: '0 8px 24px rgba(122,193,66,0.3)' }}
+            alt="Zvipfuwo Logo"
+          />
+          <h1 className="text-2xl font-bold" style={{ color: '#121416' }}>Zvipfuwo</h1>
           <p className="text-sm mt-1" style={{ color: '#6C757D' }}>Sign in to your admin dashboard</p>
         </div>
 

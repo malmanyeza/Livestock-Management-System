@@ -79,13 +79,14 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       >
         {/* Logo */}
         <div className="flex items-center gap-3 px-4 py-5 border-b" style={{ borderColor: '#E9ECEF' }}>
-          <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
-            style={{ background: 'linear-gradient(135deg, #92CC4E, #4C7327)' }}>
-            <ShieldCheck size={18} color="#fff" />
-          </div>
+          <img
+            src={`${import.meta.env.BASE_URL}logo.jpg`}
+            className="w-9 h-9 rounded-xl object-cover flex-shrink-0"
+            alt="Zvipfuwo Logo"
+          />
           {sidebarOpen && (
             <div className="overflow-hidden">
-              <p className="text-sm font-bold truncate" style={{ color: '#121416' }}>Livestock Mgmt</p>
+              <p className="text-sm font-bold truncate" style={{ color: '#121416' }}>Zvipfuwo</p>
               <p className="text-xs truncate" style={{ color: '#6C757D' }}>Web Dashboard</p>
             </div>
           )}
@@ -156,7 +157,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
               <h1 className="text-base font-bold" style={{ color: '#121416' }}>
                 {activeNav?.label ?? 'Dashboard'}
               </h1>
-              <p className="text-xs" style={{ color: '#6C757D' }}>Livestock Management System</p>
+              <p className="text-xs" style={{ color: '#6C757D' }}>Zvipfuwo Livestock Management System</p>
             </div>
           </div>
 
