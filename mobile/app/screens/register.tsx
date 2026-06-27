@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { View, StyleSheet, ScrollView, Dimensions, Modal, TextInput, TouchableOpacity, Platform, KeyboardAvoidingView } from 'react-native';
+import { View, StyleSheet, ScrollView, Dimensions, Modal, TextInput, TouchableOpacity, Platform, KeyboardAvoidingView, Alert, TouchableWithoutFeedback } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
+import { Calendar } from 'react-native-calendars';
 import { Text } from '../../components/typography/Text';
 import { Card } from '../../components/ui/Card';
 import { ScreenContainer } from '../../components/layout/ScreenContainer';
@@ -73,13 +74,15 @@ interface AnimalHealthRecord {
   date: string;
   treatment: string;
   status: 'Completed' | 'Scheduled' | 'Pending';
+  specialNotes?: string;
+  doneBy?: string;
 }
 
 // Heat Detection and Breeding Record type
 interface HeatBreedingRecord {
   id: string;
   earTagNumber: string;
-  stockType: 'Cow' | 'Heifer' | 'Heifer (First Calf)' | 'Bull' | 'Steer';
+  stockType: 'Cow' | 'Heifer' | 'Heifer (First Calf)' | 'Bull' | 'Steer' | 'Bullying Heifer';
   bodyConditionScore: number;
   heatDetectionDate: string;
   observer: string;
@@ -319,7 +322,19 @@ interface AnimalData {
   birthWeight?: string;
   deliveryType?: 'Natural' | 'Assisted' | 'C-Section';
   id?: string;
+  sire?: string;
+  dam?: string;
+  dateOfWeaning?: string;
+  weaningWeight?: string | number;
+  description?: string;
+  weight30day?: number;
+  weight100day?: number;
+  weight1weekPostWeaning?: number;
+  weight6monthsPostWeaning?: number;
+  calfStatus?: 'Active' | 'Replacement' | 'Sold';
+  preWeaningMortality?: boolean;
 }
+
 
 // Interface for drug data
 interface DrugData {
@@ -350,6 +365,132 @@ const initialDrugRegisterData: DrugData[] = [
 
 
 
+interface DatePickerModalProps {
+  visible: boolean;
+  valueStr: string | undefined;
+  title: string;
+  onClose: () => void;
+  onSave: (dateStr: string) => void;
+  maximumDate?: Date;
+  minimumDate?: Date;
+}
+
+const DatePickerModal: React.FC<DatePickerModalProps> = ({
+  visible,
+  valueStr,
+  title,
+  onClose,
+  onSave,
+  maximumDate,
+  minimumDate,
+}) => {
+  const parseDateSafe = (dateStr: string | undefined): Date => {
+    if (!dateStr || typeof dateStr !== 'string') return new Date();
+    const match = dateStr.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (match) {
+      const year = parseInt(match[1], 10);
+      const month = parseInt(match[2], 10) - 1;
+      const day = parseInt(match[3], 10);
+      const date = new Date(year, month, day);
+      if (!isNaN(date.getTime())) {
+        return date;
+      }
+    }
+    const parsed = Date.parse(dateStr);
+    if (!isNaN(parsed)) {
+      return new Date(parsed);
+    }
+    return new Date();
+  };
+
+  const isValidDate = (d: any): d is Date => {
+    return d instanceof Date && !isNaN(d.getTime());
+  };
+
+  const initialDate = parseDateSafe(valueStr);
+  const [tempDate, setTempDate] = useState<Date>(initialDate);
+
+  useEffect(() => {
+    if (visible) {
+      setTempDate(parseDateSafe(valueStr));
+    }
+  }, [visible, valueStr]);
+
+  if (!visible) return null;
+
+  const handleSave = () => {
+    const pad = (n: number) => n.toString().padStart(2, '0');
+    const year = tempDate.getFullYear();
+    const month = pad(tempDate.getMonth() + 1);
+    const day = pad(tempDate.getDate());
+    const formattedDate = `${year}-${month}-${day}`;
+    onSave(formattedDate);
+    onClose();
+  };
+
+  return (
+    <Modal
+      transparent={true}
+      animationType="fade"
+      visible={visible}
+      onRequestClose={onClose}
+    >
+      <TouchableWithoutFeedback onPress={onClose}>
+        <View style={styles.dpModalOverlay}>
+          <TouchableWithoutFeedback onPress={() => {}}>
+            <View style={styles.dpModalContent}>
+              <View style={styles.dpModalHeader}>
+                <Text variant="body" weight="bold" style={{ color: Colors.neutral[900], flex: 1 }}>
+                  {title}
+                </Text>
+                <TouchableOpacity onPress={onClose} style={{ padding: 4 }}>
+                  <Text style={styles.dpCloseButton}>×</Text>
+                </TouchableOpacity>
+              </View>
+
+              <View style={styles.dpModalBody}>
+                <DateTimePicker
+                  value={tempDate}
+                  mode="date"
+                  display="spinner"
+                  onChange={(event, selectedDate) => {
+                    if (selectedDate) {
+                      setTempDate(selectedDate);
+                    }
+                  }}
+                  maximumDate={isValidDate(maximumDate) ? maximumDate : new Date(new Date().getFullYear() + 20, 11, 31)}
+                  minimumDate={isValidDate(minimumDate) ? minimumDate : new Date(new Date().getFullYear() - 50, 0, 1)}
+                  textColor="black"
+                  style={{ width: 280, height: 180 }}
+                />
+              </View>
+
+              <View style={styles.dpModalFooter}>
+                <Button
+                  onPress={onClose}
+                  variant="outline"
+                  style={styles.dpFooterButton}
+                  size="sm"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  onPress={handleSave}
+                  variant="primary"
+                  style={styles.dpFooterButton}
+                  size="sm"
+                >
+                  Save
+                </Button>
+              </View>
+            </View>
+          </TouchableWithoutFeedback>
+        </View>
+      </TouchableWithoutFeedback>
+    </Modal>
+  );
+};
+
 export default function RegisterScreen() {
   return (
     <>
@@ -378,6 +519,7 @@ function RegisterContent() {
     drugs: ctxDrugs,
     feedInventory,
     addAnimal,
+    deleteAnimal,
     updateAnimal,
     addHealthRecord,
     addBreedingRecord,
@@ -394,7 +536,16 @@ function RegisterContent() {
     addFeedInventoryItem,
     updateFeedInventoryItem,
     deleteFeedInventoryItem,
+    updateHealthRecord,
+    updateBreedingRecord,
+    updatePregnancyRecord,
+    updateMortalityRecord,
+    updateTransaction,
+    deleteTransaction,
+    profile,
   } = useFarmData();
+
+  const isAdmin = profile?.role === 'admin';
 
   // Define aliveAnimals by filtering out dead animals from ctxMortalityRecords
   const aliveAnimals = React.useMemo(() => {
@@ -578,13 +729,21 @@ function RegisterContent() {
               keyboardDismissMode="none"
             >
               <View style={styles.formGroup}>
-                <Text variant="body2" style={styles.label}>Date</Text>
-                <TextInput
-                  style={styles.input}
-                  value={newMortality.date}
-                  onChangeText={(text) => setNewMortality({...newMortality, date: text})}
-                  placeholder="YYYY-MM-DD"
-                />
+                <Text variant="body2" style={styles.label}>Date *</Text>
+                <TouchableOpacity 
+                  style={styles.dateInput}
+                  onPress={() => setShowAddMortalityDatePicker(true)}
+                >
+                  <Text>{newMortality.date || 'Select date'}</Text>
+                </TouchableOpacity>
+                {renderAdaptiveDatePicker(
+                  showAddMortalityDatePicker,
+                  newMortality.date,
+                  () => setShowAddMortalityDatePicker(false),
+                  (formattedDate) => setNewMortality({...newMortality, date: formattedDate}),
+                  "Mortality Date",
+                  new Date()
+                )}
               </View>
               
               <View style={styles.formGroup}>
@@ -777,7 +936,7 @@ function RegisterContent() {
     return {
       cows: filteredAnimals.filter(a => a.stockType === 'Cow').length,
       bulls: filteredAnimals.filter(a => a.stockType === 'Bull').length,
-      heifers: filteredAnimals.filter(a => a.stockType === 'Heifer').length,
+      heifers: filteredAnimals.filter(a => a.stockType === 'Heifer' || a.stockType === 'Bullying Heifer').length,
       steers: filteredAnimals.filter(a => a.stockType === 'Steer').length,
       maleCalves: filteredAnimals.filter(a => a.stockType === 'Calve' && a.sex === 'Male').length,
       femaleCalves: filteredAnimals.filter(a => a.stockType === 'Calve' && a.sex === 'Female').length,
@@ -890,7 +1049,8 @@ function RegisterContent() {
       Bull: Colors.error[500],
       Heifer: Colors.warning[500],
       Steer: Colors.secondary[500],
-      Calve: Colors.accent[500]
+      Calve: Colors.accent[500],
+      'Bullying Heifer': Colors.secondary[700]
     };
 
     const chartColors = [
@@ -917,12 +1077,58 @@ function RegisterContent() {
     }
   }, [tab]);
   const [isAddModalVisible, setIsAddModalVisible] = useState(false);
+  const [isEditAnimalModalVisible, setIsEditAnimalModalVisible] = useState(false);
+  const [editingAnimal, setEditingAnimal] = useState<AnimalData | null>(null);
+  const [originalAnimalTag, setOriginalAnimalTag] = useState('');
   const [isAddHealthRecordModalVisible, setIsAddHealthRecordModalVisible] = useState(false);
   const [isAddBreedingRecordModalVisible, setIsAddBreedingRecordModalVisible] = useState(false);
   const [showBreedingDatePicker, setShowBreedingDatePicker] = useState(false);
   const [isAddTransactionModalVisible, setIsAddTransactionModalVisible] = useState(false);
   const [isAddWeightRecordModalVisible, setIsAddWeightRecordModalVisible] = useState(false);
+  const [weightAnimalSearchQuery, setWeightAnimalSearchQuery] = useState('');
   const [isAddPregnancyModalVisible, setIsAddPregnancyModalVisible] = useState(false);
+  
+  // Edit modals visibility and data states
+  const [isEditHealthRecordModalVisible, setIsEditHealthRecordModalVisible] = useState(false);
+  const [editingHealthRecord, setEditingHealthRecord] = useState<AnimalHealthRecord | null>(null);
+
+  const [isEditBreedingRecordModalVisible, setIsEditBreedingRecordModalVisible] = useState(false);
+  const [editingBreedingRecord, setEditingBreedingRecord] = useState<HeatBreedingRecord | null>(null);
+
+  const [isEditPregnancyRecordModalVisible, setIsEditPregnancyRecordModalVisible] = useState(false);
+  const [editingPregnancyRecord, setEditingPregnancyRecord] = useState<PregnancyCalvingRecord | null>(null);
+
+  const [isEditWeightRecordModalVisible, setIsEditWeightRecordModalVisible] = useState(false);
+  const [editingWeightRecord, setEditingWeightRecord] = useState<any | null>(null);
+
+  const [isEditDrugModalVisible, setIsEditDrugModalVisible] = useState(false);
+  const [editingDrug, setEditingDrug] = useState<any | null>(null);
+
+  const [isEditMortalityRecordModalVisible, setIsEditMortalityRecordModalVisible] = useState(false);
+  const [editingMortalityRecord, setEditingMortalityRecord] = useState<any | null>(null);
+
+  const [isEditTransactionModalVisible, setIsEditTransactionModalVisible] = useState(false);
+  const [editingTransaction, setEditingTransaction] = useState<any | null>(null);
+
+  const [isEditFeedModalVisible, setIsEditFeedModalVisible] = useState(false);
+  const [editingFeedItem, setEditingFeedItem] = useState<any | null>(null);
+
+  // Date picker visibility states for edit modals
+  const [showAddHealthDatePicker, setShowAddHealthDatePicker] = useState(false);
+  const [showEditHealthDatePicker, setShowEditHealthDatePicker] = useState(false);
+  const [showEditBreedingHeatDatePicker, setShowEditBreedingHeatDatePicker] = useState(false);
+  const [showEditBreedingServicedDatePicker, setShowEditBreedingServicedDatePicker] = useState(false);
+  const [showEditPregnancyLastServiceDatePicker, setShowEditPregnancyLastServiceDatePicker] = useState(false);
+  const [showEditPregnancyExpectedCalvingDatePicker, setShowEditPregnancyExpectedCalvingDatePicker] = useState(false);
+  const [showEditPregnancyActualCalvingDatePicker, setShowEditPregnancyActualCalvingDatePicker] = useState(false);
+  const [showAddPregnancyExpectedReturnToHeatDatePicker, setShowAddPregnancyExpectedReturnToHeatDatePicker] = useState(false);
+  const [showEditPregnancyExpectedReturnToHeatDatePicker, setShowEditPregnancyExpectedReturnToHeatDatePicker] = useState(false);
+  const [showAddMortalityDatePicker, setShowAddMortalityDatePicker] = useState(false);
+  const [showEditMortalityDatePicker, setShowEditMortalityDatePicker] = useState(false);
+  const [showEditTransactionDatePicker, setShowEditTransactionDatePicker] = useState(false);
+  const [showEditFeedLastUpdatedDatePicker, setShowEditFeedLastUpdatedDatePicker] = useState(false);
+  const [showEditCalfWeaningDatePicker, setShowEditCalfWeaningDatePicker] = useState(false);
+
   const [herdRegisterData, setHerdRegisterData] = useState<AnimalData[]>([]);
   const [pregnancyCalvingRecords, setPregnancyCalvingRecords] = useState<PregnancyCalvingRecord[]>([]);
   const [newPregnancyRecord, setNewPregnancyRecord] = useState<Omit<PregnancyCalvingRecord, 'id'>>({
@@ -941,6 +1147,21 @@ function RegisterContent() {
   const [healthRecords, setHealthRecords] = useState<AnimalHealthRecord[]>([]);
   const [breedingRecords, setBreedingRecords] = useState<BullBreedingRecord[]>([]);
   const [transactions, setTransactions] = useState<any[]>([]);
+
+  const totalSales = React.useMemo(() => {
+    return transactions
+      .filter(t => t.type === 'Sale')
+      .reduce((sum, t) => sum + Math.abs(t.amount || 0), 0);
+  }, [transactions]);
+
+  const totalPurchases = React.useMemo(() => {
+    return transactions
+      .filter(t => t.type === 'Purchase')
+      .reduce((sum, t) => sum + Math.abs(t.amount || 0), 0);
+  }, [transactions]);
+
+  const netProfitLoss = totalSales - totalPurchases;
+
   const [weightRecords, setWeightRecords] = useState<any[]>([]);
 
   const [newAnimal, setNewAnimal] = useState<Omit<AnimalData, 'id'>>({ 
@@ -953,8 +1174,16 @@ function RegisterContent() {
     source: '',
     observer: '',
     birthWeight: '',
-    deliveryType: 'Natural'
+    deliveryType: 'Natural',
+    sire: '',
+    dam: '',
+    dateOfWeaning: '',
+    weaningWeight: '',
+    description: ''
   });
+  const [showWeaningDatePicker, setShowWeaningDatePicker] = useState(false);
+  const [selectedWeaningDate, setSelectedWeaningDate] = useState(new Date());
+
   const [customBreedList, setCustomBreedList] = useState<string[]>([
     'Angus', 'Brahman', 'Hereford', 'Mashona', 'Tuli', 'Simmental', 'Other'
   ]);
@@ -978,7 +1207,9 @@ function RegisterContent() {
     animalId: '',
     date: new Date().toISOString().split('T')[0],
     treatment: '',
-    status: 'Pending'
+    status: 'Pending',
+    specialNotes: '',
+    doneBy: ''
   });
   const [applyToAll, setApplyToAll] = useState(false);
   const [selectedAnimalTags, setSelectedAnimalTags] = useState<string[]>([]);
@@ -1012,6 +1243,17 @@ function RegisterContent() {
         observer: a.observer,
         birthWeight: a.birthWeight,
         deliveryType: a.deliveryType,
+        sire: a.sire,
+        dam: a.dam,
+        dateOfWeaning: a.dateOfWeaning,
+        weaningWeight: a.weaningWeight,
+        description: a.description,
+        weight30day: a.weight30day,
+        weight100day: a.weight100day,
+        weight1weekPostWeaning: a.weight1weekPostWeaning,
+        weight6monthsPostWeaning: a.weight6monthsPostWeaning,
+        calfStatus: a.calfStatus,
+        preWeaningMortality: a.preWeaningMortality,
       })));
     }
   }, [aliveAnimals]);
@@ -1019,13 +1261,15 @@ function RegisterContent() {
   useEffect(() => {
     if (ctxHealthRecords && aliveAnimals) {
       const aliveTags = new Set(aliveAnimals.map(a => a.tag.toLowerCase()));
-      const filteredHealth = ctxHealthRecords.filter(h => aliveTags.has(h.animalId.toLowerCase()));
+      const filteredHealth = ctxHealthRecords.filter(h => h.animalId?.toLowerCase() === 'all' || aliveTags.has(h.animalId.toLowerCase()));
       setHealthRecords(filteredHealth.map(h => ({
         id: h.id,
         animalId: h.animalId,
         date: h.date,
         treatment: h.treatment,
         status: h.status,
+        specialNotes: h.specialNotes,
+        doneBy: h.doneBy,
       })));
     }
   }, [ctxHealthRecords, aliveAnimals]);
@@ -1120,6 +1364,7 @@ function RegisterContent() {
         const animal = aliveAnimals.find(a => a.tag.toLowerCase() === w.animalTag.toLowerCase());
         return {
           id: w.animalTag, // used by DataTable as unique key
+          year: w.year,
           stockType: animal ? animal.stockType : 'Cow',
           age: animal ? animal.age : '',
           jan: w.jan || '',
@@ -1204,7 +1449,6 @@ function RegisterContent() {
   const handleSaveCalf = () => {
     if (!editingCalf) return;
     
-    // Update the herd register/database with the edited calf data
     updateAnimal(editingCalf.tag, {
       observer: editingCalf.observer,
       birthWeight: editingCalf.birthWeight,
@@ -1214,6 +1458,16 @@ function RegisterContent() {
       breed: editingCalf.breed,
       sex: editingCalf.sex,
       source: editingCalf.source as 'Born' | 'Purchased',
+      sire: editingCalf.sire,
+      dam: editingCalf.dam,
+      dateOfWeaning: editingCalf.dateOfWeaning || undefined,
+      weaningWeight: editingCalf.weaningWeight !== undefined && editingCalf.weaningWeight !== '' ? Number(editingCalf.weaningWeight) : undefined,
+      weight30day: editingCalf.weight30day !== undefined && (editingCalf.weight30day as any) !== '' ? Number(editingCalf.weight30day) : undefined,
+      weight100day: editingCalf.weight100day !== undefined && (editingCalf.weight100day as any) !== '' ? Number(editingCalf.weight100day) : undefined,
+      weight1weekPostWeaning: editingCalf.weight1weekPostWeaning !== undefined && (editingCalf.weight1weekPostWeaning as any) !== '' ? Number(editingCalf.weight1weekPostWeaning) : undefined,
+      weight6monthsPostWeaning: editingCalf.weight6monthsPostWeaning !== undefined && (editingCalf.weight6monthsPostWeaning as any) !== '' ? Number(editingCalf.weight6monthsPostWeaning) : undefined,
+      calfStatus: editingCalf.calfStatus || undefined,
+      preWeaningMortality: editingCalf.preWeaningMortality ?? false,
     });
     
     setIsEditCalfModalVisible(false);
@@ -1221,6 +1475,323 @@ function RegisterContent() {
     
     // Show success message
     alert('Calf details updated successfully');
+  };
+
+  // Function to handle editing an animal record
+  const handleEditAnimal = (animal: AnimalData) => {
+    setEditingAnimal({ ...animal });
+    setOriginalAnimalTag(animal.tag);
+    setIsEditAnimalModalVisible(true);
+  };
+
+  // Function to save edited animal record
+  const handleSaveAnimal = async () => {
+    if (!editingAnimal) return;
+    if (!editingAnimal.tag.trim()) {
+      alert('Please enter the Animal Tag.');
+      return;
+    }
+    if (!editingAnimal.dateOfBirth) {
+      alert('Please enter the Date of Birth.');
+      return;
+    }
+    if (!editingAnimal.breed.trim()) {
+      alert('Please select or enter a Breed.');
+      return;
+    }
+    if (!editingAnimal.stockType) {
+      alert('Please select a Stock Type.');
+      return;
+    }
+    if (!editingAnimal.source) {
+      alert('Please select the Source.');
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      // Calculate age
+      const date = new Date(editingAnimal.dateOfBirth);
+      const today = new Date();
+      let years = today.getFullYear() - date.getFullYear();
+      let months = today.getMonth() - date.getMonth();
+      if (months < 0 || (months === 0 && today.getDate() < date.getDate())) {
+        years--;
+        months += 12;
+      }
+      const ageText = years > 0 ? `${years}y ${months}m` : `${months}m`;
+
+      await updateAnimal(originalAnimalTag, {
+        tag: editingAnimal.tag.trim(),
+        age: ageText,
+        dateOfBirth: editingAnimal.dateOfBirth,
+        breed: editingAnimal.breed,
+        sex: editingAnimal.sex,
+        stockType: editingAnimal.stockType as any,
+        source: editingAnimal.source as any,
+        birthWeight: editingAnimal.birthWeight || undefined,
+        sire: editingAnimal.sire || undefined,
+        dam: editingAnimal.dam || undefined,
+        dateOfWeaning: editingAnimal.dateOfWeaning || undefined,
+        weaningWeight: editingAnimal.weaningWeight ? parseFloat(editingAnimal.weaningWeight.toString()) : undefined,
+        description: editingAnimal.description || undefined,
+      });
+
+
+      setIsEditAnimalModalVisible(false);
+      setEditingAnimal(null);
+      alert('Animal details updated successfully.');
+    } catch (error: any) {
+      alert('Failed to update animal: ' + error.message);
+      console.error(error);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleEditHealthRecord = (record: AnimalHealthRecord) => {
+    setEditingHealthRecord({ ...record });
+    setIsEditHealthRecordModalVisible(true);
+  };
+
+  const handleSaveHealthRecord = async () => {
+    if (!editingHealthRecord) return;
+    setIsSubmitting(true);
+    try {
+      await updateHealthRecord(editingHealthRecord.id, {
+        animalId: editingHealthRecord.animalId,
+        date: editingHealthRecord.date,
+        treatment: editingHealthRecord.treatment,
+        status: editingHealthRecord.status as any,
+        specialNotes: editingHealthRecord.specialNotes,
+        doneBy: editingHealthRecord.doneBy,
+      });
+      setIsEditHealthRecordModalVisible(false);
+      setEditingHealthRecord(null);
+      alert('Health record updated successfully.');
+    } catch (e: any) {
+      alert('Failed to update health record: ' + e.message);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleEditBreedingRecord = (record: HeatBreedingRecord) => {
+    setEditingBreedingRecord({ ...record });
+    setIsEditBreedingRecordModalVisible(true);
+  };
+
+  const handleSaveBreedingRecord = async () => {
+    if (!editingBreedingRecord) return;
+    setIsSubmitting(true);
+    try {
+      await updateBreedingRecord(editingBreedingRecord.id, {
+        earTagNumber: editingBreedingRecord.earTagNumber,
+        stockType: editingBreedingRecord.stockType as any,
+        bodyConditionScore: editingBreedingRecord.bodyConditionScore,
+        heatDetectionDate: editingBreedingRecord.heatDetectionDate,
+        observer: editingBreedingRecord.observer,
+        servicedDate: editingBreedingRecord.servicedDate,
+        breedingStatus: editingBreedingRecord.breedingStatus as any,
+        breedingMethod: editingBreedingRecord.breedingMethod as any,
+        aiTechnician: editingBreedingRecord.aiTechnician,
+        sireId: editingBreedingRecord.sireId,
+        strawId: editingBreedingRecord.strawId,
+        semenViability: editingBreedingRecord.semenViability,
+        returnToHeatDate1: editingBreedingRecord.returnToHeatDate1,
+        dateServed2: editingBreedingRecord.dateServed2,
+        breedingMethod2: editingBreedingRecord.breedingMethod2 as any,
+        sireUsed2: editingBreedingRecord.sireUsed2,
+        returnToHeatDate2: editingBreedingRecord.returnToHeatDate2,
+      });
+      setIsEditBreedingRecordModalVisible(false);
+      setEditingBreedingRecord(null);
+      alert('Breeding record updated successfully.');
+    } catch (e: any) {
+      alert('Failed to update breeding record: ' + e.message);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleEditPregnancyRecord = (record: PregnancyCalvingRecord) => {
+    setEditingPregnancyRecord({ ...record });
+    setIsEditPregnancyRecordModalVisible(true);
+  };
+
+  const handleSavePregnancyRecord = async () => {
+    if (!editingPregnancyRecord) return;
+    setIsSubmitting(true);
+    try {
+      await updatePregnancyRecord(editingPregnancyRecord.id, {
+        cowEarTag: editingPregnancyRecord.cowEarTag,
+        bodyConditionScore: editingPregnancyRecord.bodyConditionScore,
+        lastServiceDate: editingPregnancyRecord.lastServiceDate,
+        firstTrimesterPD: editingPregnancyRecord.firstTrimesterPD as any,
+        secondTrimesterPD: editingPregnancyRecord.secondTrimesterPD as any,
+        thirdTrimesterPD: editingPregnancyRecord.thirdTrimesterPD as any,
+        gestationPeriod: editingPregnancyRecord.gestationPeriod,
+        expectedCalvingDate: editingPregnancyRecord.expectedCalvingDate,
+        actualCalvingDate: editingPregnancyRecord.actualCalvingDate,
+        calfId: editingPregnancyRecord.calfId,
+        calfSex: editingPregnancyRecord.calfSex as any,
+        deliveryType: editingPregnancyRecord.deliveryType as any,
+        averageBCS: editingPregnancyRecord.averageBCS,
+        expectedReturnToHeatDate: editingPregnancyRecord.expectedReturnToHeatDate,
+        actualFirstHeatDate: editingPregnancyRecord.actualFirstHeatDate,
+        expectedSecondHeatDate: editingPregnancyRecord.expectedSecondHeatDate,
+        actualSecondHeatDate: editingPregnancyRecord.actualSecondHeatDate,
+      });
+      setIsEditPregnancyRecordModalVisible(false);
+      setEditingPregnancyRecord(null);
+      alert('Pregnancy record updated successfully.');
+    } catch (e: any) {
+      alert('Failed to update pregnancy record: ' + e.message);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleEditWeightRecord = (record: any) => {
+    setEditingWeightRecord({ ...record });
+    setIsEditWeightRecordModalVisible(true);
+  };
+
+  const handleSaveWeightRecord = async () => {
+    if (!editingWeightRecord) return;
+    setIsSubmitting(true);
+    try {
+      await saveAnimalWeight({
+        animalTag: editingWeightRecord.animalTag,
+        year: Number(editingWeightRecord.year),
+        jan: editingWeightRecord.jan,
+        feb: editingWeightRecord.feb,
+        mar: editingWeightRecord.mar,
+        apr: editingWeightRecord.apr,
+        may: editingWeightRecord.may,
+        jun: editingWeightRecord.jun,
+        jul: editingWeightRecord.jul,
+        aug: editingWeightRecord.aug,
+        sep: editingWeightRecord.sep,
+        oct: editingWeightRecord.oct,
+        nov: editingWeightRecord.nov,
+        dec: editingWeightRecord.dec,
+      });
+      setIsEditWeightRecordModalVisible(false);
+      setEditingWeightRecord(null);
+      alert('Weight record updated successfully.');
+    } catch (e: any) {
+      alert('Failed to update weight record: ' + e.message);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleEditDrug = (record: any) => {
+    setEditingDrug({ ...record });
+    setIsEditDrugModalVisible(true);
+  };
+
+  const handleSaveDrug = async () => {
+    if (!editingDrug) return;
+    setIsSubmitting(true);
+    try {
+      await updateDrug(editingDrug.id, {
+        drugClass: editingDrug.drugClass,
+        type: editingDrug.type,
+        name: editingDrug.name,
+        withdrawalPeriod: editingDrug.withdrawalPeriod,
+        pregnancySafe: editingDrug.pregnancySafe as any,
+        stockStatus: editingDrug.stockStatus as any,
+      });
+      setIsEditDrugModalVisible(false);
+      setEditingDrug(null);
+      alert('Drug updated successfully.');
+    } catch (e: any) {
+      alert('Failed to update drug: ' + e.message);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleEditMortalityRecord = (record: any) => {
+    setEditingMortalityRecord({ ...record });
+    setIsEditMortalityRecordModalVisible(true);
+  };
+
+  const handleSaveMortalityRecord = async () => {
+    if (!editingMortalityRecord) return;
+    setIsSubmitting(true);
+    try {
+      await updateMortalityRecord(editingMortalityRecord.id, {
+        animalId: editingMortalityRecord.animalId,
+        date: editingMortalityRecord.date,
+        cause: editingMortalityRecord.cause,
+        description: editingMortalityRecord.description,
+        isPreWeaning: editingMortalityRecord.isPreWeaning,
+      });
+      setIsEditMortalityRecordModalVisible(false);
+      setEditingMortalityRecord(null);
+      alert('Mortality record updated successfully.');
+    } catch (e: any) {
+      alert('Failed to update mortality record: ' + e.message);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleEditTransaction = (record: any) => {
+    setEditingTransaction({ ...record });
+    setIsEditTransactionModalVisible(true);
+  };
+
+  const handleSaveTransaction = async () => {
+    if (!editingTransaction) return;
+    setIsSubmitting(true);
+    try {
+      const amt = Number(editingTransaction.amount);
+      await updateTransaction(editingTransaction.id, {
+        date: editingTransaction.date,
+        description: editingTransaction.description,
+        amount: editingTransaction.type === 'Sale' ? Math.abs(amt) : -Math.abs(amt),
+        type: editingTransaction.type as any,
+      });
+      setIsEditTransactionModalVisible(false);
+      setEditingTransaction(null);
+      alert('Transaction updated successfully.');
+    } catch (e: any) {
+      alert('Failed to update transaction: ' + e.message);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleEditFeedItem = (record: any) => {
+    setEditingFeedItem({ ...record });
+    setIsEditFeedModalVisible(true);
+  };
+
+  const handleSaveFeedItem = async () => {
+    if (!editingFeedItem) return;
+    setIsSubmitting(true);
+    try {
+      await updateFeedInventoryItem(editingFeedItem.id, {
+        name: editingFeedItem.name,
+        type: editingFeedItem.type,
+        quantity: editingFeedItem.quantity,
+        unit: editingFeedItem.unit,
+        supplier: editingFeedItem.supplier,
+        lastUpdated: editingFeedItem.lastUpdated,
+        status: editingFeedItem.status as any,
+      });
+      setIsEditFeedModalVisible(false);
+      setEditingFeedItem(null);
+      alert('Feed inventory item updated successfully.');
+    } catch (e: any) {
+      alert('Failed to update feed inventory item: ' + e.message);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
   
   // Function to check if a calf record is complete
@@ -1274,6 +1845,20 @@ function RegisterContent() {
     });
   };
 
+  // Function to identify mature herd animals (excluding calves)
+  const getHerdAnimals = () => {
+    return herdRegisterData.filter(animal => {
+      if (animal.stockType === 'Calve' || animal.stockType === 'Calf') return false;
+      const ageMatch = animal.age.match(/(\d+)([ym])/);
+      if (!ageMatch) return true;
+      
+      const [_, value, unit] = ageMatch;
+      const isCalf = (unit === 'm' && parseInt(value) < 12) || 
+                     (unit === 'y' && parseInt(value) === 0);
+      return !isCalf;
+    });
+  };
+
   // Function to check if a calf has weight records
   const hasWeightRecord = (tag: string) => {
     return weightData.some(record => record.id === tag);
@@ -1321,6 +1906,12 @@ function RegisterContent() {
         source: newAnimal.source as any,
         weight: newAnimal.birthWeight ? parseFloat(newAnimal.birthWeight) : undefined,
         bcs: 3.0,
+        birthWeight: newAnimal.birthWeight || undefined,
+        sire: newAnimal.sire || undefined,
+        dam: newAnimal.dam || undefined,
+        dateOfWeaning: newAnimal.dateOfWeaning || undefined,
+        weaningWeight: newAnimal.weaningWeight ? parseFloat(newAnimal.weaningWeight.toString()) : undefined,
+        description: newAnimal.description || undefined,
       });
       setNewAnimal({ 
         tag: '', 
@@ -1332,7 +1923,12 @@ function RegisterContent() {
         source: '',
         observer: '',
         birthWeight: '',
-        deliveryType: 'Natural'
+        deliveryType: 'Natural',
+        sire: '',
+        dam: '',
+        dateOfWeaning: '',
+        weaningWeight: '',
+        description: ''
       });
       setShowCustomBreedInput(false);
       setIsAddModalVisible(false);
@@ -1345,27 +1941,33 @@ function RegisterContent() {
   };
 
   const handleAddHealthRecord = async () => {
-    let targetTags: string[] = [];
-    if (applyToAll) {
-      targetTags = herdRegisterData.map(a => a.tag);
-    } else {
-      targetTags = selectedAnimalTags;
-    }
-
-    if (targetTags.length === 0) {
+    if (!applyToAll && selectedAnimalTags.length === 0) {
       alert('Please select at least one animal');
       return;
     }
 
     setIsSubmitting(true);
     try {
-      for (const tag of targetTags) {
+      if (applyToAll) {
         await addHealthRecord({
-          animalId: tag,
+          animalId: 'All',
           date: newHealthRecord.date,
           treatment: newHealthRecord.treatment,
           status: newHealthRecord.status as any,
+          specialNotes: newHealthRecord.specialNotes,
+          doneBy: newHealthRecord.doneBy,
         });
+      } else {
+        for (const tag of selectedAnimalTags) {
+          await addHealthRecord({
+            animalId: tag,
+            date: newHealthRecord.date,
+            treatment: newHealthRecord.treatment,
+            status: newHealthRecord.status as any,
+            specialNotes: newHealthRecord.specialNotes,
+            doneBy: newHealthRecord.doneBy,
+          });
+        }
       }
 
       setApplyToAll(false);
@@ -1375,7 +1977,9 @@ function RegisterContent() {
         animalId: '',
         date: new Date().toISOString().split('T')[0],
         treatment: '',
-        status: 'Pending'
+        status: 'Pending',
+        specialNotes: '',
+        doneBy: ''
       });
       setIsAddHealthRecordModalVisible(false);
     } catch (err: any) {
@@ -1387,11 +1991,11 @@ function RegisterContent() {
   };
 
   const handleAddBreedingRecord = async () => {
-    if (!newBullBreedingRecord.bullId) return;
-    if (breedingRecords.some(r => r.bullId.trim().toLowerCase() === newBullBreedingRecord.bullId.trim().toLowerCase())) {
-      alert('A breeding soundness record for this bull already exists.');
+    if (!isAdmin) {
+      alert('Only admins are allowed to edit or input bull breeding soundness evaluation records.');
       return;
     }
+    if (!newBullBreedingRecord.bullId) return;
     setIsSubmitting(true);
     try {
       await addBullBreedingRecord({
@@ -1463,6 +2067,10 @@ function RegisterContent() {
             age,
           });
         }
+      }
+
+      if (newTransaction.type === 'Sale' && newTransaction.animalTag) {
+        await deleteAnimal(newTransaction.animalTag);
       }
 
       await addTransaction({
@@ -1556,6 +2164,7 @@ function RegisterContent() {
         nov: '',
         dec: ''
       });
+      setWeightAnimalSearchQuery('');
       setIsAddWeightRecordModalVisible(false);
     } catch (error: any) {
       alert('Error saving weight record: ' + error.message);
@@ -1604,6 +2213,921 @@ function RegisterContent() {
     }
   };
 
+  const renderAdaptiveDatePicker = (
+    visible: boolean,
+    valueStr: string | undefined,
+    onClose: () => void,
+    onValueChange: (formattedDate: string) => void,
+    title: string = 'Select Date',
+    maximumDate?: Date,
+    minimumDate?: Date
+  ) => {
+    return (
+      <DatePickerModal
+        visible={visible}
+        valueStr={valueStr}
+        title={title}
+        onClose={onClose}
+        onSave={onValueChange}
+        maximumDate={maximumDate}
+        minimumDate={minimumDate}
+      />
+    );
+  };
+
+  const renderEditHealthRecordModal = () => (
+    <Modal
+      animationType="slide"
+      transparent={true}
+      visible={isEditHealthRecordModalVisible}
+      onRequestClose={() => setIsEditHealthRecordModalVisible(false)}
+    >
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        style={{ flex: 1 }}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text variant="h6" weight="bold" style={styles.modalTitle}>Edit Health Record</Text>
+            <ScrollView 
+              style={{ flexShrink: 1 }}
+              contentContainerStyle={{ flexGrow: 1 }}
+              keyboardShouldPersistTaps="always"
+            >
+              <View style={styles.formGroup}>
+                <Text variant="body2" style={styles.label}>Animal Tag</Text>
+                {editingHealthRecord?.animalId?.toLowerCase() === 'all' ? (
+                  <View style={[styles.statusBadge, { backgroundColor: '#DCF7E8', borderColor: '#9FE4C1', borderWidth: 1, padding: 8, alignSelf: 'flex-start', borderRadius: 8 }]}>
+                    <Text variant="body2" style={{ color: Colors.success[700], fontWeight: 'bold' }}>👥 All Herd</Text>
+                  </View>
+                ) : (
+                  <Text variant="body" weight="medium" style={[styles.input, { backgroundColor: Colors.neutral[100], color: Colors.neutral[700] }]}>
+                    {editingHealthRecord?.animalId || ''}
+                  </Text>
+                )}
+              </View>
+
+              <View style={styles.formGroup}>
+                <Text variant="body2" style={styles.label}>Date *</Text>
+                <TouchableOpacity 
+                  style={styles.dateInput}
+                  onPress={() => setShowEditHealthDatePicker(true)}
+                >
+                  <Text>{editingHealthRecord?.date || 'Select date'}</Text>
+                </TouchableOpacity>
+                {renderAdaptiveDatePicker(
+                  showEditHealthDatePicker,
+                  editingHealthRecord?.date,
+                  () => setShowEditHealthDatePicker(false),
+                  (formattedDate) => editingHealthRecord && setEditingHealthRecord({...editingHealthRecord, date: formattedDate})
+                )}
+              </View>
+
+              <View style={styles.formGroup}>
+                <Text variant="body2" style={styles.label}>Treatment / Medication *</Text>
+                <TextInput
+                  style={styles.input}
+                  value={editingHealthRecord?.treatment || ''}
+                  onChangeText={(text) => editingHealthRecord && setEditingHealthRecord({...editingHealthRecord, treatment: text})}
+                  placeholder="e.g. Deworming"
+                />
+              </View>
+
+              <View style={styles.formGroup}>
+                <Text variant="body2" style={styles.label}>Done By (person who did the task)</Text>
+                <TextInput
+                  style={styles.input}
+                  value={editingHealthRecord?.doneBy || ''}
+                  onChangeText={(text) => editingHealthRecord && setEditingHealthRecord({...editingHealthRecord, doneBy: text})}
+                  placeholder="e.g. John Doe"
+                />
+              </View>
+
+              <View style={styles.formGroup}>
+                <Text variant="body2" style={styles.label}>Special Notes</Text>
+                <TextInput
+                  style={[styles.input, { minHeight: 60, textAlignVertical: 'top' }]}
+                  value={editingHealthRecord?.specialNotes || ''}
+                  onChangeText={(text) => editingHealthRecord && setEditingHealthRecord({...editingHealthRecord, specialNotes: text})}
+                  placeholder="Enter special notes"
+                  multiline
+                />
+              </View>
+
+              <View style={styles.formGroup}>
+                <Text variant="body2" style={styles.label}>Status</Text>
+                <View style={styles.radioGroup}>
+                  {['Completed', 'Scheduled', 'Pending'].map((status) => (
+                    <TouchableOpacity 
+                      key={status}
+                      style={[styles.radioButton, editingHealthRecord?.status === status && styles.radioButtonSelected]}
+                      onPress={() => editingHealthRecord && setEditingHealthRecord({...editingHealthRecord, status: status as any})}
+                    >
+                      <Text>{status}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+            </ScrollView>
+
+            <View style={styles.modalButtons}>
+              <Button variant="outline" onPress={() => { setIsEditHealthRecordModalVisible(false); setEditingHealthRecord(null); }} style={styles.cancelButton}>
+                Cancel
+              </Button>
+              <Button onPress={handleSaveHealthRecord} disabled={isSubmitting || !editingHealthRecord?.treatment || !editingHealthRecord?.date}>
+                {isSubmitting ? 'Saving...' : 'Save Changes'}
+              </Button>
+            </View>
+          </View>
+        </View>
+      </KeyboardAvoidingView>
+    </Modal>
+  );
+
+  const renderEditBreedingRecordModal = () => (
+    <Modal
+      animationType="slide"
+      transparent={true}
+      visible={isEditBreedingRecordModalVisible}
+      onRequestClose={() => setIsEditBreedingRecordModalVisible(false)}
+    >
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        style={{ flex: 1 }}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text variant="h6" weight="bold" style={styles.modalTitle}>Edit Breeding Record</Text>
+            <ScrollView 
+              style={{ flexShrink: 1 }}
+              contentContainerStyle={{ flexGrow: 1 }}
+              keyboardShouldPersistTaps="always"
+            >
+              <View style={styles.formGroup}>
+                <Text variant="body2" style={styles.label}>Animal Tag</Text>
+                <Text variant="body" weight="medium" style={[styles.input, { backgroundColor: Colors.neutral[100], color: Colors.neutral[700] }]}>
+                  {editingBreedingRecord?.earTagNumber || ''}
+                </Text>
+              </View>
+
+              <View style={styles.formGroup}>
+                <Text variant="body2" style={styles.label}>Heat Detection Date *</Text>
+                <TouchableOpacity 
+                  style={styles.dateInput}
+                  onPress={() => setShowEditBreedingHeatDatePicker(true)}
+                >
+                  <Text>{editingBreedingRecord?.heatDetectionDate || 'Select date'}</Text>
+                </TouchableOpacity>
+                {renderAdaptiveDatePicker(
+                  showEditBreedingHeatDatePicker,
+                  editingBreedingRecord?.heatDetectionDate,
+                  () => setShowEditBreedingHeatDatePicker(false),
+                  (formattedDate) => editingBreedingRecord && setEditingBreedingRecord({...editingBreedingRecord, heatDetectionDate: formattedDate})
+                )}
+              </View>
+
+              <View style={styles.formGroup}>
+                <Text variant="body2" style={styles.label}>Serviced Date</Text>
+                <TouchableOpacity 
+                  style={styles.dateInput}
+                  onPress={() => setShowEditBreedingServicedDatePicker(true)}
+                >
+                  <Text>{editingBreedingRecord?.servicedDate || 'Select date'}</Text>
+                </TouchableOpacity>
+                {renderAdaptiveDatePicker(
+                  showEditBreedingServicedDatePicker,
+                  editingBreedingRecord?.servicedDate,
+                  () => setShowEditBreedingServicedDatePicker(false),
+                  (formattedDate) => editingBreedingRecord && setEditingBreedingRecord({...editingBreedingRecord, servicedDate: formattedDate})
+                )}
+              </View>
+
+              <Picker
+                label="Breeding Status"
+                value={editingBreedingRecord?.breedingStatus || 'Open'}
+                onValueChange={(value) => editingBreedingRecord && setEditingBreedingRecord({...editingBreedingRecord, breedingStatus: value as any})}
+                items={[
+                  { label: 'Bred', value: 'Bred' },
+                  { label: 'Confirmed Pregnant', value: 'Confirmed Pregnant' },
+                  { label: 'Open', value: 'Open' },
+                  { label: 'Failed', value: 'Failed' },
+                ]}
+              />
+
+              <Picker
+                label="Breeding Method"
+                value={editingBreedingRecord?.breedingMethod || ''}
+                onValueChange={(value) => editingBreedingRecord && setEditingBreedingRecord({...editingBreedingRecord, breedingMethod: value as any})}
+                items={[
+                  { label: 'Select Method', value: '' },
+                  { label: 'AI', value: 'AI' },
+                  { label: 'Natural', value: 'Natural' },
+                  { label: 'Embryo Transfer', value: 'Embryo Transfer' },
+                ]}
+              />
+
+              <View style={styles.formGroup}>
+                <Text variant="body2" style={styles.label}>Sire / Straw ID</Text>
+                <TextInput
+                  style={styles.input}
+                  value={editingBreedingRecord?.sireId || ''}
+                  onChangeText={(text) => editingBreedingRecord && setEditingBreedingRecord({...editingBreedingRecord, sireId: text || undefined})}
+                  placeholder="e.g. S-ANG-1234"
+                />
+              </View>
+            </ScrollView>
+
+            <View style={styles.modalButtons}>
+              <Button variant="outline" onPress={() => { setIsEditBreedingRecordModalVisible(false); setEditingBreedingRecord(null); }} style={styles.cancelButton}>
+                Cancel
+              </Button>
+              <Button onPress={handleSaveBreedingRecord} disabled={isSubmitting || !editingBreedingRecord?.heatDetectionDate}>
+                {isSubmitting ? 'Saving...' : 'Save Changes'}
+              </Button>
+            </View>
+          </View>
+        </View>
+      </KeyboardAvoidingView>
+    </Modal>
+  );
+
+  const renderEditPregnancyRecordModal = () => (
+    <Modal
+      animationType="slide"
+      transparent={true}
+      visible={isEditPregnancyRecordModalVisible}
+      onRequestClose={() => setIsEditPregnancyRecordModalVisible(false)}
+    >
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        style={{ flex: 1 }}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text variant="h6" weight="bold" style={styles.modalTitle}>Edit Pregnancy Record</Text>
+            <ScrollView 
+              style={{ flexShrink: 1 }}
+              contentContainerStyle={{ flexGrow: 1 }}
+              keyboardShouldPersistTaps="always"
+            >
+              <View style={styles.formGroup}>
+                <Text variant="body2" style={styles.label}>Cow Tag</Text>
+                <Text variant="body" weight="medium" style={[styles.input, { backgroundColor: Colors.neutral[100], color: Colors.neutral[700] }]}>
+                  {editingPregnancyRecord?.cowEarTag || ''}
+                </Text>
+              </View>
+
+              <View style={styles.formGroup}>
+                <Text variant="body2" style={styles.label}>Last Service Date *</Text>
+                <TouchableOpacity 
+                  style={styles.dateInput}
+                  onPress={() => setShowEditPregnancyLastServiceDatePicker(true)}
+                >
+                  <Text>{editingPregnancyRecord?.lastServiceDate || 'Select date'}</Text>
+                </TouchableOpacity>
+                {renderAdaptiveDatePicker(
+                  showEditPregnancyLastServiceDatePicker,
+                  editingPregnancyRecord?.lastServiceDate,
+                  () => setShowEditPregnancyLastServiceDatePicker(false),
+                  (formattedDate) => {
+                    if (editingPregnancyRecord) {
+                      const updated = { ...editingPregnancyRecord, lastServiceDate: formattedDate };
+                      if (updated.gestationPeriod > 0) {
+                        const serviceDate = new Date(formattedDate);
+                        const expectedDate = new Date(serviceDate);
+                        expectedDate.setDate(serviceDate.getDate() + updated.gestationPeriod);
+                        updated.expectedCalvingDate = expectedDate.toISOString().split('T')[0];
+                      }
+                      setEditingPregnancyRecord(updated);
+                    }
+                  }
+                )}
+              </View>
+
+              <Picker
+                label="1st Trimester PD"
+                value={editingPregnancyRecord?.firstTrimesterPD || 'Not Tested'}
+                onValueChange={(value) => editingPregnancyRecord && setEditingPregnancyRecord({...editingPregnancyRecord, firstTrimesterPD: value as any})}
+                items={[
+                  { label: 'Not Tested', value: 'Not Tested' },
+                  { label: 'Positive', value: 'Positive' },
+                  { label: 'Negative', value: 'Negative' },
+                  { label: 'Inconclusive', value: 'Inconclusive' },
+                ]}
+              />
+
+              <Picker
+                label="2nd Trimester PD"
+                value={editingPregnancyRecord?.secondTrimesterPD || 'Not Tested'}
+                onValueChange={(value) => editingPregnancyRecord && setEditingPregnancyRecord({...editingPregnancyRecord, secondTrimesterPD: value as any})}
+                items={[
+                  { label: 'Not Tested', value: 'Not Tested' },
+                  { label: 'Positive', value: 'Positive' },
+                  { label: 'Negative', value: 'Negative' },
+                  { label: 'Inconclusive', value: 'Inconclusive' },
+                ]}
+              />
+
+              <Picker
+                label="3rd Trimester PD"
+                value={editingPregnancyRecord?.thirdTrimesterPD || 'Not Tested'}
+                onValueChange={(value) => editingPregnancyRecord && setEditingPregnancyRecord({...editingPregnancyRecord, thirdTrimesterPD: value as any})}
+                items={[
+                  { label: 'Not Tested', value: 'Not Tested' },
+                  { label: 'Positive', value: 'Positive' },
+                  { label: 'Negative', value: 'Negative' },
+                  { label: 'Inconclusive', value: 'Inconclusive' },
+                ]}
+              />
+
+              <View style={styles.formGroup}>
+                <Text variant="body2" style={styles.label}>Gestation Period (days)</Text>
+                <TextInput
+                  style={styles.input}
+                  value={editingPregnancyRecord?.gestationPeriod?.toString() || '0'}
+                  onChangeText={(text) => {
+                    if (editingPregnancyRecord) {
+                      const num = parseInt(text) || 0;
+                      const updated = { ...editingPregnancyRecord, gestationPeriod: num };
+                      if (num > 0 && updated.lastServiceDate && !isNaN(Date.parse(updated.lastServiceDate))) {
+                        const serviceDate = new Date(updated.lastServiceDate);
+                        const expectedDate = new Date(serviceDate);
+                        expectedDate.setDate(serviceDate.getDate() + num);
+                        updated.expectedCalvingDate = expectedDate.toISOString().split('T')[0];
+                      }
+                      setEditingPregnancyRecord(updated);
+                    }
+                  }}
+                  keyboardType="numeric"
+                />
+              </View>
+
+              <View style={styles.formGroup}>
+                <Text variant="body2" style={styles.label}>Expected Calving Date *</Text>
+                <TouchableOpacity 
+                  style={styles.dateInput}
+                  onPress={() => setShowEditPregnancyExpectedCalvingDatePicker(true)}
+                >
+                  <Text>{editingPregnancyRecord?.expectedCalvingDate || 'Select date'}</Text>
+                </TouchableOpacity>
+                {renderAdaptiveDatePicker(
+                  showEditPregnancyExpectedCalvingDatePicker,
+                  editingPregnancyRecord?.expectedCalvingDate,
+                  () => setShowEditPregnancyExpectedCalvingDatePicker(false),
+                  (formattedDate) => editingPregnancyRecord && setEditingPregnancyRecord({ ...editingPregnancyRecord, expectedCalvingDate: formattedDate })
+                )}
+              </View>
+
+              <View style={styles.formGroup}>
+                <Text variant="body2" style={styles.label}>Actual Calving Date</Text>
+                <TouchableOpacity 
+                  style={styles.dateInput}
+                  onPress={() => setShowEditPregnancyActualCalvingDatePicker(true)}
+                >
+                  <Text>{editingPregnancyRecord?.actualCalvingDate || 'Select date (Optional)'}</Text>
+                </TouchableOpacity>
+                {renderAdaptiveDatePicker(
+                  showEditPregnancyActualCalvingDatePicker,
+                  editingPregnancyRecord?.actualCalvingDate,
+                  () => setShowEditPregnancyActualCalvingDatePicker(false),
+                  (formattedDate) => editingPregnancyRecord && setEditingPregnancyRecord({ ...editingPregnancyRecord, actualCalvingDate: formattedDate })
+                )}
+              </View>
+
+              <View style={styles.formGroup}>
+                <Text variant="body2" style={styles.label}>Calf ID</Text>
+                <TextInput
+                  style={styles.input}
+                  value={editingPregnancyRecord?.calfId || ''}
+                  onChangeText={(text) => editingPregnancyRecord && setEditingPregnancyRecord({ ...editingPregnancyRecord, calfId: text })}
+                  placeholder="Enter calf ID (Optional)"
+                />
+              </View>
+
+              <View style={styles.formGroup}>
+                <Picker
+                  label="Calf Sex"
+                  value={editingPregnancyRecord?.calfSex || ''}
+                  onValueChange={(value) => editingPregnancyRecord && setEditingPregnancyRecord({ ...editingPregnancyRecord, calfSex: value ? value as any : undefined })}
+                  items={[
+                    { label: 'Select sex...', value: '' },
+                    { label: 'Male', value: 'Male' },
+                    { label: 'Female', value: 'Female' }
+                  ]}
+                />
+              </View>
+
+              <View style={styles.formGroup}>
+                <Picker
+                  label="Delivery Type"
+                  value={editingPregnancyRecord?.deliveryType || ''}
+                  onValueChange={(value) => editingPregnancyRecord && setEditingPregnancyRecord({ ...editingPregnancyRecord, deliveryType: value ? value as any : undefined })}
+                  items={[
+                    { label: 'Select delivery type...', value: '' },
+                    { label: 'Natural', value: 'Natural' },
+                    { label: 'Assisted', value: 'Assisted' },
+                    { label: 'C-Section', value: 'C-Section' }
+                  ]}
+                />
+              </View>
+
+              <View style={styles.formGroup}>
+                <Text variant="body2" style={styles.label}>Average BCS</Text>
+                <TextInput
+                  style={styles.input}
+                  value={editingPregnancyRecord?.averageBCS !== undefined && editingPregnancyRecord?.averageBCS !== null ? editingPregnancyRecord.averageBCS.toString() : '3.0'}
+                  onChangeText={(text) => {
+                    if (editingPregnancyRecord) {
+                      const score = parseFloat(text) || 0;
+                      setEditingPregnancyRecord({ ...editingPregnancyRecord, averageBCS: score });
+                    }
+                  }}
+                  placeholder="e.g. 3.0"
+                  keyboardType="numeric"
+                />
+              </View>
+
+              <View style={styles.formGroup}>
+                <Text variant="body2" style={styles.label}>Expected Return to Heat Date</Text>
+                <TouchableOpacity 
+                  style={styles.dateInput}
+                  onPress={() => setShowEditPregnancyExpectedReturnToHeatDatePicker(true)}
+                >
+                  <Text>{editingPregnancyRecord?.expectedReturnToHeatDate || 'Select date'}</Text>
+                </TouchableOpacity>
+                {renderAdaptiveDatePicker(
+                  showEditPregnancyExpectedReturnToHeatDatePicker,
+                  editingPregnancyRecord?.expectedReturnToHeatDate,
+                  () => setShowEditPregnancyExpectedReturnToHeatDatePicker(false),
+                  (formattedDate) => editingPregnancyRecord && setEditingPregnancyRecord({
+                    ...editingPregnancyRecord,
+                    expectedReturnToHeatDate: formattedDate
+                  })
+                )}
+              </View>
+            </ScrollView>
+
+            <View style={styles.modalButtons}>
+              <Button variant="outline" onPress={() => { setIsEditPregnancyRecordModalVisible(false); setEditingPregnancyRecord(null); }} style={styles.cancelButton}>
+                Cancel
+              </Button>
+              <Button onPress={handleSavePregnancyRecord} disabled={isSubmitting || !editingPregnancyRecord?.lastServiceDate || !editingPregnancyRecord?.expectedCalvingDate}>
+                {isSubmitting ? 'Saving...' : 'Save Changes'}
+              </Button>
+            </View>
+          </View>
+        </View>
+      </KeyboardAvoidingView>
+    </Modal>
+  );
+
+  const renderEditWeightRecordModal = () => (
+    <Modal
+      animationType="slide"
+      transparent={true}
+      visible={isEditWeightRecordModalVisible}
+      onRequestClose={() => setIsEditWeightRecordModalVisible(false)}
+    >
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        style={{ flex: 1 }}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text variant="h6" weight="bold" style={styles.modalTitle}>Edit Weight Record</Text>
+            <ScrollView 
+              style={{ flexShrink: 1 }}
+              contentContainerStyle={{ flexGrow: 1 }}
+              keyboardShouldPersistTaps="always"
+            >
+              <View style={styles.formGroup}>
+                <Text variant="body2" style={styles.label}>Animal ID / Tag</Text>
+                <Text variant="body" weight="medium" style={[styles.input, { backgroundColor: Colors.neutral[100], color: Colors.neutral[700] }]}>
+                  {editingWeightRecord?.id || ''}
+                </Text>
+              </View>
+
+              <View style={styles.formGroup}>
+                <Text variant="body2" style={styles.label}>Year *</Text>
+                <TextInput
+                  style={styles.input}
+                  value={editingWeightRecord?.year?.toString() || ''}
+                  onChangeText={(text) => editingWeightRecord && setEditingWeightRecord({...editingWeightRecord, year: text})}
+                  keyboardType="numeric"
+                  placeholder="e.g. 2026"
+                />
+              </View>
+
+              {['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'].map((month) => (
+                <View key={month} style={styles.formGroup}>
+                  <Text variant="body2" style={styles.label}>{month.toUpperCase()} Weight (kg)</Text>
+                  <TextInput
+                    style={styles.input}
+                    value={editingWeightRecord?.[month] || ''}
+                    onChangeText={(text) => editingWeightRecord && setEditingWeightRecord({...editingWeightRecord, [month]: text})}
+                    keyboardType="numeric"
+                    placeholder="Enter weight"
+                  />
+                </View>
+              ))}
+            </ScrollView>
+
+            <View style={styles.modalButtons}>
+              <Button variant="outline" onPress={() => { setIsEditWeightRecordModalVisible(false); setEditingWeightRecord(null); }} style={styles.cancelButton}>
+                Cancel
+              </Button>
+              <Button onPress={handleSaveWeightRecord} disabled={isSubmitting || !editingWeightRecord?.year}>
+                {isSubmitting ? 'Saving...' : 'Save Changes'}
+              </Button>
+            </View>
+          </View>
+        </View>
+      </KeyboardAvoidingView>
+    </Modal>
+  );
+
+  const renderEditDrugModal = () => (
+    <Modal
+      animationType="slide"
+      transparent={true}
+      visible={isEditDrugModalVisible}
+      onRequestClose={() => setIsEditDrugModalVisible(false)}
+    >
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        style={{ flex: 1 }}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text variant="h6" weight="bold" style={styles.modalTitle}>Edit Drug Details</Text>
+            <ScrollView 
+              style={{ flexShrink: 1 }}
+              contentContainerStyle={{ flexGrow: 1 }}
+              keyboardShouldPersistTaps="always"
+            >
+              <View style={styles.formGroup}>
+                <Text variant="body2" style={styles.label}>Drug Name *</Text>
+                <TextInput
+                  style={styles.input}
+                  value={editingDrug?.name || ''}
+                  onChangeText={(text) => editingDrug && setEditingDrug({...editingDrug, name: text})}
+                  placeholder="e.g. Tylosin"
+                />
+              </View>
+
+              <View style={styles.formGroup}>
+                <Text variant="body2" style={styles.label}>Drug Class *</Text>
+                <TextInput
+                  style={styles.input}
+                  value={editingDrug?.drugClass || ''}
+                  onChangeText={(text) => editingDrug && setEditingDrug({...editingDrug, drugClass: text})}
+                  placeholder="e.g. Antibiotic"
+                />
+              </View>
+
+              <View style={styles.formGroup}>
+                <Text variant="body2" style={styles.label}>Type *</Text>
+                <TextInput
+                  style={styles.input}
+                  value={editingDrug?.type || ''}
+                  onChangeText={(text) => editingDrug && setEditingDrug({...editingDrug, type: text})}
+                  placeholder="e.g. Injectable"
+                />
+              </View>
+
+              <View style={styles.formGroup}>
+                <Text variant="body2" style={styles.label}>Withdrawal Period *</Text>
+                <TextInput
+                  style={styles.input}
+                  value={editingDrug?.withdrawalPeriod || ''}
+                  onChangeText={(text) => editingDrug && setEditingDrug({...editingDrug, withdrawalPeriod: text})}
+                  placeholder="e.g. 14 days"
+                />
+              </View>
+
+              <Picker
+                label="Pregnancy Safe"
+                value={editingDrug?.pregnancySafe || 'Yes'}
+                onValueChange={(value) => editingDrug && setEditingDrug({...editingDrug, pregnancySafe: value as any})}
+                items={[
+                  { label: 'Yes', value: 'Yes' },
+                  { label: 'No', value: 'No' },
+                ]}
+              />
+
+              <Picker
+                label="Stock Status"
+                value={editingDrug?.stockStatus || 'In Stock'}
+                onValueChange={(value) => editingDrug && setEditingDrug({...editingDrug, stockStatus: value as any})}
+                items={[
+                  { label: 'In Stock', value: 'In Stock' },
+                  { label: 'Low Stock', value: 'Low Stock' },
+                  { label: 'Out of Stock', value: 'Out of Stock' },
+                ]}
+              />
+            </ScrollView>
+
+            <View style={styles.modalButtons}>
+              <Button variant="outline" onPress={() => { setIsEditDrugModalVisible(false); setEditingDrug(null); }} style={styles.cancelButton}>
+                Cancel
+              </Button>
+              <Button onPress={handleSaveDrug} disabled={isSubmitting || !editingDrug?.name || !editingDrug?.drugClass}>
+                {isSubmitting ? 'Saving...' : 'Save Changes'}
+              </Button>
+            </View>
+          </View>
+        </View>
+      </KeyboardAvoidingView>
+    </Modal>
+  );
+
+  const renderEditMortalityRecordModal = () => (
+    <Modal
+      animationType="slide"
+      transparent={true}
+      visible={isEditMortalityRecordModalVisible}
+      onRequestClose={() => setIsEditMortalityRecordModalVisible(false)}
+    >
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        style={{ flex: 1 }}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text variant="h6" weight="bold" style={styles.modalTitle}>Edit Cull/Mortality Record</Text>
+            <ScrollView 
+              style={{ flexShrink: 1 }}
+              contentContainerStyle={{ flexGrow: 1 }}
+              keyboardShouldPersistTaps="always"
+            >
+              <View style={styles.formGroup}>
+                <Text variant="body2" style={styles.label}>Animal ID / Tag</Text>
+                <Text variant="body" weight="medium" style={[styles.input, { backgroundColor: Colors.neutral[100], color: Colors.neutral[700] }]}>
+                  {editingMortalityRecord?.animalId || ''}
+                </Text>
+              </View>
+
+              <View style={styles.formGroup}>
+                <Text variant="body2" style={styles.label}>Date *</Text>
+                <TouchableOpacity 
+                  style={styles.dateInput}
+                  onPress={() => setShowEditMortalityDatePicker(true)}
+                >
+                  <Text>{editingMortalityRecord?.date || 'Select date'}</Text>
+                </TouchableOpacity>
+                {renderAdaptiveDatePicker(
+                  showEditMortalityDatePicker,
+                  editingMortalityRecord?.date,
+                  () => setShowEditMortalityDatePicker(false),
+                  (formattedDate) => editingMortalityRecord && setEditingMortalityRecord({...editingMortalityRecord, date: formattedDate})
+                )}
+              </View>
+
+              <View style={styles.formGroup}>
+                <Text variant="body2" style={styles.label}>Cause *</Text>
+                <TextInput
+                  style={styles.input}
+                  value={editingMortalityRecord?.cause || ''}
+                  onChangeText={(text) => editingMortalityRecord && setEditingMortalityRecord({...editingMortalityRecord, cause: text})}
+                  placeholder="e.g. Disease, Sold, Accident"
+                />
+              </View>
+
+              <View style={styles.formGroup}>
+                <Text variant="body2" style={styles.label}>Description</Text>
+                <TextInput
+                  style={styles.input}
+                  value={editingMortalityRecord?.description || ''}
+                  onChangeText={(text) => editingMortalityRecord && setEditingMortalityRecord({...editingMortalityRecord, description: text})}
+                  placeholder="Provide details..."
+                />
+              </View>
+
+              <View style={styles.formGroup}>
+                <Text variant="body2" style={styles.label}>Pre-Weaning</Text>
+                <View style={styles.radioGroup}>
+                  <TouchableOpacity 
+                    style={[styles.radioButton, editingMortalityRecord?.isPreWeaning && styles.radioButtonSelected]}
+                    onPress={() => editingMortalityRecord && setEditingMortalityRecord({...editingMortalityRecord, isPreWeaning: true})}
+                  >
+                    <Text>Yes</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity 
+                    style={[styles.radioButton, !editingMortalityRecord?.isPreWeaning && styles.radioButtonSelected]}
+                    onPress={() => editingMortalityRecord && setEditingMortalityRecord({...editingMortalityRecord, isPreWeaning: false})}
+                  >
+                    <Text>No</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </ScrollView>
+
+            <View style={styles.modalButtons}>
+              <Button variant="outline" onPress={() => { setIsEditMortalityRecordModalVisible(false); setEditingMortalityRecord(null); }} style={styles.cancelButton}>
+                Cancel
+              </Button>
+              <Button onPress={handleSaveMortalityRecord} disabled={isSubmitting || !editingMortalityRecord?.date || !editingMortalityRecord?.cause}>
+                {isSubmitting ? 'Saving...' : 'Save Changes'}
+              </Button>
+            </View>
+          </View>
+        </View>
+      </KeyboardAvoidingView>
+    </Modal>
+  );
+
+  const renderEditTransactionModal = () => (
+    <Modal
+      animationType="slide"
+      transparent={true}
+      visible={isEditTransactionModalVisible}
+      onRequestClose={() => setIsEditTransactionModalVisible(false)}
+    >
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        style={{ flex: 1 }}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text variant="h6" weight="bold" style={styles.modalTitle}>Edit Financial Entry</Text>
+            <ScrollView 
+              style={{ flexShrink: 1 }}
+              contentContainerStyle={{ flexGrow: 1 }}
+              keyboardShouldPersistTaps="always"
+            >
+              <View style={styles.formGroup}>
+                <Text variant="body2" style={styles.label}>Date *</Text>
+                <TouchableOpacity 
+                  style={styles.dateInput}
+                  onPress={() => setShowEditTransactionDatePicker(true)}
+                >
+                  <Text>{editingTransaction?.date || 'Select date'}</Text>
+                </TouchableOpacity>
+                {renderAdaptiveDatePicker(
+                  showEditTransactionDatePicker,
+                  editingTransaction?.date,
+                  () => setShowEditTransactionDatePicker(false),
+                  (formattedDate) => editingTransaction && setEditingTransaction({...editingTransaction, date: formattedDate})
+                )}
+              </View>
+
+              <View style={styles.formGroup}>
+                <Text variant="body2" style={styles.label}>Description *</Text>
+                <TextInput
+                  style={styles.input}
+                  value={editingTransaction?.description || ''}
+                  onChangeText={(text) => editingTransaction && setEditingTransaction({...editingTransaction, description: text})}
+                  placeholder="e.g. Sold 3 weaners"
+                />
+              </View>
+
+              <View style={styles.formGroup}>
+                <Text variant="body2" style={styles.label}>Amount *</Text>
+                <TextInput
+                  style={styles.input}
+                  value={editingTransaction?.amount?.toString() || ''}
+                  onChangeText={(text) => editingTransaction && setEditingTransaction({...editingTransaction, amount: text})}
+                  keyboardType="numeric"
+                  placeholder="e.g. 1500"
+                />
+              </View>
+
+              <Picker
+                label="Type"
+                value={editingTransaction?.type || 'Sale'}
+                onValueChange={(value) => editingTransaction && setEditingTransaction({...editingTransaction, type: value as any})}
+                items={[
+                  { label: 'Sale', value: 'Sale' },
+                  { label: 'Purchase', value: 'Purchase' },
+                ]}
+              />
+            </ScrollView>
+
+            <View style={styles.modalButtons}>
+              <Button variant="outline" onPress={() => { setIsEditTransactionModalVisible(false); setEditingTransaction(null); }} style={styles.cancelButton}>
+                Cancel
+              </Button>
+              <Button onPress={handleSaveTransaction} disabled={isSubmitting || !editingTransaction?.date || !editingTransaction?.description || !editingTransaction?.amount}>
+                {isSubmitting ? 'Saving...' : 'Save Changes'}
+              </Button>
+            </View>
+          </View>
+        </View>
+      </KeyboardAvoidingView>
+    </Modal>
+  );
+
+  const renderEditFeedModal = () => (
+    <Modal
+      animationType="slide"
+      transparent={true}
+      visible={isEditFeedModalVisible}
+      onRequestClose={() => setIsEditFeedModalVisible(false)}
+    >
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        style={{ flex: 1 }}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text variant="h6" weight="bold" style={styles.modalTitle}>Edit Feed Inventory Item</Text>
+            <ScrollView 
+              style={{ flexShrink: 1 }}
+              contentContainerStyle={{ flexGrow: 1 }}
+              keyboardShouldPersistTaps="always"
+            >
+              <View style={styles.formGroup}>
+                <Text variant="body2" style={styles.label}>Feed Name *</Text>
+                <TextInput
+                  style={styles.input}
+                  value={editingFeedItem?.name || ''}
+                  onChangeText={(text) => editingFeedItem && setEditingFeedItem({...editingFeedItem, name: text})}
+                  placeholder="e.g. Lucerne"
+                />
+              </View>
+
+              <View style={styles.formGroup}>
+                <Text variant="body2" style={styles.label}>Type *</Text>
+                <TextInput
+                  style={styles.input}
+                  value={editingFeedItem?.type || ''}
+                  onChangeText={(text) => editingFeedItem && setEditingFeedItem({...editingFeedItem, type: text})}
+                  placeholder="e.g. Roughage, Concentrate"
+                />
+              </View>
+
+              <View style={styles.formGroup}>
+                <Text variant="body2" style={styles.label}>Quantity *</Text>
+                <TextInput
+                  style={styles.input}
+                  value={editingFeedItem?.quantity || ''}
+                  onChangeText={(text) => editingFeedItem && setEditingFeedItem({...editingFeedItem, quantity: text})}
+                  placeholder="e.g. 50"
+                  keyboardType="numeric"
+                />
+              </View>
+
+              <View style={styles.formGroup}>
+                <Text variant="body2" style={styles.label}>Unit *</Text>
+                <TextInput
+                  style={styles.input}
+                  value={editingFeedItem?.unit || ''}
+                  onChangeText={(text) => editingFeedItem && setEditingFeedItem({...editingFeedItem, unit: text})}
+                  placeholder="e.g. bags, kg, tonnes"
+                />
+              </View>
+
+              <View style={styles.formGroup}>
+                <Text variant="body2" style={styles.label}>Supplier</Text>
+                <TextInput
+                  style={styles.input}
+                  value={editingFeedItem?.supplier || ''}
+                  onChangeText={(text) => editingFeedItem && setEditingFeedItem({...editingFeedItem, supplier: text})}
+                  placeholder="Supplier name"
+                />
+              </View>
+
+              <View style={styles.formGroup}>
+                <Text variant="body2" style={styles.label}>Last Updated Date *</Text>
+                <TouchableOpacity 
+                  style={styles.dateInput}
+                  onPress={() => setShowEditFeedLastUpdatedDatePicker(true)}
+                >
+                  <Text>{editingFeedItem?.lastUpdated || 'Select date'}</Text>
+                </TouchableOpacity>
+                {renderAdaptiveDatePicker(
+                  showEditFeedLastUpdatedDatePicker,
+                  editingFeedItem?.lastUpdated,
+                  () => setShowEditFeedLastUpdatedDatePicker(false),
+                  (formattedDate) => editingFeedItem && setEditingFeedItem({...editingFeedItem, lastUpdated: formattedDate})
+                )}
+              </View>
+
+              <Picker
+                label="Status"
+                value={editingFeedItem?.status || 'In Stock'}
+                onValueChange={(value) => editingFeedItem && setEditingFeedItem({...editingFeedItem, status: value as any})}
+                items={[
+                  { label: 'In Stock', value: 'In Stock' },
+                  { label: 'Low Stock', value: 'Low Stock' },
+                  { label: 'Out of Stock', value: 'Out of Stock' },
+                ]}
+              />
+            </ScrollView>
+
+            <View style={styles.modalButtons}>
+              <Button variant="outline" onPress={() => { setIsEditFeedModalVisible(false); setEditingFeedItem(null); }} style={styles.cancelButton}>
+                Cancel
+              </Button>
+              <Button onPress={handleSaveFeedItem} disabled={isSubmitting || !editingFeedItem?.name || !editingFeedItem?.quantity || !editingFeedItem?.unit}>
+                {isSubmitting ? 'Saving...' : 'Save Changes'}
+              </Button>
+            </View>
+          </View>
+        </View>
+      </KeyboardAvoidingView>
+    </Modal>
+  );
 
   const renderEditCalfModal = () => (
     <Modal
@@ -1696,14 +3220,148 @@ function RegisterContent() {
                 />
               </View>
               
+              {/* Sire ID */}
+              <View style={styles.formGroup}>
+                <Text variant="body2" style={styles.label}>Sire ID</Text>
+                <TextInput
+                  style={styles.input}
+                  value={editingCalf?.sire || ''}
+                  onChangeText={(text) => editingCalf && setEditingCalf({...editingCalf, sire: text})}
+                  placeholder="Sire ID / Tag"
+                />
+              </View>
+
+              {/* Dam ID */}
+              <View style={styles.formGroup}>
+                <Text variant="body2" style={styles.label}>Dam ID</Text>
+                <TextInput
+                  style={styles.input}
+                  value={editingCalf?.dam || ''}
+                  onChangeText={(text) => editingCalf && setEditingCalf({...editingCalf, dam: text})}
+                  placeholder="Dam ID / Tag"
+                />
+              </View>
+
+              {/* Birth Weight */}
               <View style={styles.formGroup}>
                 <Text variant="body2" style={styles.label}>Birth Weight (kg)</Text>
                 <TextInput
-                  style={[styles.input, styles.disabledInput]}
+                  style={styles.input}
                   value={editingCalf?.birthWeight || ''}
-                  editable={false}
+                  onChangeText={(text) => editingCalf && setEditingCalf({...editingCalf, birthWeight: text})}
                   placeholder="e.g. 35.5"
+                  keyboardType="numeric"
                 />
+              </View>
+
+              {/* 30-Day Weight */}
+              <View style={styles.formGroup}>
+                <Text variant="body2" style={styles.label}>30-Day Weight (kg)</Text>
+                <TextInput
+                  style={styles.input}
+                  value={editingCalf?.weight30day != null ? String(editingCalf.weight30day) : ''}
+                  onChangeText={(text) => editingCalf && setEditingCalf({...editingCalf, weight30day: text as any})}
+                  placeholder="e.g. 55"
+                  keyboardType="numeric"
+                />
+              </View>
+
+              {/* 100-Day Weight */}
+              <View style={styles.formGroup}>
+                <Text variant="body2" style={styles.label}>100-Day Weight (kg)</Text>
+                <TextInput
+                  style={styles.input}
+                  value={editingCalf?.weight100day != null ? String(editingCalf.weight100day) : ''}
+                  onChangeText={(text) => editingCalf && setEditingCalf({...editingCalf, weight100day: text as any})}
+                  placeholder="e.g. 110"
+                  keyboardType="numeric"
+                />
+              </View>
+
+              {/* Date of Weaning */}
+              <View style={styles.formGroup}>
+                <Text variant="body2" style={styles.label}>Date of Weaning</Text>
+                <TouchableOpacity 
+                  style={styles.input}
+                  onPress={() => setShowEditCalfWeaningDatePicker(true)}
+                >
+                  <Text style={editingCalf?.dateOfWeaning ? {} : {color: '#999'}}>
+                    {editingCalf?.dateOfWeaning || 'Select weaning date'}
+                  </Text>
+                </TouchableOpacity>
+                {renderAdaptiveDatePicker(
+                  showEditCalfWeaningDatePicker,
+                  editingCalf?.dateOfWeaning,
+                  () => setShowEditCalfWeaningDatePicker(false),
+                  (formattedDate) => editingCalf && setEditingCalf({ ...editingCalf, dateOfWeaning: formattedDate })
+                )}
+              </View>
+
+              {/* Weaning Weight */}
+              <View style={styles.formGroup}>
+                <Text variant="body2" style={styles.label}>Weaning Weight (kg)</Text>
+                <TextInput
+                  style={styles.input}
+                  value={editingCalf?.weaningWeight != null ? String(editingCalf.weaningWeight) : ''}
+                  onChangeText={(text) => editingCalf && setEditingCalf({...editingCalf, weaningWeight: text})}
+                  placeholder="e.g. 180"
+                  keyboardType="numeric"
+                />
+              </View>
+
+              {/* 1-Week Post Weaning Weight */}
+              <View style={styles.formGroup}>
+                <Text variant="body2" style={styles.label}>1-Week Post Weaning Weight (kg)</Text>
+                <TextInput
+                  style={styles.input}
+                  value={editingCalf?.weight1weekPostWeaning != null ? String(editingCalf.weight1weekPostWeaning) : ''}
+                  onChangeText={(text) => editingCalf && setEditingCalf({...editingCalf, weight1weekPostWeaning: text as any})}
+                  placeholder="e.g. 185"
+                  keyboardType="numeric"
+                />
+              </View>
+
+              {/* 6-Months Post Weaning Weight */}
+              <View style={styles.formGroup}>
+                <Text variant="body2" style={styles.label}>6-Months Post Weaning Weight (kg)</Text>
+                <TextInput
+                  style={styles.input}
+                  value={editingCalf?.weight6monthsPostWeaning != null ? String(editingCalf.weight6monthsPostWeaning) : ''}
+                  onChangeText={(text) => editingCalf && setEditingCalf({...editingCalf, weight6monthsPostWeaning: text as any})}
+                  placeholder="e.g. 240"
+                  keyboardType="numeric"
+                />
+              </View>
+
+              {/* Replacement / Sold Status */}
+              <Picker
+                label="Replacement / Sold Status"
+                value={editingCalf?.calfStatus || ''}
+                onValueChange={(val) => editingCalf && setEditingCalf({...editingCalf, calfStatus: val as any})}
+                items={[
+                  { label: 'Active', value: 'Active' },
+                  { label: 'Replacement', value: 'Replacement' },
+                  { label: 'Sold', value: 'Sold' },
+                ]}
+              />
+
+              {/* Pre-weaning Mortality */}
+              <View style={styles.formGroup}>
+                <Text variant="body2" style={styles.label}>Pre-Weaning Mortality</Text>
+                <View style={styles.radioGroup}>
+                  <TouchableOpacity 
+                    style={[styles.radioButton, editingCalf?.preWeaningMortality === true && styles.radioButtonSelected]}
+                    onPress={() => editingCalf && setEditingCalf({...editingCalf, preWeaningMortality: true})}
+                  >
+                    <Text>Yes</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity 
+                    style={[styles.radioButton, editingCalf?.preWeaningMortality !== true && styles.radioButtonSelected]}
+                    onPress={() => editingCalf && setEditingCalf({...editingCalf, preWeaningMortality: false})}
+                  >
+                    <Text>No</Text>
+                  </TouchableOpacity>
+                </View>
               </View>
               
               <View style={styles.formGroup}>
@@ -1865,14 +3523,20 @@ function RegisterContent() {
               )}
               
               <View style={styles.formGroup}>
-                <Text variant="body2" style={styles.label}>Date</Text>
-                <TextInput
-                  style={styles.input}
-                  value={newHealthRecord.date}
-                  onChangeText={(text) => setNewHealthRecord({...newHealthRecord, date: text})}
-                  placeholder="YYYY-MM-DD"
-                  keyboardType="numbers-and-punctuation"
-                />
+                <Text variant="body2" style={styles.label}>Date *</Text>
+                <TouchableOpacity 
+                  style={styles.dateInput}
+                  onPress={() => setShowAddHealthDatePicker(true)}
+                >
+                  <Text>{newHealthRecord.date || 'Select date'}</Text>
+                </TouchableOpacity>
+                {renderAdaptiveDatePicker(
+                  showAddHealthDatePicker,
+                  newHealthRecord.date,
+                  () => setShowAddHealthDatePicker(false),
+                  (formattedDate) => setNewHealthRecord({...newHealthRecord, date: formattedDate}),
+                  "Treatment Date"
+                )}
               </View>
               
               <View style={styles.formGroup}>
@@ -1882,6 +3546,27 @@ function RegisterContent() {
                   value={newHealthRecord.treatment}
                   onChangeText={(text) => setNewHealthRecord({...newHealthRecord, treatment: text})}
                   placeholder="Enter treatment details"
+                  multiline
+                />
+              </View>
+
+              <View style={styles.formGroup}>
+                <Text variant="body2" style={styles.label}>Done By (person who did the task)</Text>
+                <TextInput
+                  style={styles.input}
+                  value={newHealthRecord.doneBy || ''}
+                  onChangeText={(text) => setNewHealthRecord({...newHealthRecord, doneBy: text})}
+                  placeholder="e.g. John Doe"
+                />
+              </View>
+
+              <View style={styles.formGroup}>
+                <Text variant="body2" style={styles.label}>Special Notes</Text>
+                <TextInput
+                  style={[styles.input, { minHeight: 60, textAlignVertical: 'top' }]}
+                  value={newHealthRecord.specialNotes || ''}
+                  onChangeText={(text) => setNewHealthRecord({...newHealthRecord, specialNotes: text})}
+                  placeholder="Enter special notes"
                   multiline
                 />
               </View>
@@ -2079,6 +3764,16 @@ function RegisterContent() {
               keyboardDismissMode="none"
             >
               <View style={styles.formGroup}>
+                <Text variant="body2" style={styles.label}>Search Animal</Text>
+                <TextInput
+                  style={styles.input}
+                  value={weightAnimalSearchQuery}
+                  onChangeText={setWeightAnimalSearchQuery}
+                  placeholder="Filter by Tag, Breed, or Stock Type..."
+                />
+              </View>
+
+              <View style={styles.formGroup}>
                 <Picker
                   label="Select Animal*"
                   value={newWeightRecord.tag}
@@ -2102,10 +3797,19 @@ function RegisterContent() {
                   }}
                   items={[
                     { label: 'Select an animal...', value: '' },
-                    ...herdRegisterData.map(animal => ({
-                      label: `${animal.tag} (${animal.breed})`,
-                      value: animal.tag
-                    }))
+                    ...herdRegisterData
+                      .filter(animal => {
+                        const q = weightAnimalSearchQuery.toLowerCase();
+                        return (
+                          animal.tag.toLowerCase().includes(q) ||
+                          (animal.breed && animal.breed.toLowerCase().includes(q)) ||
+                          (animal.stockType && animal.stockType.toLowerCase().includes(q))
+                        );
+                      })
+                      .map(animal => ({
+                        label: `${animal.tag} (${animal.breed} - ${animal.stockType})`,
+                        value: animal.tag
+                      }))
                   ]}
                 />
               </View>
@@ -2153,7 +3857,10 @@ function RegisterContent() {
             <View style={styles.modalButtons}>
               <Button 
                 variant="outline" 
-                onPress={() => setIsAddWeightRecordModalVisible(false)}
+                onPress={() => {
+                  setIsAddWeightRecordModalVisible(false);
+                  setWeightAnimalSearchQuery('');
+                }}
                 style={styles.cancelButton}
               >
                 Cancel
@@ -2197,47 +3904,18 @@ function RegisterContent() {
                 <Text variant="body2" style={styles.label}>Date</Text>
                 <TouchableOpacity
                   style={styles.dateInput}
-                  onPress={() => {
-                    setSelectedDate(newTransaction.date ? new Date(newTransaction.date) : new Date());
-                    setTransactionDatePickerVisibility(true);
-                  }}
+                  onPress={() => setTransactionDatePickerVisibility(true)}
                 >
                   <Text>{newTransaction.date || 'Select date'}</Text>
                 </TouchableOpacity>
 
-                <Modal
-                  visible={isTransactionDatePickerVisible}
-                  transparent={true}
-                  animationType="slide"
-                  onRequestClose={() => setTransactionDatePickerVisibility(false)}
-                >
-                  <View style={styles.modalContainer}>
-                    <View style={styles.modalContent}>
-                      <DateTimePicker
-                        value={selectedDate}
-                        textColor={Colors.primary[500]}
-                        mode="date"
-                        display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-                        onChange={(event, date) => {
-                          if (date) {
-                            setSelectedDate(date);
-                          }
-                        }}
-                      />
-                      <View style={styles.modalActions}>
-                        
-                        <Button
-                          onPress={() => {
-                            setNewTransaction({ ...newTransaction, date: selectedDate.toISOString().split('T')[0] });
-                            setTransactionDatePickerVisibility(false);
-                          }}
-                        >
-                          Done
-                        </Button>
-                      </View>
-                    </View>
-                  </View>
-                </Modal>
+                {renderAdaptiveDatePicker(
+                  isTransactionDatePickerVisible,
+                  newTransaction.date,
+                  () => setTransactionDatePickerVisibility(false),
+                  (formattedDate) => setNewTransaction({ ...newTransaction, date: formattedDate }),
+                  "Transaction Date"
+                )}
               </View>
               
               <View style={styles.formGroup}>
@@ -2262,7 +3940,7 @@ function RegisterContent() {
               {newTransaction.type === 'Sale' ? (
                 <View style={styles.formGroup}>
                   <Picker
-                    label="Select Animal*"
+                    label="Select Animal (Optional)"
                     value={newTransaction.animalTag}
                     onValueChange={(value) => setNewTransaction({ ...newTransaction, animalTag: value })}
                     items={[
@@ -2289,47 +3967,19 @@ function RegisterContent() {
                     <Text variant="body2" style={styles.label}>Date of Birth</Text>
                     <TouchableOpacity
                       style={styles.dateInput}
-                      onPress={() => {
-                        setSelectedDate(newTransaction.purchaseDetails.dateOfBirth ? new Date(newTransaction.purchaseDetails.dateOfBirth) : new Date());
-                        setPurchaseDobPickerVisible(true);
-                      }}
+                      onPress={() => setPurchaseDobPickerVisible(true)}
                     >
                       <Text>{newTransaction.purchaseDetails.dateOfBirth || 'Select date'}</Text>
                     </TouchableOpacity>
 
-                    <Modal
-                      visible={isPurchaseDobPickerVisible}
-                      transparent={true}
-                      animationType="slide"
-                      onRequestClose={() => setPurchaseDobPickerVisible(false)}
-                    >
-                      <View style={styles.modalContainer}>
-                        <View style={styles.modalContent}>
-                          <DateTimePicker
-                            value={selectedDate}
-                            textColor={Colors.primary[500]}
-                            mode="date"
-                            display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-                            onChange={(event, date) => {
-                              if (date) {
-                                setSelectedDate(date);
-                              }
-                            }}
-                          />
-                          <View style={styles.modalActions}>
-                            
-                            <Button
-                              onPress={() => {
-                                setNewTransaction({ ...newTransaction, purchaseDetails: { ...newTransaction.purchaseDetails, dateOfBirth: selectedDate.toISOString().split('T')[0] } });
-                                setPurchaseDobPickerVisible(false);
-                              }}
-                            >
-                              Done
-                            </Button>
-                          </View>
-                        </View>
-                      </View>
-                    </Modal>
+                    {renderAdaptiveDatePicker(
+                      isPurchaseDobPickerVisible,
+                      newTransaction.purchaseDetails.dateOfBirth,
+                      () => setPurchaseDobPickerVisible(false),
+                      (formattedDate) => setNewTransaction({ ...newTransaction, purchaseDetails: { ...newTransaction.purchaseDetails, dateOfBirth: formattedDate } }),
+                      "Date of Birth",
+                      new Date()
+                    )}
                   </View>
                   <Picker
                     label="Breed"
@@ -2482,56 +4132,13 @@ function RegisterContent() {
                   <Text>{newBullBreedingRecord.date || 'Select date'}</Text>
                 </TouchableOpacity>
 
-                <Modal
-                  visible={showBreedingDatePicker}
-                  transparent={true}
-                  animationType="slide"
-                  onRequestClose={() => setShowBreedingDatePicker(false)}
-                >
-                  <View style={styles.modalContainer}>
-                    <View style={styles.modalContent}>
-                      <View style={styles.modalHeader}>
-                        <Text variant="h6">Select Date</Text>
-                        <TouchableOpacity onPress={() => setShowBreedingDatePicker(false)}>
-                          <Text style={styles.closeButton}>×</Text>
-                        </TouchableOpacity>
-                      </View>
-                      <DateTimePicker
-                        value={selectedDate}
-                        textColor={Colors.primary[500]}
-                        mode="date"
-                        display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-                        onChange={(event, date) => {
-                          if (date) {
-                            setSelectedDate(date);
-                          }
-                        }}
-                      />
-                      <View style={styles.modalFooter}>
-                        <Button
-                          onPress={() => setShowBreedingDatePicker(false)}
-                          variant="outline"
-                          style={styles.modalButton}
-                        >
-                          Cancel
-                        </Button>
-                        <Button
-                          onPress={() => {
-                            const formattedDate = selectedDate.toISOString().split('T')[0];
-                            setNewBullBreedingRecord({
-                              ...newBullBreedingRecord,
-                              date: formattedDate
-                            });
-                            setShowBreedingDatePicker(false);
-                          }}
-                          style={styles.modalButton}
-                        >
-                          Done
-                        </Button>
-                      </View>
-                    </View>
-                  </View>
-                </Modal>
+                {renderAdaptiveDatePicker(
+                  showBreedingDatePicker,
+                  newBullBreedingRecord.date,
+                  () => setShowBreedingDatePicker(false),
+                  (formattedDate) => setNewBullBreedingRecord({ ...newBullBreedingRecord, date: formattedDate }),
+                  "Breeding Date"
+                )}
               </View>
               
               <View style={styles.formGroup}>
@@ -2710,77 +4317,24 @@ function RegisterContent() {
                   </Text>
                 </TouchableOpacity>
                 
-                {showBirthDatePicker && Platform.OS === 'android' && (
-                  <DateTimePicker
-                    textColor={Colors.neutral[800]}
-                    value={selectedDate}
-                    mode="date"
-                    display="default"
-                    onChange={(event, date) => {
-                      setShowBirthDatePicker(false);
-                      if (date) {
-                        const formattedDate = date.toISOString().split('T')[0];
-                        setSelectedDate(date);
-                        const today = new Date();
-                        let years = today.getFullYear() - date.getFullYear();
-                        let months = today.getMonth() - date.getMonth();
-                        if (months < 0 || (months === 0 && today.getDate() < date.getDate())) {
-                          years--;
-                          months += 12;
-                        }
-                        const ageText = years > 0 ? `${years}y ${months}m` : `${months}m`;
-                        setNewAnimal(prev => ({ ...prev, dateOfBirth: formattedDate, age: ageText }));
-                      }
-                    }}
-                    maximumDate={new Date()}
-                  />
-                )}
-
-                {/* iOS: render picker in a dismissible inline card with a Done button */}
-                {showBirthDatePicker && Platform.OS === 'ios' && (
-                  <View style={{
-                    backgroundColor: Colors.neutral[50],
-                    borderRadius: 12,
-                    borderWidth: 1,
-                    borderColor: Colors.neutral[200],
-                    marginTop: 8,
-                    overflow: 'hidden',
-                  }}>
-                    <DateTimePicker
-                      textColor={Colors.neutral[800]}
-                      value={selectedDate}
-                      mode="date"
-                      display="spinner"
-                      onChange={(event, date) => {
-                        if (date) {
-                          setSelectedDate(date);
-                          const formattedDate = date.toISOString().split('T')[0];
-                          const today = new Date();
-                          let years = today.getFullYear() - date.getFullYear();
-                          let months = today.getMonth() - date.getMonth();
-                          if (months < 0 || (months === 0 && today.getDate() < date.getDate())) {
-                            years--;
-                            months += 12;
-                          }
-                          const ageText = years > 0 ? `${years}y ${months}m` : `${months}m`;
-                          setNewAnimal(prev => ({ ...prev, dateOfBirth: formattedDate, age: ageText }));
-                        }
-                      }}
-                      maximumDate={new Date()}
-                    />
-                    <TouchableOpacity
-                      onPress={() => setShowBirthDatePicker(false)}
-                      style={{
-                        alignItems: 'center',
-                        paddingVertical: 12,
-                        borderTopWidth: 1,
-                        borderTopColor: Colors.neutral[200],
-                        backgroundColor: Colors.primary[50],
-                      }}
-                    >
-                      <Text variant="button" color="primary.600">Done</Text>
-                    </TouchableOpacity>
-                  </View>
+                {renderAdaptiveDatePicker(
+                  showBirthDatePicker,
+                  newAnimal.dateOfBirth,
+                  () => setShowBirthDatePicker(false),
+                  (formattedDate) => {
+                    const today = new Date();
+                    const date = new Date(formattedDate);
+                    let years = today.getFullYear() - date.getFullYear();
+                    let months = today.getMonth() - date.getMonth();
+                    if (months < 0 || (months === 0 && today.getDate() < date.getDate())) {
+                      years--;
+                      months += 12;
+                    }
+                    const ageText = years > 0 ? `${years}y ${months}m` : `${months}m`;
+                    setNewAnimal(prev => ({ ...prev, dateOfBirth: formattedDate, age: ageText }));
+                  },
+                  "Date of Birth",
+                  new Date()
                 )}
                 
                 {newAnimal.age ? (
@@ -2858,6 +4412,7 @@ function RegisterContent() {
                   { label: 'Bull', value: 'Bull' },
                   { label: 'Cow', value: 'Cow' },
                   { label: 'Heifer', value: 'Heifer' },
+                  { label: 'Bullying Heifer', value: 'Bullying Heifer' },
                   { label: 'Steer', value: 'Steer' },
                   { label: 'Calf', value: 'Calve' }
                 ]}
@@ -2873,6 +4428,81 @@ function RegisterContent() {
                   { label: 'Purchased', value: 'Purchased' },
                 ]}
               />
+
+              <View style={styles.formGroup}>
+                <Text variant="body2" style={styles.label}>Sire</Text>
+                <TextInput
+                  style={styles.input}
+                  value={newAnimal.sire}
+                  onChangeText={(text) => setNewAnimal({...newAnimal, sire: text})}
+                  placeholder="Sire Tag / ID"
+                />
+              </View>
+
+              <View style={styles.formGroup}>
+                <Text variant="body2" style={styles.label}>Dam</Text>
+                <TextInput
+                  style={styles.input}
+                  value={newAnimal.dam}
+                  onChangeText={(text) => setNewAnimal({...newAnimal, dam: text})}
+                  placeholder="Dam Tag / ID"
+                />
+              </View>
+
+              <View style={styles.formGroup}>
+                <Text variant="body2" style={styles.label}>Birth Weight (kg)</Text>
+                <TextInput
+                  style={styles.input}
+                  value={newAnimal.birthWeight}
+                  onChangeText={(text) => setNewAnimal({...newAnimal, birthWeight: text})}
+                  placeholder="e.g., 35"
+                  keyboardType="numeric"
+                />
+              </View>
+
+              <View style={styles.formGroup}>
+                <Text variant="body2" style={styles.label}>Date of Weaning</Text>
+                <TouchableOpacity 
+                  style={styles.input}
+                  onPress={() => setShowWeaningDatePicker(true)}
+                >
+                  <Text style={newAnimal.dateOfWeaning ? {} : {color: '#999'}}>
+                    {newAnimal.dateOfWeaning || 'Select weaning date'}
+                  </Text>
+                </TouchableOpacity>
+                
+                {renderAdaptiveDatePicker(
+                  showWeaningDatePicker,
+                  newAnimal.dateOfWeaning,
+                  () => setShowWeaningDatePicker(false),
+                  (formattedDate) => setNewAnimal(prev => ({ ...prev, dateOfWeaning: formattedDate })),
+                  "Weaning Date",
+                  new Date()
+                )}
+              </View>
+
+              <View style={styles.formGroup}>
+                <Text variant="body2" style={styles.label}>Weaning Weight (kg)</Text>
+                <TextInput
+                  style={styles.input}
+                  value={newAnimal.weaningWeight ? newAnimal.weaningWeight.toString() : ''}
+                  onChangeText={(text) => setNewAnimal({...newAnimal, weaningWeight: text})}
+                  placeholder="e.g., 180"
+                  keyboardType="numeric"
+                />
+              </View>
+
+              <View style={styles.formGroup}>
+                <Text variant="body2" style={styles.label}>Description</Text>
+                <TextInput
+                  style={[styles.input, { height: 80, textAlignVertical: 'top' }]}
+                  value={newAnimal.description}
+                  onChangeText={(text) => setNewAnimal({...newAnimal, description: text})}
+                  placeholder="Additional description/markings..."
+                  multiline={true}
+                  numberOfLines={3}
+                />
+              </View>
             </ScrollView>
             
             <View style={styles.modalButtons}>
@@ -2888,6 +4518,267 @@ function RegisterContent() {
                 disabled={isSubmitting}
               >
                 {isSubmitting ? 'Adding...' : 'Add Animal'}
+              </Button>
+            </View>
+          </View>
+        </View>
+      </KeyboardAvoidingView>
+    </Modal>
+  );
+
+  const renderEditAnimalModal = () => (
+    <Modal
+      animationType="slide"
+      transparent={true}
+      visible={isEditAnimalModalVisible}
+      onRequestClose={() => setIsEditAnimalModalVisible(false)}
+    >
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        style={{ flex: 1 }}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text variant="h6" weight="bold" style={styles.modalTitle}>Edit Animal Details</Text>
+            
+            <ScrollView
+              style={{ flexShrink: 1 }}
+              contentContainerStyle={{ flexGrow: 1 }}
+              keyboardShouldPersistTaps="always"
+              automaticallyAdjustKeyboardInsets={true}
+              keyboardDismissMode="none"
+            >
+              <View style={styles.formGroup}>
+                <Text variant="body2" style={styles.label}>Tag *</Text>
+                <TextInput
+                  style={styles.input}
+                  value={editingAnimal?.tag || ''}
+                  onChangeText={(text) => editingAnimal && setEditingAnimal({...editingAnimal, tag: text})}
+                  placeholder="e.g., TAG123"
+                />
+              </View>
+              
+              <View style={styles.formGroup}>
+                <Text variant="body2" style={styles.label}>Date of Birth *</Text>
+                <TouchableOpacity 
+                  style={styles.input}
+                  onPress={() => setShowBirthDatePicker(true)}
+                >
+                  <Text style={editingAnimal?.dateOfBirth ? {} : {color: '#999'}}>
+                    {editingAnimal?.dateOfBirth || 'Select date'}
+                  </Text>
+                </TouchableOpacity>
+                
+                {renderAdaptiveDatePicker(
+                  showBirthDatePicker,
+                  editingAnimal?.dateOfBirth,
+                  () => setShowBirthDatePicker(false),
+                  (formattedDate) => {
+                    const today = new Date();
+                    const date = new Date(formattedDate);
+                    let years = today.getFullYear() - date.getFullYear();
+                    let months = today.getMonth() - date.getMonth();
+                    if (months < 0 || (months === 0 && today.getDate() < date.getDate())) {
+                      years--;
+                      months += 12;
+                    }
+                    const ageText = years > 0 ? `${years}y ${months}m` : `${months}m`;
+                    if (editingAnimal) {
+                      setEditingAnimal({ ...editingAnimal, dateOfBirth: formattedDate, age: ageText });
+                    }
+                  },
+                  "Date of Birth",
+                  new Date()
+                )}
+                
+                {editingAnimal?.age ? (
+                  <Text variant="caption" style={{marginTop: 4}}>Age: {editingAnimal.age}</Text>
+                ) : null}
+              </View>
+              
+              <Picker
+                label="Breed"
+                value={editingAnimal?.breed || ''}
+                onValueChange={(value) => {
+                  if (value === '__add_new__') {
+                    if (editingAnimal) setEditingAnimal({...editingAnimal, breed: ''});
+                    setShowCustomBreedInput(true);
+                  } else {
+                    if (editingAnimal) setEditingAnimal({...editingAnimal, breed: value});
+                    setShowCustomBreedInput(false);
+                  }
+                }}
+                items={[
+                  { label: 'Select Breed', value: '' },
+                  ...customBreedList.map(b => ({ label: b, value: b })),
+                  { label: '+ Add New Breed...', value: '__add_new__' },
+                ]}
+              />
+              {showCustomBreedInput && (
+                <View style={[styles.formGroup, { flexDirection: 'row', alignItems: 'center', gap: 8 }]}>
+                  <TextInput
+                    style={[styles.input, { flex: 1 }]}
+                    value={editingAnimal?.breed || ''}
+                    onChangeText={(text) => editingAnimal && setEditingAnimal({...editingAnimal, breed: text})}
+                    placeholder="Type new breed name..."
+                    autoFocus
+                  />
+                  <Button
+                    size="sm"
+                    onPress={() => {
+                      const trimmed = editingAnimal?.breed.trim();
+                      if (trimmed && !customBreedList.includes(trimmed)) {
+                        setCustomBreedList(prev => [...prev, trimmed]);
+                      }
+                      setShowCustomBreedInput(false);
+                    }}
+                    disabled={!editingAnimal?.breed.trim()}
+                  >
+                    Save
+                  </Button>
+                </View>
+              )}
+              
+              <View style={styles.formGroup}>
+                <Text variant="body2" style={styles.label}>Sex</Text>
+                <View style={styles.radioGroup}>
+                  <TouchableOpacity 
+                    style={[styles.radioButton, editingAnimal?.sex === 'Male' && styles.radioButtonSelected]}
+                    onPress={() => editingAnimal && setEditingAnimal({...editingAnimal, sex: 'Male'})}
+                  >
+                    <Text>Male</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity 
+                    style={[styles.radioButton, editingAnimal?.sex === 'Female' && styles.radioButtonSelected]}
+                    onPress={() => editingAnimal && setEditingAnimal({...editingAnimal, sex: 'Female'})}
+                  >
+                    <Text>Female</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+              
+              <Picker
+                label="Stock Type"
+                value={editingAnimal?.stockType || ''}
+                onValueChange={(value) => editingAnimal && setEditingAnimal({...editingAnimal, stockType: value})}
+                items={[
+                  { label: 'Select Stock Type', value: '' },
+                  { label: 'Bull', value: 'Bull' },
+                  { label: 'Cow', value: 'Cow' },
+                  { label: 'Heifer', value: 'Heifer' },
+                  { label: 'Bullying Heifer', value: 'Bullying Heifer' },
+                  { label: 'Steer', value: 'Steer' },
+                  { label: 'Calf', value: 'Calve' }
+                ]}
+              />
+              
+              <Picker
+                label="Source"
+                value={editingAnimal?.source || ''}
+                onValueChange={(value) => editingAnimal && setEditingAnimal({...editingAnimal, source: value})}
+                items={[
+                  { label: 'Select Source', value: '' },
+                  { label: 'Born on Farm', value: 'Born' },
+                  { label: 'Purchased', value: 'Purchased' },
+                ]}
+              />
+
+              <View style={styles.formGroup}>
+                <Text variant="body2" style={styles.label}>Sire</Text>
+                <TextInput
+                  style={styles.input}
+                  value={editingAnimal?.sire || ''}
+                  onChangeText={(text) => editingAnimal && setEditingAnimal({...editingAnimal, sire: text})}
+                  placeholder="Sire Tag / ID"
+                />
+              </View>
+
+              <View style={styles.formGroup}>
+                <Text variant="body2" style={styles.label}>Dam</Text>
+                <TextInput
+                  style={styles.input}
+                  value={editingAnimal?.dam || ''}
+                  onChangeText={(text) => editingAnimal && setEditingAnimal({...editingAnimal, dam: text})}
+                  placeholder="Dam Tag / ID"
+                />
+              </View>
+
+              <View style={styles.formGroup}>
+                <Text variant="body2" style={styles.label}>Birth Weight (kg)</Text>
+                <TextInput
+                  style={styles.input}
+                  value={editingAnimal?.birthWeight || ''}
+                  onChangeText={(text) => editingAnimal && setEditingAnimal({...editingAnimal, birthWeight: text})}
+                  placeholder="e.g., 35"
+                  keyboardType="numeric"
+                />
+              </View>
+
+              <View style={styles.formGroup}>
+                <Text variant="body2" style={styles.label}>Date of Weaning</Text>
+                <TouchableOpacity 
+                  style={styles.input}
+                  onPress={() => setShowWeaningDatePicker(true)}
+                >
+                  <Text style={editingAnimal?.dateOfWeaning ? {} : {color: '#999'}}>
+                    {editingAnimal?.dateOfWeaning || 'Select weaning date'}
+                  </Text>
+                </TouchableOpacity>
+                
+                {renderAdaptiveDatePicker(
+                  showWeaningDatePicker,
+                  editingAnimal?.dateOfWeaning,
+                  () => setShowWeaningDatePicker(false),
+                  (formattedDate) => {
+                    if (editingAnimal) {
+                      setEditingAnimal({ ...editingAnimal, dateOfWeaning: formattedDate });
+                    }
+                  },
+                  "Weaning Date",
+                  new Date()
+                )}
+              </View>
+
+              <View style={styles.formGroup}>
+                <Text variant="body2" style={styles.label}>Weaning Weight (kg)</Text>
+                <TextInput
+                  style={styles.input}
+                  value={editingAnimal?.weaningWeight ? editingAnimal.weaningWeight.toString() : ''}
+                  onChangeText={(text) => editingAnimal && setEditingAnimal({...editingAnimal, weaningWeight: text})}
+                  placeholder="e.g., 180"
+                  keyboardType="numeric"
+                />
+              </View>
+
+              <View style={styles.formGroup}>
+                <Text variant="body2" style={styles.label}>Description</Text>
+                <TextInput
+                  style={[styles.input, { height: 80, textAlignVertical: 'top' }]}
+                  value={editingAnimal?.description || ''}
+                  onChangeText={(text) => editingAnimal && setEditingAnimal({...editingAnimal, description: text})}
+                  placeholder="Additional description/markings..."
+                  multiline={true}
+                  numberOfLines={3}
+                />
+              </View>
+            </ScrollView>
+            
+            <View style={styles.modalButtons}>
+              <Button 
+                variant="outline" 
+                onPress={() => {
+                  setIsEditAnimalModalVisible(false);
+                  setEditingAnimal(null);
+                }}
+                style={styles.cancelButton}
+              >
+                Cancel
+              </Button>
+              <Button 
+                onPress={handleSaveAnimal}
+                disabled={isSubmitting}
+              >
+                {isSubmitting ? 'Saving...' : 'Save Changes'}
               </Button>
             </View>
           </View>
@@ -2931,7 +4822,10 @@ function RegisterContent() {
           expectedCalvingDate: '',
           actualCalvingDate: '',
           averageBCS: 3.0,
-          expectedReturnToHeatDate: ''
+          expectedReturnToHeatDate: '',
+          calfId: '',
+          calfSex: undefined,
+          deliveryType: undefined
         });
         setIsAddPregnancyModalVisible(false);
       } catch (error: any) {
@@ -3010,7 +4904,7 @@ function RegisterContent() {
                     items={[
                       { label: 'Select a cow...', value: '' },
                       ...herdRegisterData
-                        .filter(animal => animal.sex === 'Female' && ['Cow', 'Heifer', 'Heifer (First Calf)'].includes(animal.stockType))
+                        .filter(animal => animal.sex === 'Female' && ['Cow', 'Heifer', 'Heifer (First Calf)', 'Bullying Heifer'].includes(animal.stockType))
                         .map(animal => ({
                           label: `${animal.tag} (${animal.breed} ${animal.stockType})`,
                           value: animal.tag
@@ -3037,43 +4931,36 @@ function RegisterContent() {
                     keyboardType="numeric"
                   />
                 </View>
-
-                <View style={styles.formGroup}>
-                  <Text variant="body2" style={styles.label}>Last Service Date *</Text>
-                  <TouchableOpacity 
-                    style={styles.dateInput}
-                    onPress={() => toggleDatePicker('lastServiceDate')}
-                  >
-                    <Text>{newPregnancyRecord.lastServiceDate || 'Select date'}</Text>
-                  </TouchableOpacity>
-                  {showDatePicker.lastServiceDate && (
-                    <DateTimePicker
-                      value={new Date(newPregnancyRecord.lastServiceDate) || new Date()}
-                      mode="date"
-                      textColor='black'
-                      display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-                      onChange={(event, selectedDate) => {
-                        if (selectedDate) {
-                          const formattedDate = selectedDate.toISOString().split('T')[0];
-                          setNewPregnancyRecord({
-                            ...newPregnancyRecord,
-                            lastServiceDate: formattedDate
-                          });
-                          // Recalculate expected calving date if gestation period is set
-                          if (newPregnancyRecord.gestationPeriod > 0) {
-                            const expectedDate = new Date(selectedDate);
-                            expectedDate.setDate(selectedDate.getDate() + newPregnancyRecord.gestationPeriod);
-                            setNewPregnancyRecord(prev => ({
-                              ...prev,
-                              expectedCalvingDate: expectedDate.toISOString().split('T')[0]
-                            }));
-                          }
-                        }
-                        toggleDatePicker('lastServiceDate');
-                      }}
-                    />
-                  )}
-                </View>
+              <View style={styles.formGroup}>
+                <Text variant="body2" style={styles.label}>Last Service Date *</Text>
+                <TouchableOpacity 
+                  style={styles.dateInput}
+                  onPress={() => toggleDatePicker('lastServiceDate')}
+                >
+                  <Text>{newPregnancyRecord.lastServiceDate || 'Select date'}</Text>
+                </TouchableOpacity>
+                {renderAdaptiveDatePicker(
+                  showDatePicker.lastServiceDate,
+                  newPregnancyRecord.lastServiceDate,
+                  () => toggleDatePicker('lastServiceDate'),
+                  (formattedDate) => {
+                    setNewPregnancyRecord({
+                      ...newPregnancyRecord,
+                      lastServiceDate: formattedDate
+                    });
+                    // Recalculate expected calving date if gestation period is set
+                    if (newPregnancyRecord.gestationPeriod > 0) {
+                      const serviceDate = new Date(formattedDate);
+                      const expectedDate = new Date(serviceDate);
+                      expectedDate.setDate(serviceDate.getDate() + newPregnancyRecord.gestationPeriod);
+                      setNewPregnancyRecord(prev => ({
+                        ...prev,
+                        expectedCalvingDate: expectedDate.toISOString().split('T')[0]
+                      }));
+                    }
+                  }
+                )}
+              </View>
 
                 <View style={styles.formGroup}>
                   <Picker
@@ -3136,62 +5023,116 @@ function RegisterContent() {
                     keyboardType="numeric"
                   />
                 </View>
-
-                <View style={styles.formGroup}>
-                  <Text variant="body2" style={styles.label}>Expected Calving Date</Text>
-                  <TouchableOpacity 
+              <View style={styles.formGroup}>
+                <Text variant="body2" style={styles.label}>Expected Calving Date</Text>
+                <TouchableOpacity 
                     style={styles.dateInput}
                     onPress={() => toggleDatePicker('expectedCalvingDate')}
                   >
                     <Text>{newPregnancyRecord.expectedCalvingDate || 'Select date'}</Text>
                   </TouchableOpacity>
-                  {showDatePicker.expectedCalvingDate && (
-                    <DateTimePicker
-                      value={newPregnancyRecord.expectedCalvingDate ? new Date(newPregnancyRecord.expectedCalvingDate) : new Date()}
-                      mode="date"
-                      textColor='black'
-                      display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-                      onChange={(event, selectedDate) => {
-                        if (selectedDate) {
-                          setNewPregnancyRecord({
-                            ...newPregnancyRecord,
-                            expectedCalvingDate: selectedDate.toISOString().split('T')[0]
-                          });
-                        }
-                        toggleDatePicker('expectedCalvingDate');
-                        console.log("here is are the logs for the newrecord for the part expectedCalvingDate:",newPregnancyRecord)
-                      }}
-                    />
+                  {renderAdaptiveDatePicker(
+                    showDatePicker.expectedCalvingDate,
+                    newPregnancyRecord.expectedCalvingDate,
+                    () => toggleDatePicker('expectedCalvingDate'),
+                    (formattedDate) => {
+                      setNewPregnancyRecord({
+                        ...newPregnancyRecord,
+                        expectedCalvingDate: formattedDate
+                      });
+                      console.log("here is are the logs for the newrecord for the part expectedCalvingDate:", newPregnancyRecord);
+                    }
                   )}
                 </View>
-
-                <View style={styles.formGroup}>
-                  <Text variant="body2" style={styles.label}>Actual Calving Date (if applicable)</Text>
-                  <TouchableOpacity 
+              <View style={styles.formGroup}>
+                <Text variant="body2" style={styles.label}>Actual Calving Date (if applicable)</Text>
+                <TouchableOpacity 
                     style={styles.dateInput}
                     onPress={() => toggleDatePicker('actualCalvingDate')}
                   >
                     <Text>{newPregnancyRecord.actualCalvingDate || 'Select date'}</Text>
                   </TouchableOpacity>
-                  {showDatePicker.actualCalvingDate && (
-                    <DateTimePicker
-                      value={newPregnancyRecord.actualCalvingDate ? new Date(newPregnancyRecord.actualCalvingDate) : new Date()}
-                      mode="date"
-                      textColor='black'
-                      display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-                      onChange={(event, selectedDate) => {
-                        if (selectedDate) {
-                          setNewPregnancyRecord({
-                            ...newPregnancyRecord,
-                            actualCalvingDate: selectedDate.toISOString().split('T')[0]
-                          });
-                        }
-                        toggleDatePicker('actualCalvingDate');
-                      }}
-                    />
+                  {renderAdaptiveDatePicker(
+                    showDatePicker.actualCalvingDate,
+                    newPregnancyRecord.actualCalvingDate,
+                    () => toggleDatePicker('actualCalvingDate'),
+                    (formattedDate) => setNewPregnancyRecord({
+                      ...newPregnancyRecord,
+                      actualCalvingDate: formattedDate
+                    })
                   )}
-                </View>
-              </ScrollView>
+              </View>
+
+              <View style={styles.formGroup}>
+                <Text variant="body2" style={styles.label}>Calf ID</Text>
+                <TextInput
+                  style={styles.input}
+                  value={newPregnancyRecord.calfId || ''}
+                  onChangeText={(text) => setNewPregnancyRecord({ ...newPregnancyRecord, calfId: text })}
+                  placeholder="Enter calf ID (Optional)"
+                />
+              </View>
+
+              <View style={styles.formGroup}>
+                <Picker
+                  label="Calf Sex"
+                  value={newPregnancyRecord.calfSex || ''}
+                  onValueChange={(value) => setNewPregnancyRecord({ ...newPregnancyRecord, calfSex: value ? value as any : undefined })}
+                  items={[
+                    { label: 'Select sex...', value: '' },
+                    { label: 'Male', value: 'Male' },
+                    { label: 'Female', value: 'Female' }
+                  ]}
+                />
+              </View>
+
+              <View style={styles.formGroup}>
+                <Picker
+                  label="Delivery Type"
+                  value={newPregnancyRecord.deliveryType || ''}
+                  onValueChange={(value) => setNewPregnancyRecord({ ...newPregnancyRecord, deliveryType: value ? value as any : undefined })}
+                  items={[
+                    { label: 'Select delivery type...', value: '' },
+                    { label: 'Natural', value: 'Natural' },
+                    { label: 'Assisted', value: 'Assisted' },
+                    { label: 'C-Section', value: 'C-Section' }
+                  ]}
+                />
+              </View>
+
+              <View style={styles.formGroup}>
+                <Text variant="body2" style={styles.label}>Average BCS</Text>
+                <TextInput
+                  style={styles.input}
+                  value={newPregnancyRecord.averageBCS !== undefined && newPregnancyRecord.averageBCS !== null ? newPregnancyRecord.averageBCS.toString() : '3.0'}
+                  onChangeText={(text) => {
+                    const score = parseFloat(text) || 0;
+                    setNewPregnancyRecord({ ...newPregnancyRecord, averageBCS: score });
+                  }}
+                  placeholder="e.g. 3.0"
+                  keyboardType="numeric"
+                />
+              </View>
+
+              <View style={styles.formGroup}>
+                <Text variant="body2" style={styles.label}>Expected Return to Heat Date</Text>
+                <TouchableOpacity 
+                  style={styles.dateInput}
+                  onPress={() => setShowAddPregnancyExpectedReturnToHeatDatePicker(true)}
+                >
+                  <Text>{newPregnancyRecord.expectedReturnToHeatDate || 'Select date'}</Text>
+                </TouchableOpacity>
+                {renderAdaptiveDatePicker(
+                  showAddPregnancyExpectedReturnToHeatDatePicker,
+                  newPregnancyRecord.expectedReturnToHeatDate,
+                  () => setShowAddPregnancyExpectedReturnToHeatDatePicker(false),
+                  (formattedDate) => setNewPregnancyRecord({
+                    ...newPregnancyRecord,
+                    expectedReturnToHeatDate: formattedDate
+                  })
+                )}
+              </View>
+            </ScrollView>
               <View style={styles.modalFooter}>
                 <Button 
                   variant="outline" 
@@ -3357,7 +5298,7 @@ function RegisterContent() {
                     items={[
                       { label: 'Select an animal...', value: '' },
                       ...herdRegisterData
-                        .filter(animal => ['Cow', 'Heifer', 'Heifer (First Calf)'].includes(animal.stockType))
+                        .filter(animal => ['Cow', 'Heifer', 'Heifer (First Calf)', 'Bullying Heifer'].includes(animal.stockType))
                         .map(animal => ({
                           label: `${animal.tag} (${animal.breed} ${animal.stockType})`,
                           value: animal.tag
@@ -3375,6 +5316,7 @@ function RegisterContent() {
                       { label: 'Cow', value: 'Cow' },
                       { label: 'Heifer', value: 'Heifer' },
                       { label: 'Heifer (First Calf)', value: 'Heifer (First Calf)' },
+                      { label: 'Bullying Heifer', value: 'Bullying Heifer' },
                       { label: 'Heifer Calf', value: 'Heifer Calf' }
                     ]}
                   />
@@ -3400,121 +5342,17 @@ function RegisterContent() {
                   <Text variant="body2" style={styles.label}>Heat Detection Date *</Text>
                   <TouchableOpacity 
                     style={styles.dateInput}
-                    onPress={() => {
-                      setSelectedDate(newHeatBreedingRecord.heatDetectionDate 
-                        ? new Date(newHeatBreedingRecord.heatDetectionDate) 
-                        : new Date());
-                      setShowHeatDatePicker(true);
-                    }}
+                    onPress={() => setShowHeatDatePicker(true)}
                   >
                     <Text>{newHeatBreedingRecord.heatDetectionDate || 'Select date'}</Text>
                   </TouchableOpacity>
-                  
-                  {/* Date Picker Modal - Reusable for both date fields */}
-                  <Modal
-                    visible={showHeatDatePicker || showServicedDatePicker || showReturnToHeatDatePicker || showDateServed2Picker || showReturnToHeat2DatePicker}
-                    transparent={true}
-                    animationType="slide"
-                    onRequestClose={() => {
-                      setShowHeatDatePicker(false);
-                      setShowServicedDatePicker(false);
-                      setShowReturnToHeatDatePicker(false);
-                      setShowDateServed2Picker(false);
-                      setShowReturnToHeat2DatePicker(false);
-                    }}
-                  >
-                    <View style={styles.modalContainer}>
-                      <View style={styles.modalContent}>
-                        <View style={styles.modalHeader}>
-                          <Text variant="h6">
-                            {currentDateField === 'heat' 
-                              ? 'Heat Detection Date' 
-                              : currentDateField === 'serviced' 
-                                ? 'Serviced Date' 
-                                : currentDateField === 'returnToHeat'
-                                  ? 'Return to Heat Date (1st)'
-                                  : currentDateField === 'dateServed2'
-                                    ? 'Date Served (2nd)'
-                                    : 'Return to Heat Date (2nd)'}
-                          </Text>
-                          <TouchableOpacity onPress={() => {
-                            setShowHeatDatePicker(false);
-                            setShowServicedDatePicker(false);
-                            setShowReturnToHeatDatePicker(false);
-                            setShowDateServed2Picker(false);
-                            setShowReturnToHeat2DatePicker(false);
-                          }}>
-                            <Text style={styles.closeButton}>×</Text>
-                          </TouchableOpacity>
-                        </View>
-                        <DateTimePicker
-                          value={selectedDate}
-                          textColor={Colors.primary[500]} 
-                          mode="date"
-                          display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-                          onChange={(event, date) => {
-                            if (date) {
-                              setSelectedDate(date);
-                            }
-                          }}
-                        />
-                        <View style={styles.modalFooter}>
-                          <Button 
-                            onPress={() => {
-                              setShowHeatDatePicker(false);
-                              setShowServicedDatePicker(false);
-                              setShowReturnToHeatDatePicker(false);
-                              setShowDateServed2Picker(false);
-                              setShowReturnToHeat2DatePicker(false);
-                            }}
-                            variant="outline"
-                            style={styles.modalButton}
-                          >
-                            Cancel
-                          </Button>
-                          <Button 
-                            onPress={() => {
-                              const formattedDate = selectedDate.toISOString().split('T')[0];
-                              if (currentDateField === 'heat') {
-                                setNewHeatBreedingRecord({
-                                  ...newHeatBreedingRecord,
-                                  heatDetectionDate: formattedDate
-                                });
-                                setShowHeatDatePicker(false);
-                              } else if (currentDateField === 'serviced') {
-                                setNewHeatBreedingRecord({
-                                  ...newHeatBreedingRecord,
-                                  servicedDate: formattedDate
-                                });
-                                setShowServicedDatePicker(false);
-                              } else if (currentDateField === 'returnToHeat') {
-                                setNewHeatBreedingRecord({
-                                  ...newHeatBreedingRecord,
-                                  returnToHeatDate1: formattedDate
-                                });
-                                setShowReturnToHeatDatePicker(false);
-                              } else if (currentDateField === 'dateServed2') {
-                                setNewHeatBreedingRecord({
-                                  ...newHeatBreedingRecord,
-                                  dateServed2: formattedDate
-                                });
-                                setShowDateServed2Picker(false);
-                              } else {
-                                setNewHeatBreedingRecord({
-                                  ...newHeatBreedingRecord,
-                                  returnToHeatDate2: formattedDate
-                                });
-                                setShowReturnToHeat2DatePicker(false);
-                              }
-                            }}
-                            style={styles.modalButton}
-                          >
-                            Done
-                          </Button>
-                        </View>
-                      </View>
-                    </View>
-                  </Modal>
+                  {renderAdaptiveDatePicker(
+                    showHeatDatePicker,
+                    newHeatBreedingRecord.heatDetectionDate,
+                    () => setShowHeatDatePicker(false),
+                    (formattedDate) => setNewHeatBreedingRecord(prev => ({ ...prev, heatDetectionDate: formattedDate })),
+                    "Heat Detection Date"
+                  )}
                 </View>
 
                 <View style={styles.formGroup}>
@@ -3531,16 +5369,17 @@ function RegisterContent() {
                   <Text variant="body2" style={styles.label}>Serviced Date</Text>
                   <TouchableOpacity 
                     style={styles.dateInput}
-                    onPress={() => {
-                      setSelectedDate(newHeatBreedingRecord.servicedDate 
-                        ? new Date(newHeatBreedingRecord.servicedDate) 
-                        : new Date());
-                      setCurrentDateField('serviced');
-                      setShowServicedDatePicker(true);
-                    }}
+                    onPress={() => setShowServicedDatePicker(true)}
                   >
                     <Text>{newHeatBreedingRecord.servicedDate || 'Select date'}</Text>
                   </TouchableOpacity>
+                  {renderAdaptiveDatePicker(
+                    showServicedDatePicker,
+                    newHeatBreedingRecord.servicedDate,
+                    () => setShowServicedDatePicker(false),
+                    (formattedDate) => setNewHeatBreedingRecord(prev => ({ ...prev, servicedDate: formattedDate })),
+                    "Serviced Date"
+                  )}
                 </View>
 
                 {renderRadioGroup('Breeding Status', newHeatBreedingRecord.breedingStatus, breedingStatusOptions, 
@@ -3597,32 +5436,34 @@ function RegisterContent() {
                   <Text variant="body2" style={styles.label}>Return to Heat Date (1st)</Text>
                   <TouchableOpacity 
                     style={styles.dateInput}
-                    onPress={() => {
-                      setSelectedDate(newHeatBreedingRecord.returnToHeatDate1 
-                        ? new Date(newHeatBreedingRecord.returnToHeatDate1) 
-                        : new Date());
-                      setCurrentDateField('returnToHeat');
-                      setShowReturnToHeatDatePicker(true);
-                    }}
+                    onPress={() => setShowReturnToHeatDatePicker(true)}
                   >
                     <Text>{newHeatBreedingRecord.returnToHeatDate1 || 'Select date'}</Text>
                   </TouchableOpacity>
+                  {renderAdaptiveDatePicker(
+                    showReturnToHeatDatePicker,
+                    newHeatBreedingRecord.returnToHeatDate1,
+                    () => setShowReturnToHeatDatePicker(false),
+                    (formattedDate) => setNewHeatBreedingRecord(prev => ({ ...prev, returnToHeatDate1: formattedDate })),
+                    "Return to Heat Date"
+                  )}
                 </View>
 
                 <View style={styles.formGroup}>
                   <Text variant="body2" style={styles.label}>Date Served (2nd)</Text>
                   <TouchableOpacity 
                     style={styles.dateInput}
-                    onPress={() => {
-                      setSelectedDate(newHeatBreedingRecord.dateServed2 
-                        ? new Date(newHeatBreedingRecord.dateServed2) 
-                        : new Date());
-                      setCurrentDateField('dateServed2');
-                      setShowDateServed2Picker(true);
-                    }}
+                    onPress={() => setShowDateServed2Picker(true)}
                   >
                     <Text>{newHeatBreedingRecord.dateServed2 || 'Select date'}</Text>
                   </TouchableOpacity>
+                  {renderAdaptiveDatePicker(
+                    showDateServed2Picker,
+                    newHeatBreedingRecord.dateServed2,
+                    () => setShowDateServed2Picker(false),
+                    (formattedDate) => setNewHeatBreedingRecord(prev => ({ ...prev, dateServed2: formattedDate })),
+                    "Date Served (2nd)"
+                  )}
                 </View>
 
                 {renderRadioGroup('Breeding Method (2nd)', newHeatBreedingRecord.breedingMethod2 || '', breedingMethodOptions, 
@@ -3642,16 +5483,17 @@ function RegisterContent() {
                   <Text variant="body2" style={styles.label}>Return to Heat Date (2nd)</Text>
                   <TouchableOpacity 
                     style={styles.dateInput}
-                    onPress={() => {
-                      setSelectedDate(newHeatBreedingRecord.returnToHeatDate2 
-                        ? new Date(newHeatBreedingRecord.returnToHeatDate2) 
-                        : new Date());
-                      setCurrentDateField('returnToHeat2');
-                      setShowReturnToHeat2DatePicker(true);
-                    }}
+                    onPress={() => setShowReturnToHeat2DatePicker(true)}
                   >
                     <Text>{newHeatBreedingRecord.returnToHeatDate2 || 'Select date'}</Text>
                   </TouchableOpacity>
+                  {renderAdaptiveDatePicker(
+                    showReturnToHeat2DatePicker,
+                    newHeatBreedingRecord.returnToHeatDate2,
+                    () => setShowReturnToHeat2DatePicker(false),
+                    (formattedDate) => setNewHeatBreedingRecord(prev => ({ ...prev, returnToHeatDate2: formattedDate })),
+                    "Return to Heat Date (2nd)"
+                  )}
                 </View>
               </ScrollView>
               <View style={styles.modalFooter}>
@@ -3814,13 +5656,19 @@ function RegisterContent() {
             title="Herd Register"
             style={styles.card}
             headerRight={
-              <Button size="sm" onPress={() => setIsAddModalVisible(true)} style={styles.addButton}>
-                + Add Animal
-              </Button>
+              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <Text variant="body2" style={{ marginRight: 8, color: Colors.neutral[600] }}>
+                  {herdRegisterData.length} animals
+                </Text>
+                <Button size="sm" onPress={() => setIsAddModalVisible(true)} style={styles.addButton}>
+                  + Add Animal
+                </Button>
+              </View>
             }
           >
             <DataTable
               columns={[
+                { key: 'count', title: 'Count', width: 60 },
                 { key: 'tag', title: 'Tag', width: 100 },
                 { key: 'age', title: 'Age', width: 90 },
                 { key: 'breed', title: 'Breed', width: 120 },
@@ -3834,8 +5682,28 @@ function RegisterContent() {
                 },
                 { key: 'stockType', title: 'Type', width: 120 },
                 { key: 'source', title: 'Source', width: 120 },
+                { key: 'sire', title: 'Sire', width: 100, render: (v: any) => <Text>{v || '—'}</Text> },
+                { key: 'dam', title: 'Dam', width: 100, render: (v: any) => <Text>{v || '—'}</Text> },
+                { key: 'birthWeight', title: 'Birth Wt', width: 90, render: (v: any) => <Text>{v ? `${v} kg` : '—'}</Text> },
+                { key: 'dateOfWeaning', title: 'Wean Date', width: 100, render: (v: any) => <Text>{v || '—'}</Text> },
+                { key: 'weaningWeight', title: 'Wean Wt', width: 90, render: (v: any) => <Text>{v ? `${v} kg` : '—'}</Text> },
+                { key: 'description', title: 'Description', width: 150, render: (v: any) => <Text numberOfLines={1}>{v || '—'}</Text> },
+                {
+                  key: 'actions',
+                  title: 'Actions',
+                  width: 80,
+                  render: (_, row: any) => (
+                    <TouchableOpacity 
+                      onPress={() => handleEditAnimal(row)}
+                      hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
+                      style={{ padding: 4 }}
+                    >
+                      <Text style={{ fontSize: 16 }}>✏️</Text>
+                    </TouchableOpacity>
+                  )
+                },
               ]}
-              data={herdRegisterData}
+              data={herdRegisterData.map((row, index) => ({ ...row, count: index + 1 }))}
             />
           </Card>
         )}
@@ -3856,27 +5724,38 @@ function RegisterContent() {
             <DataTable
               columns={[
                 { key: 'tag', title: 'Calf ID', width: 120, render: (value: string) => <Text>{value}</Text> },
+                { key: 'sire', title: 'Sire ID', width: 100, render: (value: string) => <Text>{value || '-'}</Text> },
+                { key: 'dam', title: 'Dam ID', width: 100, render: (value: string) => <Text>{value || '-'}</Text> },
                 { key: 'sex', title: 'Sex', width: 70, render: (value: string) => (
                   <Text color={value === 'Male' ? 'primary.500' : 'accent.500'}>{value}</Text>
                 )},
                 { key: 'age', title: 'Age', width: 70, render: (value: string) => <Text>{value}</Text> },
-                { key: 'weight', title: 'Weight', width: 90, render: (value: any) => (
-                  <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                    {value ? <Text>{value.weight} kg</Text> : <Text style={{ color: Colors.neutral[400] }}>No data</Text>}
-                  </View>
-                )},
-                { key: 'breed', title: 'Breed', width: 100, render: (value: string) => <Text>{value || '-'}</Text> },
-                { key: 'source', title: 'Source', width: 90, render: (value: string) => <Text>{value || '-'}</Text> },
-                { key: 'observer', title: 'Observer', width: 200, render: (value: string, row: any) => (
-                  <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <Text>{value || '-'}</Text>
-                    <TouchableOpacity onPress={() => handleEditCalf(row)} hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }} style={{ padding: 4, marginLeft: 8 }}>
-                      <Text>✏️</Text>
+                { key: 'birthWeight', title: 'Birth Wt', width: 100, render: (value: string) => <Text>{value ? `${value} kg` : '-'}</Text> },
+                { key: 'weight30day', title: '30d Wt', width: 90, render: (value: any) => <Text>{value ? `${value} kg` : '-'}</Text> },
+                { key: 'weight100day', title: '100d Wt', width: 100, render: (value: any) => <Text>{value ? `${value} kg` : '-'}</Text> },
+                { key: 'dateOfWeaning', title: 'Wean Date', width: 110, render: (value: string) => <Text>{value || '-'}</Text> },
+                { key: 'weaningWeight', title: 'Wean Wt', width: 90, render: (value: any) => <Text>{value ? `${value} kg` : '-'}</Text> },
+                { key: 'weight1weekPostWeaning', title: '1w Post Wean', width: 110, render: (value: any) => <Text>{value ? `${value} kg` : '-'}</Text> },
+                { key: 'weight6monthsPostWeaning', title: '6m Post Wean', width: 110, render: (value: any) => <Text>{value ? `${value} kg` : '-'}</Text> },
+                { key: 'calfStatus', title: 'Status', width: 100, render: (value: string) => <Text>{value || 'Active'}</Text> },
+                { key: 'preWeaningMortality', title: 'Mortality', width: 100, render: (value: boolean) => <Text>{value ? 'Yes' : 'No'}</Text> },
+                { key: 'observer', title: 'Observer', width: 120, render: (value: string) => <Text>{value || '-'}</Text> },
+                {
+                  key: 'actions',
+                  title: 'Actions',
+                  width: 80,
+                  render: (_, row: any) => (
+                    <TouchableOpacity 
+                      onPress={() => handleEditCalf(row)}
+                      hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
+                      style={{ padding: 4 }}
+                    >
+                      <Text style={{ fontSize: 16 }}>✏️</Text>
                     </TouchableOpacity>
-                  </View>
-                )},
+                  )
+                },
               ]}
-              data={getCalves().map(calf => ({ ...calf, weight: getCalfWeight(calf.tag) }))}
+              data={getCalves()}
               emptyState={
                 <View style={styles.emptyState}>
                   <Text style={styles.emptyStateText}>No calves found</Text>
@@ -3899,31 +5778,59 @@ function RegisterContent() {
                 setApplyToAll(false);
                 setSelectedAnimalTags([]);
                 setAnimalSearchQuery('');
-                setNewHealthRecord({ animalId: '', date: new Date().toISOString().split('T')[0], treatment: '', status: 'Pending' });
+                setNewHealthRecord({ animalId: '', date: new Date().toISOString().split('T')[0], treatment: '', status: 'Pending', specialNotes: '', doneBy: '' });
                 setIsAddHealthRecordModalVisible(true);
               }} style={styles.addButton}>
                 + Add Record
               </Button>
             }
           >
-            <DataTable
-              columns={[
-                { key: 'date', title: 'Date', width: 100 },
-                { key: 'animalId', title: 'Animal ID', width: 100 },
-                { key: 'treatment', title: 'Treatment', width: 200 },
-                { key: 'status', title: 'Status', width: 100, render: (value: string) => (
-                  <View style={[styles.statusBadge, {
-                    backgroundColor: value === 'Completed' ? '#DCF7E8' : value === 'Scheduled' ? '#E0F2FE' : '#FEF3C7',
-                  }]}>
-                    <Text variant="caption" style={{
-                      color: value === 'Completed' ? Colors.success[700] : value === 'Scheduled' ? Colors.primary[700] : Colors.warning[700],
-                      fontWeight: '500',
-                    }}>{value}</Text>
-                  </View>
-                )},
-              ]}
-              data={healthRecords}
-            />
+            <ScrollView horizontal showsHorizontalScrollIndicator={true}>
+              <DataTable
+                columns={[
+                  { key: 'date', title: 'Date', width: 100 },
+                  { key: 'animalId', title: 'Animal ID', width: 120, render: (value: string) => {
+                    const isAll = value?.toLowerCase() === 'all';
+                    if (isAll) {
+                      return (
+                        <View style={[styles.statusBadge, { backgroundColor: '#DCF7E8', borderColor: '#9FE4C1', borderWidth: 1, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 12 }]}>
+                          <Text variant="caption" style={{ color: Colors.success[700], fontWeight: 'bold' }}>👥 All Herd</Text>
+                        </View>
+                      );
+                    }
+                    return <Text style={{ fontFamily: 'monospace' }}>🏷️ {value}</Text>;
+                  }},
+                  { key: 'treatment', title: 'Treatment', width: 160 },
+                  { key: 'doneBy', title: 'Done By', width: 120 },
+                  { key: 'specialNotes', title: 'Special Notes', width: 180 },
+                  { key: 'status', title: 'Status', width: 100, render: (value: string) => (
+                    <View style={[styles.statusBadge, {
+                      backgroundColor: value === 'Completed' ? '#DCF7E8' : value === 'Scheduled' ? '#E0F2FE' : '#FEF3C7',
+                    }]}>
+                      <Text variant="caption" style={{
+                        color: value === 'Completed' ? Colors.success[700] : value === 'Scheduled' ? Colors.primary[700] : Colors.warning[700],
+                        fontWeight: '500',
+                      }}>{value}</Text>
+                    </View>
+                  )},
+                  {
+                    key: 'actions',
+                    title: 'Actions',
+                    width: 80,
+                    render: (_, row: any) => (
+                      <TouchableOpacity 
+                        onPress={() => handleEditHealthRecord(row)}
+                        hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
+                        style={{ padding: 4 }}
+                      >
+                        <Text style={{ fontSize: 16 }}>✏️</Text>
+                      </TouchableOpacity>
+                    )
+                  },
+                ]}
+                data={healthRecords}
+              />
+            </ScrollView>
           </Card>
         )}
 
@@ -3965,6 +5872,20 @@ function RegisterContent() {
                   { key: 'breedingMethod2', title: 'Method 2', width: 90 },
                   { key: 'sireUsed2', title: 'Sire Used 2', width: 100 },
                   { key: 'returnToHeatDate2', title: 'Return to Heat 2', width: 200 },
+                  {
+                    key: 'actions',
+                    title: 'Actions',
+                    width: 80,
+                    render: (_, row: any) => (
+                      <TouchableOpacity 
+                        onPress={() => handleEditBreedingRecord(row)}
+                        hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
+                        style={{ padding: 4 }}
+                      >
+                        <Text style={{ fontSize: 16 }}>✏️</Text>
+                      </TouchableOpacity>
+                    )
+                  },
                 ]}
                 data={heatBreedingRecords}
               />
@@ -4001,6 +5922,27 @@ function RegisterContent() {
                   { key: 'gestationPeriod', title: 'Gestation (days)', width: 100 },
                   { key: 'expectedCalvingDate', title: 'Exp. Calving', width: 150 },
                   { key: 'actualCalvingDate', title: 'Actual Calving', width: 200 },
+                  { key: 'calfId', title: 'Calf ID', width: 100 },
+                  { key: 'calfSex', title: 'Calf Sex', width: 90 },
+                  { key: 'deliveryType', title: 'Delivery', width: 110 },
+                  { key: 'averageBCS', title: 'Avg BCS', width: 80, render: (value: number) => (
+                    <Text>{value !== null && value !== undefined ? value.toFixed(1) : '-'}</Text>
+                  )},
+                  { key: 'expectedReturnToHeatDate', title: 'Exp. Return to Heat', width: 160 },
+                  {
+                    key: 'actions',
+                    title: 'Actions',
+                    width: 80,
+                    render: (_, row: any) => (
+                      <TouchableOpacity 
+                        onPress={() => handleEditPregnancyRecord(row)}
+                        hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
+                        style={{ padding: 4 }}
+                      >
+                        <Text style={{ fontSize: 16 }}>✏️</Text>
+                      </TouchableOpacity>
+                    )
+                  },
                 ]}
                 data={pregnancyCalvingRecords}
               />
@@ -4014,9 +5956,11 @@ function RegisterContent() {
             title="Bull Breeding Soundness"
             style={styles.card}
             headerRight={
-              <Button size="sm" onPress={() => setIsAddBreedingRecordModalVisible(true)} style={styles.addButton}>
-                + Add Record
-              </Button>
+              isAdmin ? (
+                <Button size="sm" onPress={() => setIsAddBreedingRecordModalVisible(true)} style={styles.addButton}>
+                  + Add Record
+                </Button>
+              ) : undefined
             }
           >
             <DataTable
@@ -4072,6 +6016,20 @@ function RegisterContent() {
                   { key: 'oct', title: 'Oct', width: 70 },
                   { key: 'nov', title: 'Nov', width: 70 },
                   { key: 'dec', title: 'Dec', width: 70 },
+                  {
+                    key: 'actions',
+                    title: 'Actions',
+                    width: 80,
+                    render: (_, row: any) => (
+                      <TouchableOpacity 
+                        onPress={() => handleEditWeightRecord(row)}
+                        hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
+                        style={{ padding: 4 }}
+                      >
+                        <Text style={{ fontSize: 16 }}>✏️</Text>
+                      </TouchableOpacity>
+                    )
+                  },
                 ]}
                 data={weightRecords}
               />
@@ -4114,21 +6072,30 @@ function RegisterContent() {
                   </View>
                 )},
                 { key: 'actions', title: 'Actions', width: 200, render: (_, row) => (
-                  <Picker
-                    value=""
-                    onValueChange={(value) => {
-                      if (value === 'delete') { if (row.id) deleteDrug(row.id); }
-                      else if (value) { if (row.id) updateDrug(row.id, { stockStatus: value as any }); }
-                    }}
-                    items={[
-                      { label: 'Update Status', value: '' },
-                      { label: 'In Stock', value: 'In Stock' },
-                      { label: 'Running Low', value: 'Low Stock' },
-                      { label: 'Out of Stock', value: 'Out of Stock' },
-                      { label: 'Delete Drug', value: 'delete' }
-                    ]}
-                    style={{ borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4, minWidth: 120 }}
-                  />
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                    <TouchableOpacity 
+                      onPress={() => handleEditDrug(row)}
+                      hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
+                      style={{ padding: 4 }}
+                    >
+                      <Text style={{ fontSize: 16 }}>✏️</Text>
+                    </TouchableOpacity>
+                    <Picker
+                      value=""
+                      onValueChange={(value) => {
+                        if (value === 'delete') { if (row.id) deleteDrug(row.id); }
+                        else if (value) { if (row.id) updateDrug(row.id, { stockStatus: value as any }); }
+                      }}
+                      items={[
+                        { label: 'Update Status', value: '' },
+                        { label: 'In Stock', value: 'In Stock' },
+                        { label: 'Running Low', value: 'Low Stock' },
+                        { label: 'Out of Stock', value: 'Out of Stock' },
+                        { label: 'Delete Drug', value: 'delete' }
+                      ]}
+                      style={{ borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4, minWidth: 120 }}
+                    />
+                  </View>
                 )},
               ]}
               data={drugRegisterData}
@@ -4157,6 +6124,20 @@ function RegisterContent() {
                 { key: 'description', title: 'Description', width: 200, render: (value: string) => (
                   <Text numberOfLines={1} ellipsizeMode="tail">{value}</Text>
                 )},
+                {
+                  key: 'actions',
+                  title: 'Actions',
+                  width: 80,
+                  render: (_, row: any) => (
+                    <TouchableOpacity 
+                      onPress={() => handleEditMortalityRecord(row)}
+                      hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
+                      style={{ padding: 4 }}
+                    >
+                      <Text style={{ fontSize: 16 }}>✏️</Text>
+                    </TouchableOpacity>
+                  )
+                },
               ]}
               data={mortalityData}
               emptyState={
@@ -4173,27 +6154,95 @@ function RegisterContent() {
 
         {/* ── SALES ── */}
         {activeTab === 'sales' && (
-          <Card
-            title="Sales & Purchases"
-            style={styles.card}
-            headerRight={
-              <Button size="sm" onPress={() => setIsAddTransactionModalVisible(true)} style={styles.addButton}>
-                + Add Record
-              </Button>
-            }
-          >
-            <DataTable
-              columns={[
-                { key: 'date', title: 'Date', width: 100 },
-                { key: 'description', title: 'Description', width: 200 },
-                { key: 'amount', title: 'Amount', width: 100, render: (value: number) => (
-                  <Text color={value >= 0 ? 'success.500' : 'error.500'}>{value >= 0 ? '+' : ''}{value}</Text>
-                )},
-                { key: 'type', title: 'Type', width: 100 },
-              ]}
-              data={transactions}
-            />
-          </Card>
+          <View style={{ marginBottom: 16 }}>
+            <View style={styles.totalsGrid}>
+              <View style={styles.totalItem}>
+                <Text variant="caption" color="neutral.500" weight="medium">Total Sales</Text>
+                <Text variant="h4" weight="bold" color="success.500" style={{ marginTop: 4 }}>
+                  ${totalSales.toFixed(2)}
+                </Text>
+              </View>
+              <View style={styles.totalItem}>
+                <Text variant="caption" color="neutral.500" weight="medium">Total Purchases</Text>
+                <Text variant="h4" weight="bold" color="error.500" style={{ marginTop: 4 }}>
+                  ${totalPurchases.toFixed(2)}
+                </Text>
+              </View>
+              <View style={styles.totalItem}>
+                <Text variant="caption" color="neutral.500" weight="medium">Net Profit/Loss</Text>
+                <Text variant="h4" weight="bold" color={netProfitLoss >= 0 ? 'primary.500' : 'error.500'} style={{ marginTop: 4 }}>
+                  {netProfitLoss >= 0 ? '+' : ''}${netProfitLoss.toFixed(2)}
+                </Text>
+              </View>
+            </View>
+
+            <Card
+              title="Sales & Purchases"
+              style={styles.card}
+              headerRight={
+                <Button size="sm" onPress={() => setIsAddTransactionModalVisible(true)} style={styles.addButton}>
+                  + Add Record
+                </Button>
+              }
+            >
+              <DataTable
+                columns={[
+                  { key: 'date', title: 'Date', width: 100 },
+                  { key: 'description', title: 'Description', width: 200 },
+                  { key: 'amount', title: 'Amount', width: 100, render: (value: number) => (
+                    <Text color={value >= 0 ? 'success.500' : 'error.500'}>{value >= 0 ? '+' : ''}{value}</Text>
+                  )},
+                  { key: 'type', title: 'Type', width: 100 },
+                  {
+                    key: 'actions',
+                    title: 'Actions',
+                    width: 100,
+                    render: (_, row: any) => (
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                        <TouchableOpacity 
+                          onPress={() => handleEditTransaction(row)}
+                          hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
+                          style={{ padding: 4 }}
+                        >
+                          <Text style={{ fontSize: 16 }}>✏️</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity 
+                          onPress={() => {
+                            Alert.alert(
+                              'Delete Entry',
+                              'Are you sure you want to delete this financial record?',
+                              [
+                                { text: 'Cancel', style: 'cancel' },
+                                { 
+                                  text: 'Delete', 
+                                  style: 'destructive', 
+                                  onPress: async () => {
+                                    if (row.id) {
+                                      try {
+                                        await deleteTransaction(row.id);
+                                        alert('Transaction deleted successfully.');
+                                      } catch (e: any) {
+                                        alert('Failed to delete transaction: ' + e.message);
+                                      }
+                                    }
+                                  } 
+                                }
+                              ]
+                            );
+                          }}
+                          hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
+                          style={{ padding: 4 }}
+                        >
+                          <Text style={{ fontSize: 16 }}>🗑️</Text>
+                        </TouchableOpacity>
+                      </View>
+                    )
+                  },
+                ]}
+                data={transactions}
+              />
+            </Card>
+          </View>
         )}
 
         {/* ── FEED ── */}
@@ -4229,21 +6278,30 @@ function RegisterContent() {
                   </View>
                 )},
                 { key: 'actions', title: 'Actions', width: 200, render: (_, row) => (
-                  <Picker
-                    value=""
-                    onValueChange={(value) => {
-                      if (value === 'delete') { if (row.id) deleteFeedInventoryItem(row.id); }
-                      else if (value) { if (row.id) updateFeedInventoryItem(row.id, { status: value as any }); }
-                    }}
-                    items={[
-                      { label: 'Update Status', value: '' },
-                      { label: 'In Stock', value: 'In Stock' },
-                      { label: 'Low Stock', value: 'Low Stock' },
-                      { label: 'Out of Stock', value: 'Out of Stock' },
-                      { label: 'Delete Feed', value: 'delete' }
-                    ]}
-                    style={{ borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4, minWidth: 120 }}
-                  />
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                    <TouchableOpacity 
+                      onPress={() => handleEditFeedItem(row)}
+                      hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
+                      style={{ padding: 4 }}
+                    >
+                      <Text style={{ fontSize: 16 }}>✏️</Text>
+                    </TouchableOpacity>
+                    <Picker
+                      value=""
+                      onValueChange={(value) => {
+                        if (value === 'delete') { if (row.id) deleteFeedInventoryItem(row.id); }
+                        else if (value) { if (row.id) updateFeedInventoryItem(row.id, { status: value as any }); }
+                      }}
+                      items={[
+                        { label: 'Update Status', value: '' },
+                        { label: 'In Stock', value: 'In Stock' },
+                        { label: 'Low Stock', value: 'Low Stock' },
+                        { label: 'Out of Stock', value: 'Out of Stock' },
+                        { label: 'Delete Feed', value: 'delete' }
+                      ]}
+                      style={{ borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4, minWidth: 120 }}
+                    />
+                  </View>
                 )},
               ]}
               data={feedInventory}
@@ -4254,7 +6312,16 @@ function RegisterContent() {
       </ScrollView>
 
       {renderAddAnimalModal()}
+      {renderEditAnimalModal()}
       {renderEditCalfModal()}
+      {renderEditHealthRecordModal()}
+      {renderEditBreedingRecordModal()}
+      {renderEditPregnancyRecordModal()}
+      {renderEditWeightRecordModal()}
+      {renderEditDrugModal()}
+      {renderEditMortalityRecordModal()}
+      {renderEditTransactionModal()}
+      {renderEditFeedModal()}
       {renderAddDrugModal()}
       {renderAddMortalityModal()}
       {renderAddBreedingRecordModal()}
@@ -4492,5 +6559,81 @@ const styles = StyleSheet.create({
   tabContent: {
     flex: 1,
     padding: 16,
+  },
+  dpModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.45)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+  dpModalContent: {
+    backgroundColor: 'white',
+    borderRadius: 24,
+    width: '100%',
+    maxWidth: 340,
+    padding: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.2,
+    shadowRadius: 16,
+    elevation: 8,
+  },
+  dpModalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+    paddingBottom: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.neutral[200],
+  },
+  dpCloseButton: {
+    fontSize: 24,
+    color: Colors.neutral[500],
+    marginTop: -4,
+  },
+  calendarCustomHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+    paddingHorizontal: 4,
+  },
+  navChevron: {
+    padding: 6,
+    minWidth: 28,
+    alignItems: 'center',
+  },
+  navChevronText: {
+    fontSize: 20,
+    color: Colors.primary[500],
+    fontWeight: 'bold',
+  },
+  calendarMonthTitle: {
+    fontSize: 14,
+    color: Colors.neutral[800],
+    minWidth: 120,
+    textAlign: 'center',
+  },
+  dpModalBody: {
+    overflow: 'hidden',
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#fafafa',
+    padding: 4,
+  },
+  dpModalFooter: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 16,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: Colors.neutral[200],
+  },
+  dpFooterButton: {
+    flex: 1,
+    marginHorizontal: 4,
   },
 });

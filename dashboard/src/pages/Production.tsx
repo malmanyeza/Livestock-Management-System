@@ -70,6 +70,15 @@ function getPercentage(value: number, target: number, isMortality: boolean): num
   return (value / target) * 100
 }
 
+const isCalf = (age: string | null | undefined, stockType?: string | null) => {
+  if (stockType === 'Calve' || stockType === 'Calf') return true
+  if (!age) return false
+  const ageMatch = age.match(/(\d+)([ym])/)
+  if (!ageMatch) return false
+  const [_, value, unit] = ageMatch
+  return (unit === 'm' && parseInt(value) < 12) || (unit === 'y' && parseInt(value) === 0)
+}
+
 // ─── Metric Card ─────────────────────────────────────────────────────────────
 
 function ProductionMetricCard({
@@ -144,7 +153,7 @@ export default function Production() {
     if (!targetUserId) return
     setLoading(true)
     Promise.all([
-      supabase.from('animals').select('weight,previous_weight,days_between_weights,stock_type').eq('user_id', targetUserId),
+      supabase.from('animals').select('weight,previous_weight,days_between_weights,stock_type,age').eq('user_id', targetUserId),
       supabase.from('mortality_records').select('id,is_pre_weaning', { count: 'exact' }).eq('user_id', targetUserId),
     ]).then(([{ data: a }, { data: m, count }]) => {
       setAnimals(a ?? [])
@@ -154,7 +163,7 @@ export default function Production() {
   }, [targetUserId])
 
   // Derived metrics — same formulas as FarmDataContext
-  const calves = animals.filter(a => a.stock_type === 'Calve' || a.stock_type === 'Calf')
+  const calves = animals.filter(a => isCalf(a.age, a.stock_type))
   const withWeights = animals.filter(a => a.weight && a.previous_weight && a.days_between_weights > 0)
   const adg = withWeights.length
     ? withWeights.reduce((s, a) => s + (a.weight - a.previous_weight) / a.days_between_weights, 0) / withWeights.length
@@ -192,7 +201,7 @@ export default function Production() {
   )
 
   return (
-    <div className="space-y-5 max-w-4xl mx-auto">
+    <div className="space-y-5 max-w-[1400px] mx-auto">
       <div>
         <h2 className="text-xl font-bold" style={{ color: C.neutral900 }}>Production Metrics</h2>
       </div>

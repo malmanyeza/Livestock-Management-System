@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import { View, StyleSheet, ScrollView, TouchableOpacity, Modal, TextInput, KeyboardAvoidingView, Platform } from 'react-native';
 import { useRouter, Stack } from 'expo-router';
 import { ChevronLeft } from 'lucide-react-native';
 import { Text } from '../../components/typography/Text';
@@ -36,23 +36,130 @@ export default function GeneticsScreen() {
 
 function GeneticsContent() {
   const [activeTab, setActiveTab] = useState('herds');
-  const { animals, breedingRecords, pregnancyRecords, metrics } = useFarmData();
+  const { animals, breedingRecords, pregnancyRecords, metrics, farmInspection, updateFarmInspection, profile } = useFarmData();
+
+  const [isPregnancyModalOpen, setIsPregnancyModalOpen] = useState(false);
+  const [pregnancyForm, setPregnancyForm] = useState({
+    conceptionRateAttained: '',
+    conceptionRateTarget: '',
+    incalfRate42dAttained: '',
+    incalfRate42dTarget: '',
+    incalfRate100dAttained: '',
+    incalfRate100dTarget: '',
+    firstTrimesterPDAttained: '',
+    firstTrimesterPDTarget: '',
+    secondTrimesterPDAttained: '',
+    secondTrimesterPDTarget: '',
+    thirdTrimesterPDAttained: '',
+    thirdTrimesterPDTarget: '',
+  });
+
+  const handleOpenPregnancyModal = () => {
+    const overrides = farmInspection?.pregnancyOverrides || {};
+    setPregnancyForm({
+      conceptionRateAttained: overrides.conceptionRate?.attained?.replace('%', '') || '',
+      conceptionRateTarget: overrides.conceptionRate?.target?.replace('%', '') || '',
+      incalfRate42dAttained: overrides.incalfRate42d?.attained?.replace('%', '') || '',
+      incalfRate42dTarget: overrides.incalfRate42d?.target?.replace('%', '') || '',
+      incalfRate100dAttained: overrides.incalfRate100d?.attained?.replace('%', '') || '',
+      incalfRate100dTarget: overrides.incalfRate100d?.target?.replace('%', '') || '',
+      firstTrimesterPDAttained: overrides.firstTrimesterPD?.attained || '',
+      firstTrimesterPDTarget: overrides.firstTrimesterPD?.target || '',
+      secondTrimesterPDAttained: overrides.secondTrimesterPD?.attained || '',
+      secondTrimesterPDTarget: overrides.secondTrimesterPD?.target || '',
+      thirdTrimesterPDAttained: overrides.thirdTrimesterPD?.attained || '',
+      thirdTrimesterPDTarget: overrides.thirdTrimesterPD?.target || '',
+    });
+    setIsPregnancyModalOpen(true);
+  };
+
+  const handleSavePregnancyOverrides = async () => {
+    const formatPct = (val: string) => {
+      let trimmed = val.trim();
+      if (!trimmed) return '';
+      if (!trimmed.endsWith('%') && /^\d+(\.\d+)?$/.test(trimmed)) {
+        return trimmed + '%';
+      }
+      return trimmed;
+    };
+
+    const formatVal = (val: string) => val.trim();
+
+    const formattedOverrides = {
+      conceptionRate: {
+        attained: formatPct(pregnancyForm.conceptionRateAttained),
+        target: formatPct(pregnancyForm.conceptionRateTarget),
+      },
+      incalfRate42d: {
+        attained: formatPct(pregnancyForm.incalfRate42dAttained),
+        target: formatPct(pregnancyForm.incalfRate42dTarget),
+      },
+      incalfRate100d: {
+        attained: formatPct(pregnancyForm.incalfRate100dAttained),
+        target: formatPct(pregnancyForm.incalfRate100dTarget),
+      },
+      firstTrimesterPD: {
+        attained: formatVal(pregnancyForm.firstTrimesterPDAttained),
+        target: formatVal(pregnancyForm.firstTrimesterPDTarget),
+      },
+      secondTrimesterPD: {
+        attained: formatVal(pregnancyForm.secondTrimesterPDAttained),
+        target: formatVal(pregnancyForm.secondTrimesterPDTarget),
+      },
+      thirdTrimesterPD: {
+        attained: formatVal(pregnancyForm.thirdTrimesterPDAttained),
+        target: formatVal(pregnancyForm.thirdTrimesterPDTarget),
+      },
+      lastUpdated: new Date().toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' })
+    };
+
+    const cleanedOverrides: any = {};
+    Object.entries(formattedOverrides).forEach(([key, val]) => {
+      if (key === 'lastUpdated') {
+        cleanedOverrides.lastUpdated = val;
+        return;
+      }
+      const overrideVal = val as { attained: string; target: string };
+      if (overrideVal.attained || overrideVal.target) {
+        cleanedOverrides[key] = {
+          attained: overrideVal.attained || undefined,
+          target: overrideVal.target || undefined,
+        };
+      }
+    });
+
+    try {
+      await updateFarmInspection({
+        pregnancyOverrides: cleanedOverrides,
+      });
+      setIsPregnancyModalOpen(false);
+    } catch (e) {
+      console.error("Error saving pregnancy overrides:", e);
+    }
+  };
+
+  const getPregnancyMetric = (key: string, liveAttained: string, defaultTarget: string) => {
+    const override = (farmInspection?.pregnancyOverrides as any)?.[key];
+    const attained = override?.attained || liveAttained;
+    const target = override?.target || defaultTarget;
+    return { attained, target };
+  };
 
   // 1. Breeding Herd Composition
   const cowCount = animals.filter(a => a.stockType === 'Cow').length;
-  const heiferCount = animals.filter(a => a.stockType === 'Heifer').length;
+  const heiferCount = animals.filter(a => a.stockType === 'Heifer' || a.stockType === 'Bullying Heifer').length;
   const totalBreedables = cowCount + heiferCount;
   
   const breedingHerdData = [
     {
-      population: totalBreedables > 0 ? Math.round((cowCount / totalBreedables) * 100) : 0,
+      population: cowCount,
       name: 'Cows',
       color: Colors.primary[500],
       legendFontColor: Colors.neutral[700],
     },
     {
       name: 'Heifers',
-      population: totalBreedables > 0 ? Math.round((heiferCount / totalBreedables) * 100) : 0,
+      population: heiferCount,
       color: Colors.secondary[500],
       legendFontColor: Colors.neutral[700],
     },
@@ -117,6 +224,24 @@ function GeneticsContent() {
           Herd Composition
         </Text>
         <PieChart data={breedingHerdData} height={200} />
+        <View style={styles.herdStatsGrid}>
+          <View style={[styles.herdStatBox, { borderColor: Colors.primary[100] }]}>
+            <Text variant="h3" weight="bold" color={Colors.primary[500]}>
+              {cowCount}
+            </Text>
+            <Text variant="caption" color="neutral.500" weight="medium">
+              Cows
+            </Text>
+          </View>
+          <View style={[styles.herdStatBox, { borderColor: Colors.secondary[100] }]}>
+            <Text variant="h3" weight="bold" color={Colors.secondary[500]}>
+              {heiferCount}
+            </Text>
+            <Text variant="caption" color="neutral.500" weight="medium">
+              Heifers
+            </Text>
+          </View>
+        </View>
       </Card>
 
       <Card style={styles.card}>
@@ -180,57 +305,91 @@ function GeneticsContent() {
     </Card>
   );
 
-  const renderPregnancy = () => (
-    <Card style={styles.card}>
-      <Text variant="h5" weight="medium" style={styles.cardTitle}>
-        Pregnancy Statistics
-      </Text>
-      <View style={styles.statsContainer}>
-        <View style={styles.statRow}>
-          <Text variant="body" weight="medium">
-            Total Served:
-          </Text>
-          <Text variant="body">{totalServed}</Text>
+  const renderPregnancy = () => {
+    const cr = getPregnancyMetric('conceptionRate', `${metrics.conceptionRate}%`, '65%');
+    const ir42 = getPregnancyMetric('incalfRate42d', `${metrics.pregnancyRate42d}%`, '75%');
+    const ir100 = getPregnancyMetric('incalfRate100d', `${metrics.pregnancyRate200d}%`, '90%');
+    const pd1 = getPregnancyMetric('firstTrimesterPD', String(t1), '—');
+    const pd2 = getPregnancyMetric('secondTrimesterPD', String(t2), '—');
+    const pd3 = getPregnancyMetric('thirdTrimesterPD', String(t3), '—');
+
+    return (
+      <Card 
+        style={styles.card}
+        title="Pregnancy Statistics"
+        headerRight={
+          profile?.role === 'admin' && (
+            <TouchableOpacity onPress={handleOpenPregnancyModal} style={styles.editButton} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+              <Text variant="body2" color="primary.600" weight="bold">Modify</Text>
+            </TouchableOpacity>
+          )
+        }
+      >
+        <View style={styles.statsContainer}>
+          <View style={styles.statRow}>
+            <Text variant="body" weight="medium">
+              Total Served:
+            </Text>
+            <Text variant="body" weight="bold">{totalServed}</Text>
+          </View>
+          <View style={styles.statRow}>
+            <Text variant="body" weight="medium">
+              Total Incalf:
+            </Text>
+            <Text variant="body" weight="bold">{totalIncalf}</Text>
+          </View>
+
+          <View style={[styles.statRow, { borderBottomWidth: 0, marginTop: 12, paddingVertical: 4 }]}>
+            <Text variant="caption" weight="bold" color="neutral.400" style={{ flex: 2 }}>METRIC</Text>
+            <Text variant="caption" weight="bold" color="neutral.400" style={{ flex: 1.2, textAlign: 'center' }}>ATTAINED</Text>
+            <Text variant="caption" weight="bold" color="neutral.400" style={{ flex: 1.2, textAlign: 'center' }}>TARGET</Text>
+          </View>
+
+          <View style={styles.tableRowCustom}>
+            <Text variant="body2" weight="medium" color="neutral.800" style={{ flex: 2 }}>Conception Rate</Text>
+            <Text variant="body" weight="bold" color="success.500" style={{ flex: 1.2, textAlign: 'center' }}>{cr.attained}</Text>
+            <Text variant="body" weight="medium" color="neutral.500" style={{ flex: 1.2, textAlign: 'center' }}>{cr.target}</Text>
+          </View>
+
+          <View style={styles.tableRowCustom}>
+            <Text variant="body2" weight="medium" color="neutral.800" style={{ flex: 2 }}>42-Day Incalf Rate</Text>
+            <Text variant="body" weight="bold" color="primary.500" style={{ flex: 1.2, textAlign: 'center' }}>{ir42.attained}</Text>
+            <Text variant="body" weight="medium" color="neutral.500" style={{ flex: 1.2, textAlign: 'center' }}>{ir42.target}</Text>
+          </View>
+
+          <View style={styles.tableRowCustom}>
+            <Text variant="body2" weight="medium" color="neutral.800" style={{ flex: 2 }}>100-Day Incalf Rate</Text>
+            <Text variant="body" weight="bold" color="primary.500" style={{ flex: 1.2, textAlign: 'center' }}>{ir100.attained}</Text>
+            <Text variant="body" weight="medium" color="neutral.500" style={{ flex: 1.2, textAlign: 'center' }}>{ir100.target}</Text>
+          </View>
+
+          <View style={styles.tableRowCustom}>
+            <Text variant="body2" weight="medium" color="neutral.800" style={{ flex: 2 }}>1st Trimester PD</Text>
+            <Text variant="body" weight="bold" color="neutral.800" style={{ flex: 1.2, textAlign: 'center' }}>{pd1.attained}</Text>
+            <Text variant="body" weight="medium" color="neutral.500" style={{ flex: 1.2, textAlign: 'center' }}>{pd1.target}</Text>
+          </View>
+
+          <View style={styles.tableRowCustom}>
+            <Text variant="body2" weight="medium" color="neutral.800" style={{ flex: 2 }}>2nd Trimester PD</Text>
+            <Text variant="body" weight="bold" color="neutral.800" style={{ flex: 1.2, textAlign: 'center' }}>{pd2.attained}</Text>
+            <Text variant="body" weight="medium" color="neutral.500" style={{ flex: 1.2, textAlign: 'center' }}>{pd2.target}</Text>
+          </View>
+
+          <View style={styles.tableRowCustom}>
+            <Text variant="body2" weight="medium" color="neutral.800" style={{ flex: 2 }}>3rd Trimester PD</Text>
+            <Text variant="body" weight="bold" color="neutral.800" style={{ flex: 1.2, textAlign: 'center' }}>{pd3.attained}</Text>
+            <Text variant="body" weight="medium" color="neutral.500" style={{ flex: 1.2, textAlign: 'center' }}>{pd3.target}</Text>
+          </View>
+
+          {farmInspection?.pregnancyOverrides?.lastUpdated && (
+            <Text variant="caption" color="neutral.400" style={{ marginTop: 16, textAlign: 'right', fontStyle: 'italic' }}>
+              Last updated: {farmInspection.pregnancyOverrides.lastUpdated}
+            </Text>
+          )}
         </View>
-        <View style={styles.statRow}>
-          <Text variant="body" weight="medium">
-            Total Incalf:
-          </Text>
-          <Text variant="body">{totalIncalf}</Text>
-        </View>
-        <View style={styles.statRow}>
-          <Text variant="body" weight="medium">
-            Conception Rate:
-          </Text>
-          <Text variant="body" color={metrics.conceptionRate >= 65 ? 'success.500' : 'error.500'} weight="bold">
-            {metrics.conceptionRate}%
-          </Text>
-        </View>
-        <View style={styles.statRow}>
-          <Text variant="body" weight="medium">
-            42-Day Incalf Rate:
-          </Text>
-          <Text variant="body" color="primary.500">
-            {metrics.pregnancyRate42d}%
-          </Text>
-        </View>
-        <View style={styles.statRow}>
-          <Text variant="body" weight="medium">
-            100-Day Incalf Rate:
-          </Text>
-          <Text variant="body" color="primary.500">
-            {metrics.pregnancyRate200d}%
-          </Text>
-        </View>
-        <View style={styles.statRow}>
-          <Text variant="body" weight="medium">
-            Trimester PDs (1st|2nd|3rd):
-          </Text>
-          <Text variant="body">{t1} | {t2} | {t3}</Text>
-        </View>
-      </View>
-    </Card>
-  );
+      </Card>
+    );
+  };
 
   const renderCalving = () => (
     <Card style={styles.card}>
@@ -427,6 +586,222 @@ function GeneticsContent() {
         {activeTab === 'calving' && renderCalving()}
         {activeTab === 'bulls' && renderBullsAndBreedingSoundness()}
       </ScrollView>
+
+      <Modal
+        visible={isPregnancyModalOpen}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setIsPregnancyModalOpen(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <KeyboardAvoidingView
+            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+            style={styles.modalKeyboardAvoiding}
+          >
+            <View style={styles.modalContent}>
+              <View style={styles.modalHeader}>
+                <Text variant="h3" weight="bold" color={Colors.neutral[800]}>
+                  Modify Pregnancy Stats
+                </Text>
+                <TouchableOpacity onPress={() => setIsPregnancyModalOpen(false)}>
+                  <Text variant="body" weight="medium" color={Colors.error[500]}>
+                    Close
+                  </Text>
+                </TouchableOpacity>
+              </View>
+
+              <ScrollView style={styles.modalScrollView} showsVerticalScrollIndicator={false}>
+                <View style={styles.formGroup}>
+                  
+                  {/* Conception Rate */}
+                  <View style={styles.metricRow}>
+                    <Text variant="body2" weight="medium" color={Colors.neutral[700]} style={styles.metricLabel}>
+                      Conception Rate (%)
+                    </Text>
+                    <View style={styles.inputsRow}>
+                      <View style={styles.inputContainer}>
+                        <Text variant="caption" color={Colors.neutral[400]}>Attained</Text>
+                        <TextInput
+                          style={styles.textInput}
+                          value={pregnancyForm.conceptionRateAttained}
+                          onChangeText={(val) => setPregnancyForm(prev => ({ ...prev, conceptionRateAttained: val }))}
+                          keyboardType="decimal-pad"
+                          placeholder="e.g. 67"
+                        />
+                      </View>
+                      <View style={styles.inputContainer}>
+                        <Text variant="caption" color={Colors.neutral[400]}>Target</Text>
+                        <TextInput
+                          style={styles.textInput}
+                          value={pregnancyForm.conceptionRateTarget}
+                          onChangeText={(val) => setPregnancyForm(prev => ({ ...prev, conceptionRateTarget: val }))}
+                          keyboardType="decimal-pad"
+                          placeholder="e.g. 65"
+                        />
+                      </View>
+                    </View>
+                  </View>
+
+                  {/* 42-Day Incalf Rate */}
+                  <View style={styles.metricRow}>
+                    <Text variant="body2" weight="medium" color={Colors.neutral[700]} style={styles.metricLabel}>
+                      42-Day Incalf Rate (%)
+                    </Text>
+                    <View style={styles.inputsRow}>
+                      <View style={styles.inputContainer}>
+                        <Text variant="caption" color={Colors.neutral[400]}>Attained</Text>
+                        <TextInput
+                          style={styles.textInput}
+                          value={pregnancyForm.incalfRate42dAttained}
+                          onChangeText={(val) => setPregnancyForm(prev => ({ ...prev, incalfRate42dAttained: val }))}
+                          keyboardType="decimal-pad"
+                          placeholder="e.g. 78"
+                        />
+                      </View>
+                      <View style={styles.inputContainer}>
+                        <Text variant="caption" color={Colors.neutral[400]}>Target</Text>
+                        <TextInput
+                          style={styles.textInput}
+                          value={pregnancyForm.incalfRate42dTarget}
+                          onChangeText={(val) => setPregnancyForm(prev => ({ ...prev, incalfRate42dTarget: val }))}
+                          keyboardType="decimal-pad"
+                          placeholder="e.g. 75"
+                        />
+                      </View>
+                    </View>
+                  </View>
+
+                  {/* 100-Day Incalf Rate */}
+                  <View style={styles.metricRow}>
+                    <Text variant="body2" weight="medium" color={Colors.neutral[700]} style={styles.metricLabel}>
+                      100-Day Incalf Rate (%)
+                    </Text>
+                    <View style={styles.inputsRow}>
+                      <View style={styles.inputContainer}>
+                        <Text variant="caption" color={Colors.neutral[400]}>Attained</Text>
+                        <TextInput
+                          style={styles.textInput}
+                          value={pregnancyForm.incalfRate100dAttained}
+                          onChangeText={(val) => setPregnancyForm(prev => ({ ...prev, incalfRate100dAttained: val }))}
+                          keyboardType="decimal-pad"
+                          placeholder="e.g. 92"
+                        />
+                      </View>
+                      <View style={styles.inputContainer}>
+                        <Text variant="caption" color={Colors.neutral[400]}>Target</Text>
+                        <TextInput
+                          style={styles.textInput}
+                          value={pregnancyForm.incalfRate100dTarget}
+                          onChangeText={(val) => setPregnancyForm(prev => ({ ...prev, incalfRate100dTarget: val }))}
+                          keyboardType="decimal-pad"
+                          placeholder="e.g. 90"
+                        />
+                      </View>
+                    </View>
+                  </View>
+
+                  {/* 1st Trimester PD */}
+                  <View style={styles.metricRow}>
+                    <Text variant="body2" weight="medium" color={Colors.neutral[700]} style={styles.metricLabel}>
+                      1st Trimester PD
+                    </Text>
+                    <View style={styles.inputsRow}>
+                      <View style={styles.inputContainer}>
+                        <Text variant="caption" color={Colors.neutral[400]}>Attained</Text>
+                        <TextInput
+                          style={styles.textInput}
+                          value={pregnancyForm.firstTrimesterPDAttained}
+                          onChangeText={(val) => setPregnancyForm(prev => ({ ...prev, firstTrimesterPDAttained: val }))}
+                          placeholder="e.g. 15"
+                        />
+                      </View>
+                      <View style={styles.inputContainer}>
+                        <Text variant="caption" color={Colors.neutral[400]}>Target</Text>
+                        <TextInput
+                          style={styles.textInput}
+                          value={pregnancyForm.firstTrimesterPDTarget}
+                          onChangeText={(val) => setPregnancyForm(prev => ({ ...prev, firstTrimesterPDTarget: val }))}
+                          placeholder="e.g. 20"
+                        />
+                      </View>
+                    </View>
+                  </View>
+
+                  {/* 2nd Trimester PD */}
+                  <View style={styles.metricRow}>
+                    <Text variant="body2" weight="medium" color={Colors.neutral[700]} style={styles.metricLabel}>
+                      2nd Trimester PD
+                    </Text>
+                    <View style={styles.inputsRow}>
+                      <View style={styles.inputContainer}>
+                        <Text variant="caption" color={Colors.neutral[400]}>Attained</Text>
+                        <TextInput
+                          style={styles.textInput}
+                          value={pregnancyForm.secondTrimesterPDAttained}
+                          onChangeText={(val) => setPregnancyForm(prev => ({ ...prev, secondTrimesterPDAttained: val }))}
+                          placeholder="e.g. 10"
+                        />
+                      </View>
+                      <View style={styles.inputContainer}>
+                        <Text variant="caption" color={Colors.neutral[400]}>Target</Text>
+                        <TextInput
+                          style={styles.textInput}
+                          value={pregnancyForm.secondTrimesterPDTarget}
+                          onChangeText={(val) => setPregnancyForm(prev => ({ ...prev, secondTrimesterPDTarget: val }))}
+                          placeholder="e.g. 15"
+                        />
+                      </View>
+                    </View>
+                  </View>
+
+                  {/* 3rd Trimester PD */}
+                  <View style={styles.metricRow}>
+                    <Text variant="body2" weight="medium" color={Colors.neutral[700]} style={styles.metricLabel}>
+                      3rd Trimester PD
+                    </Text>
+                    <View style={styles.inputsRow}>
+                      <View style={styles.inputContainer}>
+                        <Text variant="caption" color={Colors.neutral[400]}>Attained</Text>
+                        <TextInput
+                          style={styles.textInput}
+                          value={pregnancyForm.thirdTrimesterPDAttained}
+                          onChangeText={(val) => setPregnancyForm(prev => ({ ...prev, thirdTrimesterPDAttained: val }))}
+                          placeholder="e.g. 5"
+                        />
+                      </View>
+                      <View style={styles.inputContainer}>
+                        <Text variant="caption" color={Colors.neutral[400]}>Target</Text>
+                        <TextInput
+                          style={styles.textInput}
+                          value={pregnancyForm.thirdTrimesterPDTarget}
+                          onChangeText={(val) => setPregnancyForm(prev => ({ ...prev, thirdTrimesterPDTarget: val }))}
+                          placeholder="e.g. 8"
+                        />
+                      </View>
+                    </View>
+                  </View>
+
+                </View>
+              </ScrollView>
+
+              <View style={styles.modalActions}>
+                <TouchableOpacity 
+                  style={styles.cancelButton}
+                  onPress={() => setIsPregnancyModalOpen(false)}
+                >
+                  <Text style={styles.cancelButtonText}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity 
+                  style={styles.saveButton}
+                  onPress={handleSavePregnancyOverrides}
+                >
+                  <Text style={styles.saveButtonText}>Save Changes</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </KeyboardAvoidingView>
+        </View>
+      </Modal>
     </ScreenContainer>
   );
 }
@@ -532,5 +907,132 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     borderBottomWidth: 1,
     borderBottomColor: Colors.neutral[200],
+  },
+  herdStatsGrid: {
+    flexDirection: 'row',
+    gap: 12,
+    marginTop: 16,
+  },
+  herdStatBox: {
+    flex: 1,
+    backgroundColor: Colors.neutral[50],
+    borderWidth: 1,
+    borderColor: Colors.neutral[200],
+    borderRadius: 12,
+    padding: 12,
+    alignItems: 'center',
+  },
+  tableRowCustom: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.neutral[100],
+  },
+  editButton: {
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.4)',
+    justifyContent: 'flex-end',
+  },
+  modalKeyboardAvoiding: {
+    width: '100%',
+    maxHeight: '85%',
+  },
+  modalContent: {
+    backgroundColor: Colors.white,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    padding: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 10,
+    elevation: 5,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.neutral[100],
+    paddingBottom: 12,
+  },
+  modalScrollView: {
+    maxHeight: 400,
+  },
+  formGroup: {
+    marginBottom: 16,
+  },
+  metricRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.neutral[100],
+  },
+  metricLabel: {
+    flex: 1,
+    marginRight: 12,
+  },
+  inputsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  inputContainer: {
+    marginLeft: 12,
+    alignItems: 'flex-end',
+  },
+  textInput: {
+    borderWidth: 1,
+    borderColor: Colors.neutral[200],
+    borderRadius: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    width: 72,
+    textAlign: 'center',
+    marginTop: 4,
+    color: Colors.neutral[800],
+    fontSize: 14,
+  },
+  modalActions: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 20,
+    borderTopWidth: 1,
+    borderTopColor: Colors.neutral[100],
+    paddingTop: 16,
+  },
+  cancelButton: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: Colors.neutral[300],
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 8,
+  },
+  saveButton: {
+    flex: 1.5,
+    backgroundColor: Colors.primary[500],
+    paddingVertical: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: 8,
+  },
+  cancelButtonText: {
+    color: Colors.neutral[600],
+    fontWeight: '600',
+  },
+  saveButtonText: {
+    color: Colors.white,
+    fontWeight: 'bold',
   },
 });

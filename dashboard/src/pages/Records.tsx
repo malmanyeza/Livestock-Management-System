@@ -100,12 +100,12 @@ function DataTable({ title, rows, cols }: {
   rows: Record<string, any>[]
   cols: { key: string; label: string; render?: (v: any) => React.ReactNode }[]
 }) {
-  const minWidth = cols.length > 6 ? '900px' : '750px'
+  const minWidth = cols.length > 6 ? '900px' : '800px'
   return (
     <div className="card p-0 overflow-hidden mb-4">
       <div className="px-5 py-4 border-b font-semibold"
         style={{ borderColor: C.neutral100, color: C.neutral900 }}>{title}</div>
-      <div className="overflow-x-auto">
+      <div className="w-full overflow-x-auto">
         <table className="w-full data-table" style={{ minWidth }}>
           <thead>
             <tr>{cols.map(c => <th key={c.key}>{c.label}</th>)}</tr>
@@ -272,7 +272,7 @@ export default function Records() {
   }
 
   return (
-    <div className="space-y-5 max-w-3xl mx-auto">
+    <div className="space-y-5 max-w-[1400px] mx-auto">
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-xl font-bold" style={{ color: C.neutral900 }}>Records</h2>

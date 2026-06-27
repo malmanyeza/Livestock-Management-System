@@ -29,8 +29,8 @@ const speciesEmojis: Record<string, string> = {
   'sheep': '🐑',
   'poultry': '🐔',
   'rabbits': '🐇',
-  'beef-production': '🥩',
-  'dairy-production': '🥛',
+  'beef-production': '🐂',
+  'dairy-production': '🐄',
   'pen-fattening': '🐑',
 };
 
@@ -197,7 +197,12 @@ function CustomBarChart({ data, width, height }: { data: any; width: number; hei
 }
 
 export default function HomeScreen() {
-  const { metrics, animals, profile, farmers, selectedFarmer, setSelectedFarmer, todoList } = useFarmData();
+  const { metrics, animals, profile, farmers, selectedFarmer, setSelectedFarmer, todoList, mortalityRecords } = useFarmData();
+  const aliveAnimals = React.useMemo(() => {
+    if (!animals) return [];
+    const deadTags = new Set(mortalityRecords ? mortalityRecords.map(m => m.animalId).filter(Boolean) : []);
+    return animals.filter(a => !deadTags.has(a.tag));
+  }, [animals, mortalityRecords]);
   const currentDLShiftScore = metrics.scoreDLShift;
   const isAdmin = profile?.role === 'admin';
   const displayName = profile?.full_name || profile?.email || 'Farmer';
@@ -301,24 +306,24 @@ export default function HomeScreen() {
 
   const getFilteredAnimalsCount = () => {
     if (selectedSpecies === 'beef-production') {
-      return animals.filter(a => a.stockType === 'Cow' || a.stockType === 'Heifer' || a.stockType === 'Bull' || a.stockType === 'Steer').length;
+      return aliveAnimals.filter(a => a.stockType === 'Cow' || a.stockType === 'Heifer' || a.stockType === 'Bull' || a.stockType === 'Steer' || a.stockType === 'Calve' || a.stockType === 'Calf').length;
     }
     if (selectedSpecies === 'dairy-production') {
-      return animals.filter(a => a.stockType === 'Cow' || a.stockType === 'Heifer').length;
+      return aliveAnimals.filter(a => a.stockType === 'Cow' || a.stockType === 'Heifer' || a.stockType === 'Calve' || a.stockType === 'Calf').length;
     }
     if (selectedSpecies === 'goats') {
-      return animals.filter(a => a.stockType === 'Goat').length;
+      return aliveAnimals.filter(a => a.stockType === 'Goat').length;
     }
     if (selectedSpecies === 'pigs') {
-      return animals.filter(a => a.stockType === 'Pig').length;
+      return aliveAnimals.filter(a => a.stockType === 'Pig').length;
     }
     if (selectedSpecies === 'sheep' || selectedSpecies === 'pen-fattening') {
-      return animals.filter(a => a.stockType === 'Sheep').length;
+      return aliveAnimals.filter(a => a.stockType === 'Sheep').length;
     }
     if (selectedSpecies === 'poultry') {
-      return animals.filter(a => a.stockType === 'Chicken').length;
+      return aliveAnimals.filter(a => a.stockType === 'Chicken').length;
     }
-    return animals.length;
+    return aliveAnimals.length;
   };
 
   const renderNavigationCard = ({ item }: { item: NavigationCard }) => (

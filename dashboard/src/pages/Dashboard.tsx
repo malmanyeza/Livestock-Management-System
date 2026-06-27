@@ -15,8 +15,8 @@ import {
 // ─── Constants (mirrors mobile exactly) ──────────────────────────────────────
 
 const SPECIES = [
-  { label: 'Beef Production', value: 'beef-production', emoji: '🥩' },
-  { label: 'Dairy Production', value: 'dairy-production', emoji: '🥛' },
+  { label: 'Beef Production', value: 'beef-production', emoji: '🐂' },
+  { label: 'Dairy Production', value: 'dairy-production', emoji: '🐄' },
   { label: 'Pen Fattening', value: 'pen-fattening', emoji: '🐑' },
   { label: 'Goats', value: 'goats', emoji: '🐐' },
   { label: 'Pigs', value: 'pigs', emoji: '🐷' },
@@ -114,13 +114,16 @@ export default function Dashboard() {
       { data: mortalityData },
       { data: inspectionData }
     ]) => {
-      setAnimals(animalsData ?? [])
+      const deadTags = new Set((mortalityData || []).map((m: any) => m.animal_tag).filter(Boolean))
+      const aliveAnimalsData = (animalsData || []).filter((a: any) => !deadTags.has(a.tag))
+
+      setAnimals(aliveAnimalsData)
       setTodoCount(todoCountVal ?? 0)
 
       const isDemo = targetUserId === '76408c11-021a-4fdd-a17c-6b90065182b7'
 
       // Map structures to match the mobile app context calculations
-      const mappedAnimals = (animalsData || []).map((row: any) => ({
+      const mappedAnimals = aliveAnimalsData.map((row: any) => ({
         weight: row.weight != null ? Number(row.weight) : undefined,
         previousWeight: row.previous_weight != null ? Number(row.previous_weight) : undefined,
         daysBetweenWeights: row.days_between_weights != null ? Number(row.days_between_weights) : undefined,
@@ -205,7 +208,7 @@ export default function Dashboard() {
           if (a.stockType === 'Goat') {
             totals.goats += adgVal
             counts.goats++
-          } else if (['Cow', 'Bull', 'Steer', 'Heifer'].includes(a.stockType)) {
+          } else if (['Cow', 'Bull', 'Steer', 'Heifer', 'Bullying Heifer'].includes(a.stockType)) {
             totals.cattle += adgVal
             counts.cattle++
           } else if (a.stockType === 'Sheep') {
@@ -417,8 +420,8 @@ export default function Dashboard() {
   // Animal count filtered by species
   const getCount = () => {
     const MAP: Record<string, string[]> = {
-      'beef-production':  ['Cow','Heifer','Bull','Steer'],
-      'dairy-production': ['Cow','Heifer'],
+      'beef-production':  ['Cow','Heifer','Bull','Steer','Bullying Heifer','Calve','Calf'],
+      'dairy-production': ['Cow','Heifer','Bullying Heifer','Calve','Calf'],
       'goats':            ['Goat'],
       'pigs':             ['Pig'],
       'sheep':            ['Sheep'],
@@ -456,7 +459,7 @@ export default function Dashboard() {
   const sp = SPECIES.find(s => s.value === selectedSpecies)
 
   return (
-    <div className="space-y-6 max-w-4xl mx-auto">
+    <div className="space-y-6 max-w-[1400px] mx-auto">
 
       {/* ── 1. HEADER ── mirrors mobile header */}
       <div className="flex items-center gap-3">

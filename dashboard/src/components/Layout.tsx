@@ -121,6 +121,16 @@ export default function Layout({ children }: { children: React.ReactNode }) {
               </NavLink>
             )
           })}
+          {isAdmin && (
+            <NavLink
+              to="/livestock-pro"
+              className={location.pathname.startsWith('/livestock-pro') ? 'nav-link-active' : 'nav-link'}
+              title={!sidebarOpen ? 'Livestock Pro' : undefined}
+            >
+              <ShieldCheck size={18} className="flex-shrink-0" style={{ color: location.pathname.startsWith('/livestock-pro') ? '#7AC142' : '#6C757D' }} />
+              {sidebarOpen && <span className="truncate">Livestock Pro</span>}
+            </NavLink>
+          )}
         </nav>
 
         {/* Footer */}

@@ -1,6 +1,7 @@
 import { useEffect, useState, useMemo } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
+import { X } from 'lucide-react'
 
 // ─── Color tokens ─────────────────────────────────────────────────────────────
 const C = {
@@ -73,7 +74,7 @@ function DonutChart({ data, size = 200 }: { data: PieSlice[]; size?: number }) {
             <span className="w-3 h-3 rounded-full flex-shrink-0" style={{ backgroundColor: d.color }} />
             <span className="text-xs" style={{ color: C.neutral600 }}>{d.name}</span>
             <span className="text-xs font-semibold" style={{ color: C.neutral900 }}>
-              {total > 0 ? Math.round((d.population / total) * 100) : 0}%
+              {d.population} ({total > 0 ? Math.round((d.population / total) * 100) : 0}%)
             </span>
           </div>
         ))}
@@ -97,6 +98,15 @@ function ProgressBar({ label, pct, color }: { label: string; pct: number; color:
   )
 }
 
+const isCalf = (age: string | null | undefined, stockType?: string | null) => {
+  if (stockType === 'Calve' || stockType === 'Calf') return true
+  if (!age) return false
+  const ageMatch = age.match(/(\d+)([ym])/)
+  if (!ageMatch) return false
+  const [_, value, unit] = ageMatch
+  return (unit === 'm' && parseInt(value) < 12) || (unit === 'y' && parseInt(value) === 0)
+}
+
 // ─── Stat row (for tables inside cards) ─────────────────────────────────────
 function StatRow({ label, value, valueColor }: { label: string; value: string | number; valueColor?: string }) {
   return (
@@ -110,42 +120,54 @@ function StatRow({ label, value, valueColor }: { label: string; value: string | 
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 export default function Genetics() {
-  const { targetUserId } = useAuth()
+  const { session, profile, targetUserId } = useAuth()
+  const isAdmin = profile?.role === 'admin'
   const [activeTab, setActiveTab] = useState<Tab>('herds')
   const [animals, setAnimals]         = useState<any[]>([])
   const [breedingRecs, setBreeding]   = useState<any[]>([])
   const [pregnancyRecs, setPregnancy] = useState<any[]>([])
   const [bullRecs, setBullRecs]       = useState<any[]>([])
   const [mortalityRecs, setMortality] = useState<any[]>([])
+  const [fi, setFi]                   = useState<Record<string, any>>({})
+  const [isModalOpen, setIsModalOpen] = useState(false)
+  const [formOverrides, setFormOverrides] = useState<Record<string, { attained: string; target: string }>>({})
+  const [saving, setSaving]           = useState(false)
   const [loading, setLoading]         = useState(true)
 
   useEffect(() => {
     if (!targetUserId) return
     setLoading(true)
+    setFi({})
     Promise.all([
       supabase.from('animals').select('*').eq('user_id', targetUserId),
       supabase.from('breeding_records').select('*').eq('user_id', targetUserId),
       supabase.from('pregnancy_records').select('*').eq('user_id', targetUserId),
       supabase.from('bull_breeding_records').select('*').eq('user_id', targetUserId),
       supabase.from('mortality_records').select('*').eq('user_id', targetUserId),
-    ]).then(([a, b, p, bull, m]) => {
+      supabase.from('farm_inspections').select('*').eq('user_id', targetUserId).maybeSingle(),
+    ]).then(([a, b, p, bull, m, ins]) => {
       setAnimals(a.data ?? [])
       setBreeding(b.data ?? [])
       setPregnancy(p.data ?? [])
       setBullRecs(bull.data ?? [])
       setMortality(m.data ?? [])
+      if (ins?.data?.data) {
+        setFi(ins.data.data as Record<string, any>)
+      } else {
+        setFi({})
+      }
       setLoading(false)
     })
   }, [targetUserId])
 
   // ── 1. Breeding Herd Composition ──────────────────────────────────────────
   const cowCount    = animals.filter(a => a.stock_type === 'Cow').length
-  const heiferCount = animals.filter(a => a.stock_type === 'Heifer').length
+  const heiferCount = animals.filter(a => a.stock_type === 'Heifer' || a.stock_type === 'Bullying Heifer').length
   const totalBreedable = cowCount + heiferCount
 
   const breedingHerdData: PieSlice[] = [
-    { name: 'Cows',    population: totalBreedable > 0 ? Math.round((cowCount / totalBreedable) * 100) : 0,    color: C.primary500 },
-    { name: 'Heifers', population: totalBreedable > 0 ? Math.round((heiferCount / totalBreedable) * 100) : 0, color: C.secondary500 },
+    { name: 'Cows',    population: cowCount,    color: C.primary500 },
+    { name: 'Heifers', population: heiferCount, color: C.secondary500 },
   ]
 
   // ── 2. BCS Distribution ───────────────────────────────────────────────────
@@ -183,10 +205,134 @@ export default function Genetics() {
   const t1 = pregnancyRecs.filter(p => p.first_trimester_pd === 'Positive').length
   const t2 = pregnancyRecs.filter(p => p.second_trimester_pd === 'Positive').length
   const t3 = pregnancyRecs.filter(p => p.third_trimester_pd === 'Positive').length
-  const conceptionRate = totalServed > 0 ? Math.round((totalInCalf / totalServed) * 100) : 0
+  const liveConceptionRate = totalServed > 0 ? Math.round((totalInCalf / totalServed) * 100) : 0
+  const live42dRate = breedingRecs.length > 0 ? Math.round((totalInCalf / breedingRecs.length) * 100) : 0
+  const live100dRate = pregnancyRecs.length > 0 ? Math.round((t2 / pregnancyRecs.length) * 100) : 0
+
+  const getPregnancyMetric = (key: string, liveAttained: string, defaultTarget: string) => {
+    const overrides = fi.pregnancyOverrides || {}
+    const override = overrides[key]
+    const attained = override?.attained || liveAttained
+    const target = override?.target || defaultTarget
+    return { attained, target }
+  }
+
+  const cr = getPregnancyMetric('conceptionRate', `${liveConceptionRate}%`, '65%')
+  const ir42 = getPregnancyMetric('incalfRate42d', `${live42dRate}%`, '75%')
+  const ir100 = getPregnancyMetric('incalfRate100d', `${live100dRate}%`, '90%')
+  const pd1 = getPregnancyMetric('firstTrimesterPD', String(t1), '—')
+  const pd2 = getPregnancyMetric('secondTrimesterPD', String(t2), '—')
+  const pd3 = getPregnancyMetric('thirdTrimesterPD', String(t3), '—')
+
+  const handleOpenModal = () => {
+    const overrides = fi.pregnancyOverrides || {}
+    setFormOverrides({
+      conceptionRate: {
+        attained: overrides.conceptionRate?.attained?.replace('%', '') || '',
+        target: overrides.conceptionRate?.target?.replace('%', '') || '',
+      },
+      incalfRate42d: {
+        attained: overrides.incalfRate42d?.attained?.replace('%', '') || '',
+        target: overrides.incalfRate42d?.target?.replace('%', '') || '',
+      },
+      incalfRate100d: {
+        attained: overrides.incalfRate100d?.attained?.replace('%', '') || '',
+        target: overrides.incalfRate100d?.target?.replace('%', '') || '',
+      },
+      firstTrimesterPD: {
+        attained: overrides.firstTrimesterPD?.attained || '',
+        target: overrides.firstTrimesterPD?.target || '',
+      },
+      secondTrimesterPD: {
+        attained: overrides.secondTrimesterPD?.attained || '',
+        target: overrides.secondTrimesterPD?.target || '',
+      },
+      thirdTrimesterPD: {
+        attained: overrides.thirdTrimesterPD?.attained || '',
+        target: overrides.thirdTrimesterPD?.target || '',
+      },
+    })
+    setIsModalOpen(true)
+  }
+
+  const handleSave = async () => {
+    if (!session) return
+    setSaving(true)
+
+    const formatPct = (val: string) => {
+      let trimmed = val.trim()
+      if (!trimmed) return ''
+      if (!trimmed.endsWith('%') && /^\d+(\.\d+)?$/.test(trimmed)) {
+        return trimmed + '%'
+      }
+      return trimmed
+    }
+
+    const formatVal = (val: string) => val.trim()
+
+    const formattedOverrides = {
+      conceptionRate: {
+        attained: formatPct(formOverrides.conceptionRate.attained),
+        target: formatPct(formOverrides.conceptionRate.target),
+      },
+      incalfRate42d: {
+        attained: formatPct(formOverrides.incalfRate42d.attained),
+        target: formatPct(formOverrides.incalfRate42d.target),
+      },
+      incalfRate100d: {
+        attained: formatPct(formOverrides.incalfRate100d.attained),
+        target: formatPct(formOverrides.incalfRate100d.target),
+      },
+      firstTrimesterPD: {
+        attained: formatVal(formOverrides.firstTrimesterPD.attained),
+        target: formatVal(formOverrides.firstTrimesterPD.target),
+      },
+      secondTrimesterPD: {
+        attained: formatVal(formOverrides.secondTrimesterPD.attained),
+        target: formatVal(formOverrides.secondTrimesterPD.target),
+      },
+      thirdTrimesterPD: {
+        attained: formatVal(formOverrides.thirdTrimesterPD.attained),
+        target: formatVal(formOverrides.thirdTrimesterPD.target),
+      },
+      lastUpdated: new Date().toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' })
+    }
+
+    const cleanedOverrides: any = {}
+    Object.entries(formattedOverrides).forEach(([key, val]) => {
+      if (key === 'lastUpdated') {
+        cleanedOverrides.lastUpdated = val
+        return
+      }
+      const overrideVal = val as { attained: string; target: string }
+      if (overrideVal.attained || overrideVal.target) {
+        cleanedOverrides[key] = {
+          attained: overrideVal.attained || undefined,
+          target: overrideVal.target || undefined,
+        }
+      }
+    })
+
+    const updated = { ...fi, pregnancyOverrides: cleanedOverrides }
+    setFi(updated)
+
+    try {
+      const { data: ex } = await supabase.from('farm_inspections').select('id').eq('user_id', targetUserId).maybeSingle()
+      if (ex) {
+        await supabase.from('farm_inspections').update({ data: updated, updated_at: new Date().toISOString() }).eq('id', ex.id)
+      } else {
+        await supabase.from('farm_inspections').insert({ user_id: targetUserId, data: updated, updated_at: new Date().toISOString() })
+      }
+      setIsModalOpen(false)
+    } catch (e) {
+      console.error("Error saving pregnancy overrides:", e)
+    } finally {
+      setSaving(false)
+    }
+  }
 
   // ── 5. Calving Stats ──────────────────────────────────────────────────────
-  const calves = animals.filter(a => a.stock_type === 'Calve' || a.stock_type === 'Calf')
+  const calves = animals.filter(a => isCalf(a.age, a.stock_type))
   const preWeanMortality = mortalityRecs.filter(m => m.is_pre_weaning).length
   const calvingRate = animals.length > 0 ? Math.round((calves.length / animals.length) * 100) : 0
 
@@ -215,7 +361,7 @@ export default function Genetics() {
   )
 
   return (
-    <div className="space-y-5 max-w-4xl mx-auto">
+    <div className="space-y-5 max-w-[1400px] mx-auto">
       <div>
         <h2 className="text-xl font-bold" style={{ color: C.neutral900 }}>Genetics &amp; Production</h2>
         <p className="text-sm mt-0.5" style={{ color: C.neutral500 }}>Herd composition, breeding, and pregnancy statistics</p>
@@ -308,16 +454,69 @@ export default function Genetics() {
       {/* ── PREGNANCY tab ──────────────────────────────────────────────────── */}
       {activeTab === 'pregnancy' && (
         <div className="card">
-          <p className="font-semibold text-base mb-4" style={{ color: C.neutral900 }}>Pregnancy Statistics</p>
+          <div className="flex justify-between items-center mb-4">
+            <p className="font-semibold text-base" style={{ color: C.neutral900 }}>Pregnancy Statistics</p>
+            {isAdmin && (
+              <button onClick={handleOpenModal}
+                className="px-3 py-1.5 rounded-lg text-xs font-bold text-white transition-all hover:brightness-95"
+                style={{ backgroundColor: C.primary600 }}>
+                Modify Stats
+              </button>
+            )}
+          </div>
+          
           <StatRow label="Total Served"            value={totalServed} />
           <StatRow label="Total In-Calf"           value={totalInCalf} />
-          <StatRow label="Conception Rate"         value={`${conceptionRate}%`}
-            valueColor={conceptionRate >= 65 ? C.success500 : C.error500} />
-          <StatRow label="42-Day Incalf Rate"      value={`${breedingRecs.length > 0 ? Math.round((totalInCalf / breedingRecs.length) * 100) : 0}%`}
-            valueColor={C.primary500} />
-          <StatRow label="100-Day Incalf Rate"     value={`${pregnancyRecs.length > 0 ? Math.round((t2 / pregnancyRecs.length) * 100) : 0}%`}
-            valueColor={C.primary500} />
-          <StatRow label="Trimester PDs (1st|2nd|3rd)" value={`${t1} | ${t2} | ${t3}`} />
+
+          <div className="mt-4 overflow-x-auto">
+            <table className="w-full text-left" style={{ minWidth: '100%' }}>
+              <thead>
+                <tr className="border-b" style={{ borderColor: C.neutral200 }}>
+                  <th className="py-2 text-xs font-bold uppercase" style={{ color: C.neutral500 }}>Metric</th>
+                  <th className="py-2 text-xs font-bold uppercase text-center" style={{ color: C.neutral500 }}>Attained</th>
+                  <th className="py-2 text-xs font-bold uppercase text-center" style={{ color: C.neutral500 }}>Target</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr className="border-b" style={{ borderColor: C.neutral100 }}>
+                  <td className="py-3 text-sm font-medium" style={{ color: C.neutral700 }}>Conception Rate</td>
+                  <td className="py-3 text-sm font-bold text-center" style={{ color: parseFloat(cr.attained) >= 65 ? C.success500 : C.error500 }}>{cr.attained}</td>
+                  <td className="py-3 text-sm font-medium text-center" style={{ color: C.neutral500 }}>{cr.target}</td>
+                </tr>
+                <tr className="border-b" style={{ borderColor: C.neutral100 }}>
+                  <td className="py-3 text-sm font-medium" style={{ color: C.neutral700 }}>42-Day Incalf Rate</td>
+                  <td className="py-3 text-sm font-semibold text-center" style={{ color: C.primary500 }}>{ir42.attained}</td>
+                  <td className="py-3 text-sm font-medium text-center" style={{ color: C.neutral500 }}>{ir42.target}</td>
+                </tr>
+                <tr className="border-b" style={{ borderColor: C.neutral100 }}>
+                  <td className="py-3 text-sm font-medium" style={{ color: C.neutral700 }}>100-Day Incalf Rate</td>
+                  <td className="py-3 text-sm font-semibold text-center" style={{ color: C.primary500 }}>{ir100.attained}</td>
+                  <td className="py-3 text-sm font-medium text-center" style={{ color: C.neutral500 }}>{ir100.target}</td>
+                </tr>
+                <tr className="border-b" style={{ borderColor: C.neutral100 }}>
+                  <td className="py-3 text-sm font-medium" style={{ color: C.neutral700 }}>1st Trimester PD</td>
+                  <td className="py-3 text-sm font-semibold text-center" style={{ color: C.neutral700 }}>{pd1.attained}</td>
+                  <td className="py-3 text-sm font-medium text-center" style={{ color: C.neutral500 }}>{pd1.target}</td>
+                </tr>
+                <tr className="border-b" style={{ borderColor: C.neutral100 }}>
+                  <td className="py-3 text-sm font-medium" style={{ color: C.neutral700 }}>2nd Trimester PD</td>
+                  <td className="py-3 text-sm font-semibold text-center" style={{ color: C.neutral700 }}>{pd2.attained}</td>
+                  <td className="py-3 text-sm font-medium text-center" style={{ color: C.neutral500 }}>{pd2.target}</td>
+                </tr>
+                <tr className="border-b" style={{ borderColor: C.neutral100 }}>
+                  <td className="py-3 text-sm font-medium" style={{ color: C.neutral700 }}>3rd Trimester PD</td>
+                  <td className="py-3 text-sm font-semibold text-center" style={{ color: C.neutral700 }}>{pd3.attained}</td>
+                  <td className="py-3 text-sm font-medium text-center" style={{ color: C.neutral500 }}>{pd3.target}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          {fi.pregnancyOverrides?.lastUpdated && (
+            <p className="text-right text-xs mt-4 italic" style={{ color: C.neutral400 }}>
+              Last updated: {fi.pregnancyOverrides.lastUpdated}
+            </p>
+          )}
         </div>
       )}
 
@@ -353,7 +552,7 @@ export default function Genetics() {
             </div>
           ) : (
             <div className="overflow-x-auto rounded-xl" style={{ border: `1px solid ${C.neutral200}` }}>
-              <table className="w-full data-table" style={{ minWidth: '750px' }}>
+              <table className="w-full data-table" style={{ minWidth: '100%' }}>
                 <thead>
                   <tr>
                     <th>Date</th>
@@ -389,6 +588,232 @@ export default function Genetics() {
                 {mappedBulls.filter(b => b.statusColor === C.success500).length}
               </p>
               <p className="text-xs" style={{ color: C.neutral500 }}>Satisfactory</p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modify Pregnancy Stats Modal */}
+      {isModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center"
+          style={{ backgroundColor: 'rgba(0,0,0,0.4)' }}>
+          <div className="w-full max-w-lg rounded-t-2xl flex flex-col"
+            style={{ backgroundColor: C.white, maxHeight: '85vh' }}>
+            {/* Header */}
+            <div className="flex items-center justify-between px-6 py-5 border-b"
+              style={{ borderColor: C.neutral100 }}>
+              <h3 className="text-xl font-bold" style={{ color: C.neutral700 }}>Modify Pregnancy Stats</h3>
+              <button onClick={() => setIsModalOpen(false)}>
+                <X size={20} style={{ color: C.error500 }} />
+              </button>
+            </div>
+
+            <div className="overflow-y-auto flex-1 px-6 py-4 space-y-6">
+              <div>
+                <p className="text-xs font-bold uppercase tracking-wide mb-3"
+                  style={{ color: C.primary600 }}>Pregnancy Metric Overrides</p>
+                
+                {/* Conception Rate */}
+                <div className="flex items-center justify-between py-3 border-b"
+                  style={{ borderColor: C.neutral50 }}>
+                  <span className="text-sm font-medium flex-1 mr-4"
+                    style={{ color: C.neutral700 }}>Conception Rate (%)</span>
+                  <div className="flex items-center gap-3">
+                    <div className="text-right">
+                      <p className="text-xs mb-1" style={{ color: C.neutral400 }}>Attained</p>
+                      <input
+                        type="number"
+                        value={formOverrides.conceptionRate?.attained ?? ''}
+                        onChange={e => setFormOverrides(prev => ({ ...prev, conceptionRate: { ...prev.conceptionRate, attained: e.target.value } }))}
+                        placeholder="e.g. 67"
+                        className="w-20 text-center text-sm rounded-lg px-2 py-1 outline-none"
+                        style={{ border: `1px solid ${C.neutral200}`, color: C.neutral700 }}
+                      />
+                    </div>
+                    <div className="text-right">
+                      <p className="text-xs mb-1" style={{ color: C.neutral400 }}>Target</p>
+                      <input
+                        type="number"
+                        value={formOverrides.conceptionRate?.target ?? ''}
+                        onChange={e => setFormOverrides(prev => ({ ...prev, conceptionRate: { ...prev.conceptionRate, target: e.target.value } }))}
+                        placeholder="e.g. 65"
+                        className="w-20 text-center text-sm rounded-lg px-2 py-1 outline-none"
+                        style={{ border: `1px solid ${C.neutral200}`, color: C.neutral700 }}
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* 42-Day Incalf Rate */}
+                <div className="flex items-center justify-between py-3 border-b"
+                  style={{ borderColor: C.neutral50 }}>
+                  <span className="text-sm font-medium flex-1 mr-4"
+                    style={{ color: C.neutral700 }}>42-Day Incalf Rate (%)</span>
+                  <div className="flex items-center gap-3">
+                    <div className="text-right">
+                      <p className="text-xs mb-1" style={{ color: C.neutral400 }}>Attained</p>
+                      <input
+                        type="number"
+                        value={formOverrides.incalfRate42d?.attained ?? ''}
+                        onChange={e => setFormOverrides(prev => ({ ...prev, incalfRate42d: { ...prev.incalfRate42d, attained: e.target.value } }))}
+                        placeholder="e.g. 78"
+                        className="w-20 text-center text-sm rounded-lg px-2 py-1 outline-none"
+                        style={{ border: `1px solid ${C.neutral200}`, color: C.neutral700 }}
+                      />
+                    </div>
+                    <div className="text-right">
+                      <p className="text-xs mb-1" style={{ color: C.neutral400 }}>Target</p>
+                      <input
+                        type="number"
+                        value={formOverrides.incalfRate42d?.target ?? ''}
+                        onChange={e => setFormOverrides(prev => ({ ...prev, incalfRate42d: { ...prev.incalfRate42d, target: e.target.value } }))}
+                        placeholder="e.g. 75"
+                        className="w-20 text-center text-sm rounded-lg px-2 py-1 outline-none"
+                        style={{ border: `1px solid ${C.neutral200}`, color: C.neutral700 }}
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* 100-Day Incalf Rate */}
+                <div className="flex items-center justify-between py-3 border-b"
+                  style={{ borderColor: C.neutral50 }}>
+                  <span className="text-sm font-medium flex-1 mr-4"
+                    style={{ color: C.neutral700 }}>100-Day Incalf Rate (%)</span>
+                  <div className="flex items-center gap-3">
+                    <div className="text-right">
+                      <p className="text-xs mb-1" style={{ color: C.neutral400 }}>Attained</p>
+                      <input
+                        type="number"
+                        value={formOverrides.incalfRate100d?.attained ?? ''}
+                        onChange={e => setFormOverrides(prev => ({ ...prev, incalfRate100d: { ...prev.incalfRate100d, attained: e.target.value } }))}
+                        placeholder="e.g. 92"
+                        className="w-20 text-center text-sm rounded-lg px-2 py-1 outline-none"
+                        style={{ border: `1px solid ${C.neutral200}`, color: C.neutral700 }}
+                      />
+                    </div>
+                    <div className="text-right">
+                      <p className="text-xs mb-1" style={{ color: C.neutral400 }}>Target</p>
+                      <input
+                        type="number"
+                        value={formOverrides.incalfRate100d?.target ?? ''}
+                        onChange={e => setFormOverrides(prev => ({ ...prev, incalfRate100d: { ...prev.incalfRate100d, target: e.target.value } }))}
+                        placeholder="e.g. 90"
+                        className="w-20 text-center text-sm rounded-lg px-2 py-1 outline-none"
+                        style={{ border: `1px solid ${C.neutral200}`, color: C.neutral700 }}
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* 1st Trimester PD */}
+                <div className="flex items-center justify-between py-3 border-b"
+                  style={{ borderColor: C.neutral50 }}>
+                  <span className="text-sm font-medium flex-1 mr-4"
+                    style={{ color: C.neutral700 }}>1st Trimester PD</span>
+                  <div className="flex items-center gap-3">
+                    <div className="text-right">
+                      <p className="text-xs mb-1" style={{ color: C.neutral400 }}>Attained</p>
+                      <input
+                        type="number"
+                        value={formOverrides.firstTrimesterPD?.attained ?? ''}
+                        onChange={e => setFormOverrides(prev => ({ ...prev, firstTrimesterPD: { ...prev.firstTrimesterPD, attained: e.target.value } }))}
+                        placeholder="e.g. 15"
+                        className="w-20 text-center text-sm rounded-lg px-2 py-1 outline-none"
+                        style={{ border: `1px solid ${C.neutral200}`, color: C.neutral700 }}
+                      />
+                    </div>
+                    <div className="text-right">
+                      <p className="text-xs mb-1" style={{ color: C.neutral400 }}>Target</p>
+                      <input
+                        type="number"
+                        value={formOverrides.firstTrimesterPD?.target ?? ''}
+                        onChange={e => setFormOverrides(prev => ({ ...prev, firstTrimesterPD: { ...prev.firstTrimesterPD, target: e.target.value } }))}
+                        placeholder="e.g. 20"
+                        className="w-20 text-center text-sm rounded-lg px-2 py-1 outline-none"
+                        style={{ border: `1px solid ${C.neutral200}`, color: C.neutral700 }}
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* 2nd Trimester PD */}
+                <div className="flex items-center justify-between py-3 border-b"
+                  style={{ borderColor: C.neutral50 }}>
+                  <span className="text-sm font-medium flex-1 mr-4"
+                    style={{ color: C.neutral700 }}>2nd Trimester PD</span>
+                  <div className="flex items-center gap-3">
+                    <div className="text-right">
+                      <p className="text-xs mb-1" style={{ color: C.neutral400 }}>Attained</p>
+                      <input
+                        type="number"
+                        value={formOverrides.secondTrimesterPD?.attained ?? ''}
+                        onChange={e => setFormOverrides(prev => ({ ...prev, secondTrimesterPD: { ...prev.secondTrimesterPD, attained: e.target.value } }))}
+                        placeholder="e.g. 10"
+                        className="w-20 text-center text-sm rounded-lg px-2 py-1 outline-none"
+                        style={{ border: `1px solid ${C.neutral200}`, color: C.neutral700 }}
+                      />
+                    </div>
+                    <div className="text-right">
+                      <p className="text-xs mb-1" style={{ color: C.neutral400 }}>Target</p>
+                      <input
+                        type="number"
+                        value={formOverrides.secondTrimesterPD?.target ?? ''}
+                        onChange={e => setFormOverrides(prev => ({ ...prev, secondTrimesterPD: { ...prev.secondTrimesterPD, target: e.target.value } }))}
+                        placeholder="e.g. 15"
+                        className="w-20 text-center text-sm rounded-lg px-2 py-1 outline-none"
+                        style={{ border: `1px solid ${C.neutral200}`, color: C.neutral700 }}
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* 3rd Trimester PD */}
+                <div className="flex items-center justify-between py-3 border-b"
+                  style={{ borderColor: C.neutral50 }}>
+                  <span className="text-sm font-medium flex-1 mr-4"
+                    style={{ color: C.neutral700 }}>3rd Trimester PD</span>
+                  <div className="flex items-center gap-3">
+                    <div className="text-right">
+                      <p className="text-xs mb-1" style={{ color: C.neutral400 }}>Attained</p>
+                      <input
+                        type="number"
+                        value={formOverrides.thirdTrimesterPD?.attained ?? ''}
+                        onChange={e => setFormOverrides(prev => ({ ...prev, thirdTrimesterPD: { ...prev.thirdTrimesterPD, attained: e.target.value } }))}
+                        placeholder="e.g. 5"
+                        className="w-20 text-center text-sm rounded-lg px-2 py-1 outline-none"
+                        style={{ border: `1px solid ${C.neutral200}`, color: C.neutral700 }}
+                      />
+                    </div>
+                    <div className="text-right">
+                      <p className="text-xs mb-1" style={{ color: C.neutral400 }}>Target</p>
+                      <input
+                        type="number"
+                        value={formOverrides.thirdTrimesterPD?.target ?? ''}
+                        onChange={e => setFormOverrides(prev => ({ ...prev, thirdTrimesterPD: { ...prev.thirdTrimesterPD, target: e.target.value } }))}
+                        placeholder="e.g. 8"
+                        className="w-20 text-center text-sm rounded-lg px-2 py-1 outline-none"
+                        style={{ border: `1px solid ${C.neutral200}`, color: C.neutral700 }}
+                      />
+                    </div>
+                  </div>
+                </div>
+
+              </div>
+            </div>
+
+            {/* Footer actions */}
+            <div className="flex gap-3 px-6 py-4 border-t" style={{ borderColor: C.neutral100 }}>
+              <button onClick={() => setIsModalOpen(false)}
+                className="flex-1 py-3 rounded-xl text-sm font-semibold"
+                style={{ backgroundColor: C.neutral100, color: C.neutral700 }}>
+                Cancel
+              </button>
+              <button onClick={handleSave} disabled={saving}
+                className="flex-1 py-3 rounded-xl text-sm font-semibold text-white"
+                style={{ backgroundColor: C.primary600, opacity: saving ? 0.7 : 1 }}>
+                {saving ? 'Saving…' : 'Save Changes'}
+              </button>
             </div>
           </div>
         </div>

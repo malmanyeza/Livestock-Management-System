@@ -7,6 +7,8 @@ interface Animal {
   id: string; tag: string; breed: string; sex: string
   stock_type: string; source: string; age: string
   date_of_birth: string; weight?: number; bcs?: number
+  sire?: string; dam?: string; birth_weight?: string
+  date_of_weaning?: string; weaning_weight?: number; description?: string
 }
 
 export default function Herd() {
@@ -73,19 +75,20 @@ export default function Herd() {
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+            <table className="w-full text-sm" style={{ minWidth: '1200px' }}>
               <thead>
                 <tr className="border-b border-gray-800 bg-gray-800/50">
-                  {['Tag','Breed','Sex','Type','Source','Age','DOB','Weight','BCS'].map(h => (
+                  {['Count','Tag','Breed','Sex','Type','Source','Age','DOB','Weight','BCS','Sire','Dam','Birth Wt','Wean Date','Wean Wt','Description'].map(h => (
                     <th key={h} className="text-left px-4 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wide">{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-800">
                 {filtered.length === 0 ? (
-                  <tr><td colSpan={9} className="text-center py-10 text-gray-500">No animals found</td></tr>
-                ) : filtered.map(a => (
+                  <tr><td colSpan={16} className="text-center py-10 text-gray-500">No animals found</td></tr>
+                ) : filtered.map((a, index) => (
                   <tr key={a.id} className="hover:bg-gray-800/40 transition-colors">
+                    <td className="px-4 py-3 text-gray-400 font-medium">{index + 1}</td>
                     <td className="px-4 py-3 font-semibold text-white">{a.tag}</td>
                     <td className="px-4 py-3 text-gray-300">{a.breed || '—'}</td>
                     <td className="px-4 py-3">
@@ -97,6 +100,12 @@ export default function Herd() {
                     <td className="px-4 py-3 text-gray-400">{a.date_of_birth || '—'}</td>
                     <td className="px-4 py-3 text-gray-300">{a.weight ? `${a.weight} kg` : '—'}</td>
                     <td className="px-4 py-3 text-gray-300">{a.bcs ?? '—'}</td>
+                    <td className="px-4 py-3 text-gray-300">{a.sire || '—'}</td>
+                    <td className="px-4 py-3 text-gray-300">{a.dam || '—'}</td>
+                    <td className="px-4 py-3 text-gray-300">{a.birth_weight ? `${a.birth_weight} kg` : '—'}</td>
+                    <td className="px-4 py-3 text-gray-400">{a.date_of_weaning || '—'}</td>
+                    <td className="px-4 py-3 text-gray-300">{a.weaning_weight ? `${a.weaning_weight} kg` : '—'}</td>
+                    <td className="px-4 py-3 text-gray-400 max-w-xs truncate">{a.description || '—'}</td>
                   </tr>
                 ))}
               </tbody>

@@ -40,9 +40,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<Session | null>(null)
   const [profile, setProfile] = useState<Profile | null>(null)
   const [farmers, setFarmers] = useState<Profile[]>([])
-  const [selectedFarmer, setSelectedFarmer] = useState<Profile | null>(null)
+  const [selectedFarmer, setSelectedFarmerState] = useState<Profile | null>(null)
   const [farmerModalOpen, setFarmerModalOpen] = useState(false)
   const [loading, setLoading] = useState(true)
+
+  const setSelectedFarmer = (farmer: Profile | null) => {
+    setSelectedFarmerState(farmer)
+    if (typeof window !== 'undefined' && window.localStorage) {
+      if (farmer) {
+        localStorage.setItem('selectedFarmerId', farmer.id)
+      } else {
+        localStorage.removeItem('selectedFarmerId')
+      }
+    }
+  }
 
   const loadProfileAndFarmers = async (uid: string) => {
     try {
@@ -53,7 +64,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const list = farmersList || []
         setFarmers(list)
         if (list.length > 0) {
-          setSelectedFarmer(list[0]) // Auto-select first farmer
+          setSelectedFarmerState((prev) => {
+            // Keep current selected farmer if they are still in the loaded list
+            if (prev && list.some(f => f.id === prev.id)) {
+              return prev
+            }
+            // Fallback to localStorage choice if valid
+            if (typeof window !== 'undefined' && window.localStorage) {
+              const storedId = localStorage.getItem('selectedFarmerId')
+              const matched = list.find(f => f.id === storedId)
+              if (matched) {
+                return matched
+              }
+            }
+            // Otherwise, auto-select the first farmer as a default fallback
+            const defaultFarmer = list[0]
+            if (typeof window !== 'undefined' && window.localStorage && defaultFarmer) {
+              localStorage.setItem('selectedFarmerId', defaultFarmer.id)
+            }
+            return defaultFarmer
+          })
         }
       }
     } catch (e) {

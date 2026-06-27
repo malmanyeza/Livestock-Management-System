@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, StyleSheet, Modal, TouchableOpacity, Pressable } from 'react-native';
+import { View, StyleSheet, Modal, TouchableOpacity, Pressable, ScrollView } from 'react-native';
 import { ChevronDown } from 'lucide-react-native';
 import { Text } from '../typography/Text';
 import Colors from '../../constants/Colors';
@@ -54,27 +54,29 @@ export function Picker({ label, value, onValueChange, items = [], style }: Picke
                 <Text variant="body2" color="primary.500">Done</Text>
               </TouchableOpacity>
             </View>
-            {items.map((item, index) => (
-              <TouchableOpacity
-                key={item.value}
-                style={[
-                  styles.option,
-                  index === items.length - 1 && styles.lastOption,
-                  item.value === value && styles.selectedOption
-                ]}
-                onPress={() => {
-                  onValueChange(item.value);
-                  setModalVisible(false);
-                }}
-              >
-                <Text
-                  variant="body"
-                  color={item.value === value ? 'primary.500' : 'neutral.900'}
+            <ScrollView style={styles.optionsScrollView}>
+              {items.map((item, index) => (
+                <TouchableOpacity
+                  key={item.value}
+                  style={[
+                    styles.option,
+                    index === items.length - 1 && styles.lastOption,
+                    item.value === value && styles.selectedOption
+                  ]}
+                  onPress={() => {
+                    onValueChange(item.value);
+                    setModalVisible(false);
+                  }}
                 >
-                  {item.label}
-                </Text>
-              </TouchableOpacity>
-            ))}
+                  <Text
+                    variant="body"
+                    color={item.value === value ? 'primary.500' : 'neutral.900'}
+                  >
+                    {item.label}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
           </View>
         </Pressable>
       </Modal>
@@ -121,6 +123,10 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.25,
     shadowRadius: 8,
     elevation: 5,
+  },
+  optionsScrollView: {
+    maxHeight: 400,
+    width: '100%',
   },
   modalHeader: {
     flexDirection: 'row',

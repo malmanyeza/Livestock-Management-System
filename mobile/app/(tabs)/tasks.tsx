@@ -39,6 +39,11 @@ function TasksContent() {
     addTodoTask,
     addObservation,
     toggleTodoStatus,
+    updateFarmEvent,
+    updateTodoTask,
+    updateObservation,
+    animals = [],
+    profile,
   } = useFarmData();
 
   const [activeTab, setActiveTab] = useState<'events' | 'todo' | 'observations'>('events');
@@ -80,27 +85,125 @@ function TasksContent() {
   // Modal & Form States
   const [modalVisible, setModalVisible] = useState(false);
   const [formError, setFormError] = useState('');
+  
+  // Editing state
+  const [editingItem, setEditingItem] = useState<CalendarEvent | null>(null);
+  const isEditing = editingItem !== null;
 
   // Event Form States
   const [eventType, setEventType] = useState('Vaccination');
+  const [customEventType, setCustomEventType] = useState('');
   const [eventName, setEventName] = useState('');
-  const [eventTag, setEventTag] = useState('');
+  const [eventTag, setEventTag] = useState('Whole Herd');
   const [eventDiagnosis, setEventDiagnosis] = useState('');
   const [eventNotes, setEventNotes] = useState('');
   const [eventDoneBy, setEventDoneBy] = useState('');
+  const [eventStatus, setEventStatus] = useState<'pending' | 'completed'>('pending');
 
   // Todo Form States
   const [todoDesc, setTodoDesc] = useState('');
   const [todoPriority, setTodoPriority] = useState<'high' | 'medium' | 'low'>('medium');
   const [todoCreatedBy, setTodoCreatedBy] = useState('');
+  const [todoStatus, setTodoStatus] = useState<'pending' | 'completed'>('pending');
 
   // Observation Form States
   const [obsText, setObsText] = useState('');
-  const [obsTag, setObsTag] = useState('');
+  const [obsTag, setObsTag] = useState('Whole Herd');
   const [obsSeverity, setObsSeverity] = useState<'high' | 'medium' | 'low'>('medium');
   const [obsObserver, setObsObserver] = useState('');
+  const [obsStatus, setObsStatus] = useState<'resolved' | 'unresolved'>('unresolved');
+
+  // Edit Permissions
+  const hasEditPermission = useMemo(() => {
+    return profile?.role === 'farmer' || profile?.role === 'admin';
+  }, [profile]);
+
+  // Dynamic Animal Tag list items
+  const getAnimalTagItems = (currentTagValue: string) => {
+    const presets = [
+      { label: 'Whole Herd', value: 'Whole Herd' },
+      { label: 'Calves (All)', value: 'Calves' },
+      { label: 'Cows (All)', value: 'Cows' },
+      { label: 'Bulls (All)', value: 'Bulls' },
+      { label: 'Heifers (All)', value: 'Heifers' },
+    ];
+
+    const tags = Array.from(new Set(animals.map(a => a.tag)))
+      .filter(Boolean)
+      .sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }))
+      .map(tag => ({ label: `Animal: ${tag}`, value: tag }));
+
+    const items = [...presets, ...tags];
+    
+    if (currentTagValue && !items.some(item => item.value === currentTagValue)) {
+      items.push({ label: `Animal: ${currentTagValue}`, value: currentTagValue });
+    }
+    
+    return items;
+  };
+
+  const handleAddNew = () => {
+    setEditingItem(null);
+    setFormError('');
+    
+    setEventType('Vaccination');
+    setCustomEventType('');
+    setEventName('');
+    setEventTag('Whole Herd');
+    setEventDiagnosis('');
+    setEventNotes('');
+    setEventDoneBy('');
+    setEventStatus('pending');
+
+    setTodoDesc('');
+    setTodoPriority('medium');
+    setTodoCreatedBy('');
+    setTodoStatus('pending');
+
+    setObsText('');
+    setObsTag('Whole Herd');
+    setObsSeverity('medium');
+    setObsObserver('');
+    setObsStatus('unresolved');
+
+    setModalVisible(true);
+  };
+
+  const handleEditItem = (item: CalendarEvent) => {
+    setEditingItem(item);
+    setFormError('');
+
+    if ('event' in item) {
+      const typeIsCustom = !['Vaccination', 'Treatment', 'Check-up', 'Breeding', 'Weaning'].includes(item.type);
+      setEventType(typeIsCustom ? 'Other' : item.type);
+      setCustomEventType(typeIsCustom ? item.type : '');
+      setEventName(item.event);
+      setEventTag(item.tag || 'Whole Herd');
+      setEventDiagnosis(item.diagnosis || '');
+      setEventNotes(item.notes || '');
+      setEventDoneBy(item.doneBy || '');
+      setEventStatus(item.status === 'completed' ? 'completed' : 'pending');
+    } else if ('description' in item) {
+      setTodoDesc(item.description);
+      setTodoPriority(item.priority || 'medium');
+      setTodoCreatedBy(item.createdBy || '');
+      setTodoStatus(item.status === 'completed' ? 'completed' : 'pending');
+    } else if ('observation' in item) {
+      setObsText(item.observation);
+      setObsTag(item.tag || 'Whole Herd');
+      setObsSeverity(item.severity || 'medium');
+      setObsObserver(item.observer || '');
+      setObsStatus(item.status === 'resolved' ? 'resolved' : 'unresolved');
+    }
+    setModalVisible(true);
+  };
 
   const handleSave = async () => {
+    if (isEditing && !hasEditPermission) {
+      setFormError('Only farmers and administrators are allowed to edit records.');
+      return;
+    }
+    
     setFormError('');
     const dateStr = format(selectedDate, 'yyyy-MM-dd');
 
@@ -110,58 +213,86 @@ function TasksContent() {
           setFormError('Please fill out all required fields.');
           return;
         }
-        await addFarmEvent({
-          date: dateStr,
-          type: eventType,
-          event: eventName,
-          tag: eventTag,
-          diagnosis: eventDiagnosis || 'Routine',
-          notes: eventNotes || 'No notes',
-          doneBy: eventDoneBy,
-          status: 'pending',
-        });
-        // Reset
-        setEventName('');
-        setEventTag('');
-        setEventDiagnosis('');
-        setEventNotes('');
-        setEventDoneBy('');
+        
+        const finalType = eventType === 'Other' ? customEventType.trim() : eventType;
+        if (!finalType) {
+          setFormError('Please specify the custom event type.');
+          return;
+        }
+
+        if (isEditing && editingItem && 'event' in editingItem) {
+          await updateFarmEvent(editingItem.id, {
+            type: finalType,
+            event: eventName,
+            tag: eventTag,
+            diagnosis: eventDiagnosis || 'Routine',
+            notes: eventNotes || 'No notes',
+            doneBy: eventDoneBy,
+            status: eventStatus,
+          });
+        } else {
+          await addFarmEvent({
+            date: dateStr,
+            type: finalType,
+            event: eventName,
+            tag: eventTag,
+            diagnosis: eventDiagnosis || 'Routine',
+            notes: eventNotes || 'No notes',
+            doneBy: eventDoneBy,
+            status: 'pending',
+          });
+        }
       } else if (activeTab === 'todo') {
         if (!todoDesc || !todoCreatedBy) {
           setFormError('Please fill out all required fields.');
           return;
         }
-        await addTodoTask({
-          date: dateStr,
-          description: todoDesc,
-          status: 'pending',
-          createdBy: todoCreatedBy,
-          lastEdited: dateStr,
-          priority: todoPriority,
-        });
-        // Reset
-        setTodoDesc('');
-        setTodoCreatedBy('');
-        setTodoPriority('medium');
+        
+        if (isEditing && editingItem && 'description' in editingItem) {
+          await updateTodoTask(editingItem.id, {
+            description: todoDesc,
+            priority: todoPriority,
+            createdBy: todoCreatedBy,
+            status: todoStatus,
+            lastEdited: dateStr,
+          });
+        } else {
+          await addTodoTask({
+            date: dateStr,
+            description: todoDesc,
+            status: 'pending',
+            createdBy: todoCreatedBy,
+            lastEdited: dateStr,
+            priority: todoPriority,
+          });
+        }
       } else if (activeTab === 'observations') {
         if (!obsText || !obsTag || !obsObserver) {
           setFormError('Please fill out all required fields.');
           return;
         }
-        await addObservation({
-          date: dateStr,
-          tag: obsTag,
-          observation: obsText,
-          severity: obsSeverity,
-          observer: obsObserver,
-        });
-        // Reset
-        setObsText('');
-        setObsTag('');
-        setObsObserver('');
-        setObsSeverity('medium');
+
+        if (isEditing && editingItem && 'observation' in editingItem) {
+          await updateObservation(editingItem.id, {
+            tag: obsTag,
+            observation: obsText,
+            severity: obsSeverity,
+            observer: obsObserver,
+            status: obsStatus,
+          });
+        } else {
+          await addObservation({
+            date: dateStr,
+            tag: obsTag,
+            observation: obsText,
+            severity: obsSeverity,
+            observer: obsObserver,
+            status: obsStatus,
+          });
+        }
       }
       setModalVisible(false);
+      setEditingItem(null);
     } catch (err: any) {
       console.error(err);
       setFormError(err.message || 'Failed to save record.');
@@ -250,16 +381,30 @@ function TasksContent() {
         return days.flatMap(day => getEventsForDate(day));
       }
       case 'month': {
-        const start = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), 1);
-        const end = new Date(selectedDate.getFullYear(), selectedDate.getMonth() + 1, 0);
-        const days = eachDayOfInterval({ start, end });
-        return days.flatMap(day => getEventsForDate(day));
+        const yearMonthPrefix = format(selectedDate, 'yyyy-MM');
+        switch (activeTab) {
+          case 'events':
+            return farmEvents.filter(e => e.date.startsWith(yearMonthPrefix));
+          case 'todo':
+            return todoList.filter(t => t.date.startsWith(yearMonthPrefix));
+          case 'observations':
+            return observations.filter(o => o.date.startsWith(yearMonthPrefix));
+          default:
+            return [];
+        }
       }
       case 'year': {
-        const months = Array.from({ length: 12 }, (_, i) => 
-          new Date(selectedDate.getFullYear(), i, 1)
-        );
-        return months.flatMap(month => getEventsForDate(month));
+        const yearPrefix = selectedDate.getFullYear().toString();
+        switch (activeTab) {
+          case 'events':
+            return farmEvents.filter(e => e.date.startsWith(yearPrefix));
+          case 'todo':
+            return todoList.filter(t => t.date.startsWith(yearPrefix));
+          case 'observations':
+            return observations.filter(o => o.date.startsWith(yearPrefix));
+          default:
+            return [];
+        }
       }
       case 'list':
         switch (activeTab) {
@@ -305,27 +450,60 @@ function TasksContent() {
     if ('event' in item) {
       // Farm Event
       return (
-        <View style={styles.eventItem}>
-          <View style={[styles.eventDot, { backgroundColor: Colors.primary[500] }]} />
+        <TouchableOpacity 
+          style={styles.eventItem} 
+          onPress={() => handleEditItem(item)}
+          activeOpacity={0.7}
+        >
+          <TouchableOpacity
+            style={styles.statusToggleArea}
+            onPress={(e) => {
+              e.stopPropagation();
+              const newStatus = item.status === 'completed' ? 'pending' : 'completed';
+              updateFarmEvent(item.id, { status: newStatus });
+            }}
+          >
+            <View style={[
+              styles.checkboxCircle,
+              item.status === 'completed' && styles.checkboxCircleCompleted
+            ]}>
+              {item.status === 'completed' && <Check size={12} color="white" />}
+            </View>
+          </TouchableOpacity>
           <View style={styles.eventContent}>
-            <Text weight="medium">{item.event}</Text>
+            <Text weight="medium" style={item.status === 'completed' ? styles.completedText : undefined}>
+              {item.event}
+            </Text>
             <Text variant="caption" color="neutral.600">{item.type} • {item.tag}</Text>
           </View>
           <View style={styles.eventTime}>
             <Text variant="caption">{format(parseISO(item.date), 'MMM d, yyyy')}</Text>
             {renderStatusBadge(item.status)}
           </View>
-        </View>
+        </TouchableOpacity>
       );
     } else if ('description' in item) {
       // Todo
       return (
         <TouchableOpacity 
           style={styles.eventItem} 
-          onPress={() => toggleTodoStatus(item.id, item.status)}
+          onPress={() => handleEditItem(item)}
           activeOpacity={0.7}
         >
-          <View style={[styles.eventDot, { backgroundColor: Colors.warning[500] }]} />
+          <TouchableOpacity
+            style={styles.statusToggleArea}
+            onPress={(e) => {
+              e.stopPropagation();
+              toggleTodoStatus(item.id, item.status);
+            }}
+          >
+            <View style={[
+              styles.checkboxCircle,
+              item.status === 'completed' && styles.checkboxCircleCompleted
+            ]}>
+              {item.status === 'completed' && <Check size={12} color="white" />}
+            </View>
+          </TouchableOpacity>
           <View style={styles.eventContent}>
             <Text weight="medium" style={item.status === 'completed' ? styles.completedText : undefined}>
               {item.description}
@@ -341,34 +519,37 @@ function TasksContent() {
     } else if ('observation' in item) {
       // Observation
       return (
-        <View style={styles.eventItem}>
-          <View style={[styles.eventDot, { backgroundColor: Colors.error[500] }]} />
+        <TouchableOpacity 
+          style={styles.eventItem} 
+          onPress={() => handleEditItem(item)}
+          activeOpacity={0.7}
+        >
+          <TouchableOpacity
+            style={styles.statusToggleArea}
+            onPress={(e) => {
+              e.stopPropagation();
+              const newStatus = (item.status === 'resolved' ? 'unresolved' : 'resolved');
+              updateObservation(item.id, { status: newStatus });
+            }}
+          >
+            <View style={[
+              styles.checkboxCircle,
+              item.status === 'resolved' && styles.checkboxCircleCompleted
+            ]}>
+              {item.status === 'resolved' && <Check size={12} color="white" />}
+            </View>
+          </TouchableOpacity>
           <View style={styles.eventContent}>
-            <Text weight="medium">{item.observation}</Text>
+            <Text weight="medium" style={item.status === 'resolved' ? styles.completedText : undefined}>
+              {item.observation}
+            </Text>
             <Text variant="caption" color="neutral.600">Tag: {item.tag}</Text>
           </View>
           <View style={styles.eventTime}>
             <Text variant="caption">{format(parseISO(item.date), 'MMM d, yyyy')}</Text>
-            <View style={[
-              styles.severityBadge,
-              {
-                backgroundColor: item.severity === 'high' ? 'rgba(239, 68, 68, 0.1)' : 
-                                item.severity === 'medium' ? 'rgba(234, 179, 8, 0.1)' : 'rgba(34, 197, 94, 0.1)',
-                borderColor: item.severity === 'high' ? Colors.error[400] : 
-                            item.severity === 'medium' ? Colors.warning[400] : Colors.success[400],
-              }
-            ]}>
-              <Text 
-                variant="caption" 
-                weight="medium"
-                color={item.severity === 'high' ? 'error.600' : 
-                      item.severity === 'medium' ? 'warning.600' : 'success.600'}
-              >
-                {item.severity.toUpperCase()}
-              </Text>
-            </View>
+            {renderStatusBadge(item.status || 'unresolved')}
           </View>
-        </View>
+        </TouchableOpacity>
       );
     }
     return null;
@@ -378,12 +559,14 @@ function TasksContent() {
     const getStatusColor = () => {
       switch (status.toLowerCase()) {
         case 'completed':
+        case 'resolved':
           return {
             bg: Colors.success[100],
             text: Colors.success[700],
             icon: <Check size={14} color={Colors.success[700]} />,
           };
         case 'pending':
+        case 'unresolved':
           return {
             bg: Colors.warning[100],
             text: Colors.warning[700],
@@ -440,6 +623,126 @@ function TasksContent() {
         ]}
       />
     );
+  };  const weekDays = useMemo(() => {
+    const start = startOfWeek(selectedDate, { weekStartsOn: 1 });
+    const end = endOfWeek(selectedDate, { weekStartsOn: 1 });
+    return eachDayOfInterval({ start, end });
+  }, [selectedDate]);
+
+  const monthCounts = useMemo(() => {
+    const counts = Array(12).fill(0);
+    const yearStr = selectedDate.getFullYear().toString();
+    const activeItems = activeTab === 'events' ? farmEvents :
+                        activeTab === 'todo' ? todoList : observations;
+    
+    activeItems.forEach(item => {
+      if (item.date.startsWith(yearStr)) {
+        const monthIndex = parseInt(item.date.split('-')[1], 10) - 1;
+        if (monthIndex >= 0 && monthIndex < 12) {
+          counts[monthIndex]++;
+        }
+      }
+    });
+    return counts;
+  }, [farmEvents, todoList, observations, selectedDate, activeTab]);
+
+  const renderWeekStrip = () => {
+    return (
+      <View style={styles.weekStripContainer}>
+        {weekDays.map((day) => {
+          const isSelected = isSameDay(day, selectedDate);
+          const dayStr = format(day, 'yyyy-MM-dd');
+          const dayMarking = markedDates[dayStr];
+          
+          return (
+            <TouchableOpacity
+              key={dayStr}
+              style={[
+                styles.weekDayCell,
+                isSelected && styles.selectedWeekDayCell
+              ]}
+              onPress={() => setSelectedDate(day)}
+            >
+              <Text 
+                variant="caption" 
+                color={isSelected ? 'white' : 'neutral.500'} 
+                weight="medium"
+                style={styles.weekDayLabel}
+              >
+                {format(day, 'E')}
+              </Text>
+              <Text 
+                variant="body" 
+                color={isSelected ? 'white' : 'neutral.900'} 
+                weight="bold"
+                style={styles.weekDayNumber}
+              >
+                {format(day, 'd')}
+              </Text>
+              
+              <View style={styles.weekDayDots}>
+                {dayMarking?.dots?.map((dot: any) => (
+                  <View 
+                    key={dot.key} 
+                    style={[styles.weekDayDot, { backgroundColor: dot.color }]} 
+                  />
+                ))}
+              </View>
+            </TouchableOpacity>
+          );
+        })}
+      </View>
+    );
+  };
+
+  const renderYearGrid = () => {
+    const months = [
+      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+    ];
+    
+    return (
+      <View style={styles.yearGridContainer}>
+        {months.map((monthName, index) => {
+          const isCurrentMonth = selectedDate.getMonth() === index;
+          const count = monthCounts[index];
+          
+          return (
+            <TouchableOpacity
+              key={monthName}
+              style={[
+                styles.yearMonthCell,
+                isCurrentMonth && styles.currentYearMonthCell
+              ]}
+              onPress={() => {
+                const newDate = new Date(selectedDate.getFullYear(), index, 1);
+                setSelectedDate(newDate);
+                setViewType('month');
+              }}
+            >
+              <Text 
+                variant="body" 
+                weight="bold" 
+                color={isCurrentMonth ? 'primary.500' : 'neutral.900'}
+              >
+                {monthName}
+              </Text>
+              {count > 0 ? (
+                <View style={styles.monthBadge}>
+                  <Text variant="caption" color="white" weight="medium">
+                    {count}
+                  </Text>
+                </View>
+              ) : (
+                <Text variant="caption" color="neutral.400">
+                  No events
+                </Text>
+              )}
+            </TouchableOpacity>
+          );
+        })}
+      </View>
+    );
   };
 
   const renderCalendar = () => {
@@ -447,13 +750,13 @@ function TasksContent() {
       <View style={styles.calendarContainer}>
         <View style={styles.calendarHeader}>
           <TouchableOpacity onPress={() => navigateDate('prev')} style={styles.navButton}>
-            <Text>‹</Text>
+            <Text style={styles.navButtonText}>‹</Text>
           </TouchableOpacity>
           <Text weight="medium">
             {dateTitle}
           </Text>
           <TouchableOpacity onPress={() => navigateDate('next')} style={styles.navButton}>
-            <Text>›</Text>
+            <Text style={styles.navButtonText}>›</Text>
           </TouchableOpacity>
         </View>
         
@@ -478,12 +781,14 @@ function TasksContent() {
           ))}
         </View>
 
-        {viewType !== 'list' && (
+        {(viewType === 'day' || viewType === 'week') && renderWeekStrip()}
+
+        {viewType === 'month' && (
           <Calendar
             current={format(selectedDate, 'yyyy-MM-dd')}
             onDayPress={handleDayPress}
             markedDates={markedDates}
-            hideExtraDays={viewType === 'month'}
+            hideExtraDays={true}
             markingType={'multi-dot'}
             theme={{
               selectedDayBackgroundColor: Colors.primary[200],
@@ -500,6 +805,8 @@ function TasksContent() {
             style={styles.calendar}
           />
         )}
+
+        {viewType === 'year' && renderYearGrid()}
       </View>
     );
   };
@@ -558,7 +865,7 @@ function TasksContent() {
             variant="primary"
             startIcon={<Plus size={20} color={Colors.white} />}
             style={styles.addButton}
-            onPress={() => setModalVisible(true)}
+            onPress={handleAddNew}
           >
             Add {activeTab === 'events' ? 'Event' : activeTab === 'todo' ? 'Task' : 'Observation'}
           </Button>
@@ -607,7 +914,7 @@ function TasksContent() {
             <Pressable style={styles.modalContent} onPress={(e) => e.stopPropagation()}>
               <View style={styles.modalHeader}>
                 <Text variant="h6" weight="medium">
-                  Add {activeTab === 'events' ? 'Event' : activeTab === 'todo' ? 'Task' : 'Observation'}
+                  {isEditing ? 'Edit' : 'Add'} {activeTab === 'events' ? 'Event' : activeTab === 'todo' ? 'Task' : 'Observation'}
                 </Text>
                 <TouchableOpacity onPress={() => setModalVisible(false)}>
                   <X size={20} color={Colors.neutral[500]} />
@@ -633,19 +940,28 @@ function TasksContent() {
                         { label: 'Check-up', value: 'Check-up' },
                         { label: 'Breeding', value: 'Breeding' },
                         { label: 'Weaning', value: 'Weaning' },
+                        { label: 'Other (Custom Type)', value: 'Other' },
                       ]}
                     />
+                    {eventType === 'Other' && (
+                      <TextField
+                        label="Custom Event Type (Required)"
+                        value={customEventType}
+                        onChangeText={setCustomEventType}
+                        placeholder="e.g. Dehorning, Hoof Trimming"
+                      />
+                    )}
                     <TextField
                       label="Event Name (Required)"
                       value={eventName}
                       onChangeText={setEventName}
                       placeholder="e.g. Vaccine A, Antibiotics"
                     />
-                    <TextField
+                    <Picker
                       label="Animal Tag (Required)"
                       value={eventTag}
-                      onChangeText={setEventTag}
-                      placeholder="e.g. #120"
+                      onValueChange={setEventTag}
+                      items={getAnimalTagItems(eventTag)}
                     />
                     <TextField
                       label="Diagnosis"
@@ -665,6 +981,17 @@ function TasksContent() {
                       onChangeText={setEventDoneBy}
                       placeholder="e.g. Dr. Wilson, John Doe"
                     />
+                    {isEditing && (
+                      <Picker
+                        label="Status"
+                        value={eventStatus}
+                        onValueChange={(val: any) => setEventStatus(val)}
+                        items={[
+                          { label: 'Pending', value: 'pending' },
+                          { label: 'Completed', value: 'completed' },
+                        ]}
+                      />
+                    )}
                   </>
                 )}
 
@@ -692,6 +1019,17 @@ function TasksContent() {
                       onChangeText={setTodoCreatedBy}
                       placeholder="e.g. Farm Manager"
                     />
+                    {isEditing && (
+                      <Picker
+                        label="Status"
+                        value={todoStatus}
+                        onValueChange={(val: any) => setTodoStatus(val)}
+                        items={[
+                          { label: 'Pending', value: 'pending' },
+                          { label: 'Completed', value: 'completed' },
+                        ]}
+                      />
+                    )}
                   </>
                 )}
 
@@ -703,11 +1041,11 @@ function TasksContent() {
                       onChangeText={setObsText}
                       placeholder="e.g. Reduced appetite, slight limp"
                     />
-                    <TextField
+                    <Picker
                       label="Animal Tag (Required)"
                       value={obsTag}
-                      onChangeText={setObsTag}
-                      placeholder="e.g. #123"
+                      onValueChange={setObsTag}
+                      items={getAnimalTagItems(obsTag)}
                     />
                     <Picker
                       label="Severity"
@@ -725,6 +1063,15 @@ function TasksContent() {
                       onChangeText={setObsObserver}
                       placeholder="e.g. John Doe"
                     />
+                    <Picker
+                      label="Status"
+                      value={obsStatus}
+                      onValueChange={(val: any) => setObsStatus(val)}
+                      items={[
+                        { label: 'Unresolved', value: 'unresolved' },
+                        { label: 'Resolved', value: 'resolved' },
+                      ]}
+                    />
                   </>
                 )}
               </ScrollView>
@@ -732,7 +1079,10 @@ function TasksContent() {
               <View style={styles.modalFooter}>
                 <Button
                   variant="outline"
-                  onPress={() => setModalVisible(false)}
+                  onPress={() => {
+                    setModalVisible(false);
+                    setEditingItem(null);
+                  }}
                   style={styles.footerButton}
                 >
                   Cancel
@@ -1019,5 +1369,98 @@ const styles = StyleSheet.create({
   },
   footerButton: {
     flex: 1,
+  },
+  weekStripContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    backgroundColor: Colors.white,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.neutral[200],
+  },
+  weekDayCell: {
+    flex: 1,
+    alignItems: 'center',
+    paddingVertical: 8,
+    borderRadius: 12,
+    marginHorizontal: 2,
+  },
+  selectedWeekDayCell: {
+    backgroundColor: Colors.primary[500],
+  },
+  weekDayLabel: {
+    fontSize: 12,
+    marginBottom: 4,
+  },
+  weekDayNumber: {
+    fontSize: 16,
+    marginBottom: 4,
+  },
+  weekDayDots: {
+    flexDirection: 'row',
+    height: 6,
+    alignItems: 'center',
+    gap: 2,
+  },
+  weekDayDot: {
+    width: 4,
+    height: 4,
+    borderRadius: 2,
+  },
+  yearGridContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    padding: 12,
+    backgroundColor: Colors.white,
+    justifyContent: 'space-between',
+  },
+  yearMonthCell: {
+    width: '30%',
+    aspectRatio: 1.2,
+    backgroundColor: Colors.neutral[50],
+    borderWidth: 1,
+    borderColor: Colors.neutral[200],
+    borderRadius: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginVertical: 6,
+    padding: 8,
+  },
+  currentYearMonthCell: {
+    borderColor: Colors.primary[500],
+    backgroundColor: Colors.primary[50],
+  },
+  monthBadge: {
+    backgroundColor: Colors.primary[500],
+    borderRadius: 10,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    marginTop: 4,
+  },
+  statusToggleArea: {
+    paddingRight: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  checkboxCircle: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    borderWidth: 2,
+    borderColor: Colors.neutral[400],
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'transparent',
+  },
+  checkboxCircleCompleted: {
+    borderColor: Colors.success[500],
+    backgroundColor: Colors.success[500],
+  },
+  navButtonText: {
+    fontSize: 24,
+    lineHeight: 24,
+    color: Colors.primary[500],
+    fontWeight: 'bold',
   },
 });

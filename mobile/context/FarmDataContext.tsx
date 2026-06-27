@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { supabase } from '../utils/supabase';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // --- TYPE DEFINITIONS ---
 
@@ -10,7 +11,7 @@ export interface Animal {
   dateOfBirth: string;
   breed: string;
   sex: 'Male' | 'Female';
-  stockType: 'Cow' | 'Heifer' | 'Bull' | 'Steer' | 'Calve' | 'Goat' | 'Sheep' | 'Pig' | 'Chicken';
+  stockType: 'Cow' | 'Heifer' | 'Bull' | 'Steer' | 'Calve' | 'Goat' | 'Sheep' | 'Pig' | 'Chicken' | 'Bullying Heifer';
   source: 'Born' | 'Purchased';
   weight?: number; // current weight in kg
   previousWeight?: number; // previous weight in kg
@@ -20,6 +21,17 @@ export interface Animal {
   observer?: string;
   birthWeight?: string;
   deliveryType?: 'Natural' | 'Assisted' | 'C-Section';
+  sire?: string;
+  dam?: string;
+  dateOfWeaning?: string;
+  weaningWeight?: number;
+  description?: string;
+  weight30day?: number;
+  weight100day?: number;
+  weight1weekPostWeaning?: number;
+  weight6monthsPostWeaning?: number;
+  calfStatus?: 'Active' | 'Replacement' | 'Sold';
+  preWeaningMortality?: boolean;
 }
 
 export interface HealthRecord {
@@ -30,12 +42,14 @@ export interface HealthRecord {
   withdrawalPeriod?: string;
   pregnancySafe?: 'Yes' | 'No';
   status: 'Completed' | 'Scheduled' | 'Pending';
+  specialNotes?: string;
+  doneBy?: string;
 }
 
 export interface BreedingRecord {
   id: string;
   earTagNumber: string;
-  stockType: 'Cow' | 'Heifer' | 'Goat' | 'Sheep' | 'Pig';
+  stockType: 'Cow' | 'Heifer' | 'Goat' | 'Sheep' | 'Pig' | 'Bullying Heifer';
   bodyConditionScore: number;
   heatDetectionDate: string;
   observer: string;
@@ -172,6 +186,21 @@ export interface RecordsOverrides {
   [key: string]: MetricOverride;
 }
 
+export interface PregnancyMetricOverride {
+  attained?: string;
+  target?: string;
+}
+
+export interface PregnancyOverrides {
+  conceptionRate?: PregnancyMetricOverride;
+  incalfRate42d?: PregnancyMetricOverride;
+  incalfRate100d?: PregnancyMetricOverride;
+  firstTrimesterPD?: PregnancyMetricOverride;
+  secondTrimesterPD?: PregnancyMetricOverride;
+  thirdTrimesterPD?: PregnancyMetricOverride;
+  lastUpdated?: string;
+}
+
 export interface FarmInspection {
   // Nutrition (1-5)
   herdBcs: number;
@@ -241,6 +270,7 @@ export interface FarmInspection {
   maintainsMortalities: boolean;
   maintainsFeed: boolean;
   recordsOverrides?: RecordsOverrides;
+  pregnancyOverrides?: PregnancyOverrides;
   updatedAt?: string;
 }
 
@@ -273,6 +303,7 @@ export interface Observation {
   observation: string;
   observer: string;
   severity: 'high' | 'medium' | 'low';
+  status: 'resolved' | 'unresolved';
 }
 
 interface FarmDataContextProps {
@@ -297,6 +328,9 @@ interface FarmDataContextProps {
   addTodoTask: (todo: Omit<TodoTask, 'id'>) => Promise<void>;
   addObservation: (obs: Omit<Observation, 'id'>) => Promise<void>;
   toggleTodoStatus: (id: string, currentStatus: 'pending' | 'completed' | 'overdue') => Promise<void>;
+  updateFarmEvent: (id: string, updates: Partial<FarmEvent>) => Promise<void>;
+  updateObservation: (id: string, updates: Partial<Observation>) => Promise<void>;
+  updateTodoTask: (id: string, updates: Partial<TodoTask>) => Promise<void>;
 
   // Auth States
   user: any;
@@ -308,9 +342,11 @@ interface FarmDataContextProps {
   setSelectedFarmer: (farmer: Profile | null) => void;
   logout: () => Promise<void>;
   deleteAccount: () => Promise<void>;
+  updateProfile: (updates: Partial<Profile>) => Promise<void>;
   
   // Actions
   addAnimal: (animal: Omit<Animal, 'id'>) => Promise<void>;
+  deleteAnimal: (tag: string) => Promise<void>;
   addHealthRecord: (record: Omit<HealthRecord, 'id'>) => Promise<void>;
   addBreedingRecord: (record: Omit<BreedingRecord, 'id'>) => Promise<void>;
   addPregnancyRecord: (record: Omit<PregnancyRecord, 'id'>) => Promise<void>;
@@ -329,6 +365,12 @@ interface FarmDataContextProps {
   addFeedInventoryItem: (record: Omit<FeedInventoryItem, 'id'>) => Promise<void>;
   updateFeedInventoryItem: (id: string, updates: Partial<FeedInventoryItem>) => Promise<void>;
   deleteFeedInventoryItem: (id: string) => Promise<void>;
+  updateHealthRecord: (id: string, updates: Partial<HealthRecord>) => Promise<void>;
+  updateBreedingRecord: (id: string, updates: Partial<BreedingRecord>) => Promise<void>;
+  updatePregnancyRecord: (id: string, updates: Partial<PregnancyRecord>) => Promise<void>;
+  updateMortalityRecord: (id: string, updates: Partial<MortalityRecord>) => Promise<void>;
+  updateTransaction: (id: string, updates: Partial<TransactionRecord>) => Promise<void>;
+  deleteTransaction: (id: string) => Promise<void>;
 
 
 
@@ -386,6 +428,17 @@ const mapAnimalFromDb = (row: any): Animal => ({
   observer: row.observer || '',
   birthWeight: row.birth_weight || '',
   deliveryType: row.delivery_type || undefined,
+  sire: row.sire || '',
+  dam: row.dam || '',
+  dateOfWeaning: row.date_of_weaning || '',
+  weaningWeight: row.weaning_weight != null ? Number(row.weaning_weight) : undefined,
+  description: row.description || '',
+  weight30day: row.weight_30day != null ? Number(row.weight_30day) : undefined,
+  weight100day: row.weight_100day != null ? Number(row.weight_100day) : undefined,
+  weight1weekPostWeaning: row.weight_1week_post_weaning != null ? Number(row.weight_1week_post_weaning) : undefined,
+  weight6monthsPostWeaning: row.weight_6months_post_weaning != null ? Number(row.weight_6months_post_weaning) : undefined,
+  calfStatus: row.calf_status || undefined,
+  preWeaningMortality: row.pre_weaning_mortality ?? false,
 });
 
 const mapHealthFromDb = (row: any): HealthRecord => ({
@@ -396,6 +449,8 @@ const mapHealthFromDb = (row: any): HealthRecord => ({
   withdrawalPeriod: row.withdrawal_period || undefined,
   pregnancySafe: row.pregnancy_safe || undefined,
   status: row.status,
+  specialNotes: row.special_notes || '',
+  doneBy: row.done_by || '',
 });
 
 const mapBreedingFromDb = (row: any): BreedingRecord => ({
@@ -558,6 +613,7 @@ const mapObservationFromDb = (row: any): Observation => ({
   observation: row.observation,
   severity: row.severity,
   observer: row.observer,
+  status: row.status || 'unresolved',
 });
 
 const FarmDataContext = createContext<FarmDataContextProps | undefined>(undefined);
@@ -707,6 +763,7 @@ const initialFarmInspection: FarmInspection = {
   maintainsMortalities: true,
   maintainsFeed: true,
   recordsOverrides: {},
+  pregnancyOverrides: {},
 };
 
 const emptyFarmInspection: FarmInspection = {
@@ -774,6 +831,7 @@ const emptyFarmInspection: FarmInspection = {
   maintainsMortalities: false,
   maintainsFeed: false,
   recordsOverrides: {},
+  pregnancyOverrides: {},
 };
 
 export interface Profile {
@@ -783,6 +841,12 @@ export interface Profile {
   full_name?: string;
   farm_name?: string;
   created_at?: string;
+  owner_first_name?: string;
+  owner_last_name?: string;
+  address?: string;
+  location?: string;
+  province?: string;
+  phone_number?: string;
 }
 
 // --- PROVIDER COMPONENT ---
@@ -822,6 +886,20 @@ export const FarmDataProvider: React.FC<{ children: ReactNode }> = ({ children }
       setLoadingAuth(false);
       return;
     }
+
+    const loadProfileWithExtras = async (prof: any): Promise<Profile> => {
+      try {
+        const extraDataStr = await AsyncStorage.getItem(`profile_extra_${prof.id}`);
+        if (extraDataStr) {
+          const extraData = JSON.parse(extraDataStr);
+          return { ...prof, ...extraData } as Profile;
+        }
+      } catch (e) {
+        console.error("Error loading profile extras from AsyncStorage:", e);
+      }
+      return prof as Profile;
+    };
+
     const loadSession = async () => {
       setLoadingAuth(true);
       try {
@@ -837,7 +915,8 @@ export const FarmDataProvider: React.FC<{ children: ReactNode }> = ({ children }
             .maybeSingle();
           
           if (prof) {
-            setProfile(prof as Profile);
+            const profWithExtras = await loadProfileWithExtras(prof);
+            setProfile(profWithExtras);
             if (prof.role === 'admin') {
               const { data: farmersData } = await client
                 .from('profiles')
@@ -870,7 +949,8 @@ export const FarmDataProvider: React.FC<{ children: ReactNode }> = ({ children }
             .eq('id', currentSession.user.id)
             .maybeSingle();
           if (prof) {
-            setProfile(prof as Profile);
+            const profWithExtras = await loadProfileWithExtras(prof);
+            setProfile(profWithExtras);
             if (prof.role === 'admin') {
               const { data: farmersData } = await client
                 .from('profiles')
@@ -1097,6 +1177,18 @@ export const FarmDataProvider: React.FC<{ children: ReactNode }> = ({ children }
       days_between_weights: animal.daysBetweenWeights,
       bcs: animal.bcs,
       is_breeding_cow: animal.isBreedingCow,
+      birth_weight: animal.birthWeight,
+      sire: animal.sire,
+      dam: animal.dam,
+      date_of_weaning: animal.dateOfWeaning || null,
+      weaning_weight: animal.weaningWeight != null ? Number(animal.weaningWeight) : null,
+      description: animal.description,
+      weight_30day: animal.weight30day != null ? Number(animal.weight30day) : null,
+      weight_100day: animal.weight100day != null ? Number(animal.weight100day) : null,
+      weight_1week_post_weaning: animal.weight1weekPostWeaning != null ? Number(animal.weight1weekPostWeaning) : null,
+      weight_6months_post_weaning: animal.weight6monthsPostWeaning != null ? Number(animal.weight6monthsPostWeaning) : null,
+      calf_status: animal.calfStatus || null,
+      pre_weaning_mortality: animal.preWeaningMortality ?? false,
       user_id: targetUserId,
     };
     const { data, error } = await supabase
@@ -1108,6 +1200,25 @@ export const FarmDataProvider: React.FC<{ children: ReactNode }> = ({ children }
     if (error) throw error;
     if (data) {
       setAnimals(prev => [...prev, mapAnimalFromDb(data)]);
+    }
+  };
+
+  const deleteAnimal = async (tag: string) => {
+    try {
+      if (!supabase) throw new Error("Supabase client is not initialized");
+      if (!targetUserId) throw new Error("No active farmer selected");
+      const { error } = await supabase
+        .from('animals')
+        .delete()
+        .eq('tag', tag)
+        .eq('user_id', targetUserId);
+
+      if (error) throw error;
+      setAnimals(prev => prev.filter(a => a.tag.toLowerCase() !== tag.toLowerCase()));
+    } catch (error) {
+      console.error('Error deleting animal from Supabase:', error);
+      // Fallback
+      setAnimals(prev => prev.filter(a => a.tag.toLowerCase() !== tag.toLowerCase()));
     }
   };
 
@@ -1126,6 +1237,8 @@ export const FarmDataProvider: React.FC<{ children: ReactNode }> = ({ children }
       pregnancy_safe: record.pregnancySafe || null,
       status: record.status,
       user_id: targetUserId,
+      special_notes: record.specialNotes || null,
+      done_by: record.doneBy || null,
     };
     const { data, error } = await supabase
       .from('health_records')
@@ -1274,6 +1387,7 @@ export const FarmDataProvider: React.FC<{ children: ReactNode }> = ({ children }
     if (!supabase) {
       const newId = (mortalityRecords.length + 1).toString();
       setMortalityRecords(prev => [...prev, { ...record, id: newId }]);
+      setAnimals(prev => prev.filter(a => a.tag.toLowerCase() !== record.animalId.toLowerCase()));
       return;
     }
     if (!targetUserId) throw new Error("No active farmer selected");
@@ -1294,6 +1408,17 @@ export const FarmDataProvider: React.FC<{ children: ReactNode }> = ({ children }
     if (error) throw error;
     if (data) {
       setMortalityRecords(prev => [...prev, mapMortalityFromDb(data)]);
+
+      // Delete from supabase animals table
+      const { error: delErr } = await supabase
+        .from('animals')
+        .delete()
+        .eq('tag', record.animalId)
+        .eq('user_id', targetUserId);
+      if (delErr) console.warn("Error deleting dead animal from database:", delErr);
+
+      // Delete from local state
+      setAnimals(prev => prev.filter(a => a.tag.toLowerCase() !== record.animalId.toLowerCase()));
     }
   };
 
@@ -1439,6 +1564,7 @@ export const FarmDataProvider: React.FC<{ children: ReactNode }> = ({ children }
       setFeedInventory(prev => [...prev, { ...record, id: newId }]);
       return;
     }
+    if (!targetUserId) throw new Error("No active farmer selected");
     const dbData = {
       name: record.name,
       type: record.type,
@@ -1447,6 +1573,7 @@ export const FarmDataProvider: React.FC<{ children: ReactNode }> = ({ children }
       supplier: record.supplier,
       last_updated: record.lastUpdated,
       status: record.status,
+      user_id: targetUserId,
     };
     const { data, error } = await supabase
       .from('feed_inventory')
@@ -1503,6 +1630,187 @@ export const FarmDataProvider: React.FC<{ children: ReactNode }> = ({ children }
     } catch (error) {
       console.error('Error deleting feed inventory item from Supabase:', error);
       // Fallback
+    }
+  };
+
+  const updateHealthRecord = async (id: string, updates: Partial<HealthRecord>) => {
+    try {
+      if (!supabase) throw new Error("Supabase client is not initialized");
+      const dbUpdates: any = {};
+      if (updates.animalId !== undefined) dbUpdates.animal_tag = updates.animalId;
+      if (updates.date !== undefined) dbUpdates.date = updates.date;
+      if (updates.treatment !== undefined) dbUpdates.treatment = updates.treatment;
+      if (updates.withdrawalPeriod !== undefined) dbUpdates.withdrawal_period = updates.withdrawalPeriod;
+      if (updates.pregnancySafe !== undefined) dbUpdates.pregnancy_safe = updates.pregnancySafe;
+      if (updates.status !== undefined) dbUpdates.status = updates.status;
+      if (updates.specialNotes !== undefined) dbUpdates.special_notes = updates.specialNotes;
+      if (updates.doneBy !== undefined) dbUpdates.done_by = updates.doneBy;
+
+      const { data, error } = await supabase
+        .from('health_records')
+        .update(dbUpdates)
+        .eq('id', id)
+        .select()
+        .single();
+
+      if (error) throw error;
+      if (data) {
+        setHealthRecords(prev => prev.map(h => h.id === id ? mapHealthFromDb(data) : h));
+      }
+    } catch (error) {
+      console.error('Error updating health record in Supabase:', error);
+      setHealthRecords(prev => prev.map(h => h.id === id ? { ...h, ...updates } : h));
+    }
+  };
+
+  const updateBreedingRecord = async (id: string, updates: Partial<BreedingRecord>) => {
+    try {
+      if (!supabase) throw new Error("Supabase client is not initialized");
+      const dbUpdates: any = {};
+      if (updates.earTagNumber !== undefined) dbUpdates.ear_tag_number = updates.earTagNumber;
+      if (updates.stockType !== undefined) dbUpdates.stock_type = updates.stockType;
+      if (updates.bodyConditionScore !== undefined) dbUpdates.body_condition_score = updates.bodyConditionScore;
+      if (updates.heatDetectionDate !== undefined) dbUpdates.heat_detection_date = updates.heatDetectionDate;
+      if (updates.observer !== undefined) dbUpdates.observer = updates.observer;
+      if (updates.servicedDate !== undefined) dbUpdates.serviced_date = updates.servicedDate;
+      if (updates.breedingStatus !== undefined) dbUpdates.breeding_status = updates.breedingStatus;
+      if (updates.breedingMethod !== undefined) dbUpdates.breeding_method = updates.breedingMethod;
+      if (updates.aiTechnician !== undefined) dbUpdates.ai_technician = updates.aiTechnician;
+      if (updates.sireId !== undefined) dbUpdates.sire_id = updates.sireId;
+      if (updates.strawId !== undefined) dbUpdates.straw_id = updates.strawId;
+      if (updates.semenViability !== undefined) dbUpdates.semen_viability = updates.semenViability;
+      if (updates.returnToHeatDate1 !== undefined) dbUpdates.return_to_heat_date_1 = updates.returnToHeatDate1;
+      if (updates.dateServed2 !== undefined) dbUpdates.date_served_2 = updates.dateServed2;
+      if (updates.breedingMethod2 !== undefined) dbUpdates.breeding_method_2 = updates.breedingMethod2;
+      if (updates.sireUsed2 !== undefined) dbUpdates.sire_used_2 = updates.sireUsed2;
+      if (updates.returnToHeatDate2 !== undefined) dbUpdates.return_to_heat_date_2 = updates.returnToHeatDate2;
+
+      const { data, error } = await supabase
+        .from('breeding_records')
+        .update(dbUpdates)
+        .eq('id', id)
+        .select()
+        .single();
+
+      if (error) throw error;
+      if (data) {
+        setBreedingRecords(prev => prev.map(b => b.id === id ? mapBreedingFromDb(data) : b));
+      }
+    } catch (error) {
+      console.error('Error updating breeding record in Supabase:', error);
+      setBreedingRecords(prev => prev.map(b => b.id === id ? { ...b, ...updates } : b));
+    }
+  };
+
+  const updatePregnancyRecord = async (id: string, updates: Partial<PregnancyRecord>) => {
+    try {
+      if (!supabase) throw new Error("Supabase client is not initialized");
+      const dbUpdates: any = {};
+      if (updates.cowEarTag !== undefined) dbUpdates.cow_ear_tag = updates.cowEarTag;
+      if (updates.bodyConditionScore !== undefined) dbUpdates.body_condition_score = updates.bodyConditionScore;
+      if (updates.lastServiceDate !== undefined) dbUpdates.last_service_date = updates.lastServiceDate;
+      if (updates.firstTrimesterPD !== undefined) dbUpdates.first_trimester_pd = updates.firstTrimesterPD;
+      if (updates.secondTrimesterPD !== undefined) dbUpdates.second_trimester_pd = updates.secondTrimesterPD;
+      if (updates.thirdTrimesterPD !== undefined) dbUpdates.third_trimester_pd = updates.thirdTrimesterPD;
+      if (updates.gestationPeriod !== undefined) dbUpdates.gestation_period = updates.gestationPeriod;
+      if (updates.expectedCalvingDate !== undefined) dbUpdates.expected_calving_date = updates.expectedCalvingDate;
+      if (updates.actualCalvingDate !== undefined) dbUpdates.actual_calving_date = updates.actualCalvingDate;
+      if (updates.calfId !== undefined) dbUpdates.calf_id = updates.calfId;
+      if (updates.calfSex !== undefined) dbUpdates.calf_sex = updates.calfSex;
+      if (updates.deliveryType !== undefined) dbUpdates.delivery_type = updates.deliveryType;
+      if (updates.averageBCS !== undefined) dbUpdates.average_bcs = updates.averageBCS;
+      if (updates.expectedReturnToHeatDate !== undefined) dbUpdates.expected_return_to_heat_date = updates.expectedReturnToHeatDate;
+      if (updates.actualFirstHeatDate !== undefined) dbUpdates.actual_first_heat_date = updates.actualFirstHeatDate;
+      if (updates.expectedSecondHeatDate !== undefined) dbUpdates.expected_second_heat_date = updates.expectedSecondHeatDate;
+      if (updates.actualSecondHeatDate !== undefined) dbUpdates.actual_second_heat_date = updates.actualSecondHeatDate;
+
+      const { data, error } = await supabase
+        .from('pregnancy_records')
+        .update(dbUpdates)
+        .eq('id', id)
+        .select()
+        .single();
+
+      if (error) throw error;
+      if (data) {
+        setPregnancyRecords(prev => prev.map(p => p.id === id ? mapPregnancyFromDb(data) : p));
+      }
+    } catch (error) {
+      console.error('Error updating pregnancy record in Supabase:', error);
+      setPregnancyRecords(prev => prev.map(p => p.id === id ? { ...p, ...updates } : p));
+    }
+  };
+
+  const updateMortalityRecord = async (id: string, updates: Partial<MortalityRecord>) => {
+    try {
+      if (!supabase) throw new Error("Supabase client is not initialized");
+      const dbUpdates: any = {};
+      if (updates.animalId !== undefined) dbUpdates.animal_tag = updates.animalId;
+      if (updates.date !== undefined) dbUpdates.date = updates.date;
+      if (updates.cause !== undefined) dbUpdates.cause = updates.cause;
+      if (updates.description !== undefined) dbUpdates.description = updates.description;
+      if (updates.isPreWeaning !== undefined) dbUpdates.is_pre_weaning = updates.isPreWeaning;
+
+      const { data, error } = await supabase
+        .from('mortality_records')
+        .update(dbUpdates)
+        .eq('id', id)
+        .select()
+        .single();
+
+      if (error) throw error;
+      if (data) {
+        setMortalityRecords(prev => prev.map(m => m.id === id ? mapMortalityFromDb(data) : m));
+      }
+    } catch (error) {
+      console.error('Error updating mortality record in Supabase:', error);
+      setMortalityRecords(prev => prev.map(m => m.id === id ? { ...m, ...updates } : m));
+    }
+  };
+
+  const updateTransaction = async (id: string, updates: Partial<TransactionRecord>) => {
+    try {
+      if (!supabase) throw new Error("Supabase client is not initialized");
+      const dbUpdates: any = {};
+      if (updates.date !== undefined) dbUpdates.date = updates.date;
+      if (updates.description !== undefined) dbUpdates.description = updates.description;
+      if (updates.amount !== undefined) dbUpdates.amount = updates.amount;
+      if (updates.type !== undefined) dbUpdates.type = updates.type;
+
+      const { data, error } = await supabase
+        .from('transaction_records')
+        .update(dbUpdates)
+        .eq('id', id)
+        .select()
+        .single();
+
+      if (error) throw error;
+      if (data) {
+        setTransactions(prev => prev.map(t => t.id === id ? mapTransactionFromDb(data) : t));
+      }
+    } catch (error) {
+      console.error('Error updating transaction in Supabase:', error);
+      setTransactions(prev => prev.map(t => t.id === id ? { ...t, ...updates } : t));
+    }
+  };
+
+  const deleteTransaction = async (id: string) => {
+    try {
+      if (!supabase) {
+        setTransactions(prev => prev.filter(t => t.id !== id));
+        return;
+      }
+      const { error } = await supabase
+        .from('transaction_records')
+        .delete()
+        .eq('id', id);
+
+      if (error) throw error;
+      setTransactions(prev => prev.filter(t => t.id !== id));
+    } catch (error) {
+      console.error('Error deleting transaction from Supabase:', error);
+      // Fallback
+      setTransactions(prev => prev.filter(t => t.id !== id));
     }
   };
 
@@ -1577,6 +1885,7 @@ export const FarmDataProvider: React.FC<{ children: ReactNode }> = ({ children }
       observation: obs.observation,
       severity: obs.severity,
       observer: obs.observer,
+      status: obs.status || 'unresolved',
       user_id: targetUserId,
     };
     const { data, error } = await supabase
@@ -1606,6 +1915,86 @@ export const FarmDataProvider: React.FC<{ children: ReactNode }> = ({ children }
     setTodoList(prev => prev.map(t => t.id === id ? { ...t, status: newStatus, lastEdited: new Date().toISOString().split('T')[0] } : t));
   };
 
+  const updateFarmEvent = async (id: string, updates: Partial<FarmEvent>) => {
+    if (!supabase) {
+      setFarmEvents(prev => prev.map(e => e.id === id ? { ...e, ...updates } : e));
+      return;
+    }
+    const dbUpdates: any = {};
+    if (updates.date !== undefined) dbUpdates.date = updates.date;
+    if (updates.type !== undefined) dbUpdates.type = updates.type;
+    if (updates.event !== undefined) dbUpdates.event = updates.event;
+    if (updates.tag !== undefined) dbUpdates.tag = updates.tag;
+    if (updates.diagnosis !== undefined) dbUpdates.diagnosis = updates.diagnosis;
+    if (updates.notes !== undefined) dbUpdates.notes = updates.notes;
+    if (updates.doneBy !== undefined) dbUpdates.done_by = updates.doneBy;
+    if (updates.status !== undefined) dbUpdates.status = updates.status;
+
+    const { data, error } = await supabase
+      .from('farm_events')
+      .update(dbUpdates)
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (error) throw error;
+    if (data) {
+      setFarmEvents(prev => prev.map(e => e.id === id ? mapFarmEventFromDb(data) : e));
+    }
+  };
+
+  const updateObservation = async (id: string, updates: Partial<Observation>) => {
+    if (!supabase) {
+      setObservations(prev => prev.map(o => o.id === id ? { ...o, ...updates } : o));
+      return;
+    }
+    const dbUpdates: any = {};
+    if (updates.date !== undefined) dbUpdates.date = updates.date;
+    if (updates.tag !== undefined) dbUpdates.tag = updates.tag;
+    if (updates.observation !== undefined) dbUpdates.observation = updates.observation;
+    if (updates.severity !== undefined) dbUpdates.severity = updates.severity;
+    if (updates.observer !== undefined) dbUpdates.observer = updates.observer;
+    if (updates.status !== undefined) dbUpdates.status = updates.status;
+
+    const { data, error } = await supabase
+      .from('observations')
+      .update(dbUpdates)
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (error) throw error;
+    if (data) {
+      setObservations(prev => prev.map(o => o.id === id ? mapObservationFromDb(data) : o));
+    }
+  };
+
+  const updateTodoTask = async (id: string, updates: Partial<TodoTask>) => {
+    if (!supabase) {
+      setTodoList(prev => prev.map(t => t.id === id ? { ...t, ...updates } : t));
+      return;
+    }
+    const dbUpdates: any = {};
+    if (updates.date !== undefined) dbUpdates.date = updates.date;
+    if (updates.description !== undefined) dbUpdates.description = updates.description;
+    if (updates.status !== undefined) dbUpdates.status = updates.status;
+    if (updates.createdBy !== undefined) dbUpdates.created_by = updates.createdBy;
+    if (updates.lastEdited !== undefined) dbUpdates.last_edited = updates.lastEdited;
+    if (updates.priority !== undefined) dbUpdates.priority = updates.priority;
+
+    const { data, error } = await supabase
+      .from('todo_tasks')
+      .update(dbUpdates)
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (error) throw error;
+    if (data) {
+      setTodoList(prev => prev.map(t => t.id === id ? mapTodoFromDb(data) : t));
+    }
+  };
+
   const saveAnimalWeight = async (record: Omit<AnimalWeight, 'id'>) => {
     if (!supabase) {
       setAnimalWeights(prev => {
@@ -1621,6 +2010,7 @@ export const FarmDataProvider: React.FC<{ children: ReactNode }> = ({ children }
       return;
     }
     const dbData = {
+      user_id: targetUserId,
       animal_tag: record.animalTag,
       year: record.year,
       jan: record.jan ? Number(record.jan) : null,
@@ -1639,7 +2029,7 @@ export const FarmDataProvider: React.FC<{ children: ReactNode }> = ({ children }
 
     const { data, error } = await supabase
       .from('animal_weights')
-      .upsert(dbData, { onConflict: 'animal_tag,year' })
+      .upsert(dbData, { onConflict: 'user_id,animal_tag,year' })
       .select()
       .single();
 
@@ -1819,6 +2209,7 @@ export const FarmDataProvider: React.FC<{ children: ReactNode }> = ({ children }
       if (!supabase) throw new Error("Supabase client is not initialized");
       
       const dbUpdates: any = {};
+      if (updates.tag !== undefined) dbUpdates.tag = updates.tag;
       if (updates.age !== undefined) dbUpdates.age = updates.age;
       if (updates.dateOfBirth !== undefined) dbUpdates.date_of_birth = updates.dateOfBirth || null;
       if (updates.breed !== undefined) dbUpdates.breed = updates.breed;
@@ -1833,11 +2224,24 @@ export const FarmDataProvider: React.FC<{ children: ReactNode }> = ({ children }
       if (updates.observer !== undefined) dbUpdates.observer = updates.observer;
       if (updates.birthWeight !== undefined) dbUpdates.birth_weight = updates.birthWeight;
       if (updates.deliveryType !== undefined) dbUpdates.delivery_type = updates.deliveryType;
+      if (updates.sire !== undefined) dbUpdates.sire = updates.sire;
+      if (updates.dam !== undefined) dbUpdates.dam = updates.dam;
+      if (updates.dateOfWeaning !== undefined) dbUpdates.date_of_weaning = updates.dateOfWeaning || null;
+      if (updates.weaningWeight !== undefined) dbUpdates.weaning_weight = updates.weaningWeight != null ? Number(updates.weaningWeight) : null;
+      if (updates.description !== undefined) dbUpdates.description = updates.description;
+      if (updates.weight30day !== undefined) dbUpdates.weight_30day = updates.weight30day != null ? Number(updates.weight30day) : null;
+      if (updates.weight100day !== undefined) dbUpdates.weight_100day = updates.weight100day != null ? Number(updates.weight100day) : null;
+      if (updates.weight1weekPostWeaning !== undefined) dbUpdates.weight_1week_post_weaning = updates.weight1weekPostWeaning != null ? Number(updates.weight1weekPostWeaning) : null;
+      if (updates.weight6monthsPostWeaning !== undefined) dbUpdates.weight_6months_post_weaning = updates.weight6monthsPostWeaning != null ? Number(updates.weight6monthsPostWeaning) : null;
+      if (updates.calfStatus !== undefined) dbUpdates.calf_status = updates.calfStatus || null;
+      if (updates.preWeaningMortality !== undefined) dbUpdates.pre_weaning_mortality = updates.preWeaningMortality ?? false;
 
+      if (!targetUserId) throw new Error("No active farmer selected");
       const { data, error } = await supabase
         .from('animals')
         .update(dbUpdates)
         .eq('tag', tag)
+        .eq('user_id', targetUserId)
         .select()
         .single();
 
@@ -1864,10 +2268,12 @@ export const FarmDataProvider: React.FC<{ children: ReactNode }> = ({ children }
         days_between_weights: daysBetweenWeights !== undefined ? daysBetweenWeights : 30,
       };
 
+      if (!targetUserId) throw new Error("No active farmer selected");
       const { data, error } = await supabase
         .from('animals')
         .update(updatedFields)
         .eq('tag', animal.tag)
+        .eq('user_id', targetUserId)
         .select()
         .single();
 
@@ -2223,6 +2629,52 @@ export const FarmDataProvider: React.FC<{ children: ReactNode }> = ({ children }
   
   const scores = calculateCategoryScores(adg, fcr, bcs, repro, prod);
 
+  const updateProfile = async (updates: Partial<Profile>) => {
+    if (!profile) return;
+    const newProfile = { ...profile, ...updates };
+
+    if (updates.owner_first_name !== undefined || updates.owner_last_name !== undefined) {
+      const first = updates.owner_first_name !== undefined ? updates.owner_first_name : (profile.owner_first_name || '');
+      const last = updates.owner_last_name !== undefined ? updates.owner_last_name : (profile.owner_last_name || '');
+      newProfile.full_name = `${first} ${last}`.trim() || undefined;
+    }
+
+    setProfile(newProfile);
+    
+    try {
+      const extraData = {
+        owner_first_name: newProfile.owner_first_name,
+        owner_last_name: newProfile.owner_last_name,
+        address: newProfile.address,
+        location: newProfile.location,
+        province: newProfile.province,
+        phone_number: newProfile.phone_number,
+        email: newProfile.email,
+      };
+      await AsyncStorage.setItem(`profile_extra_${profile.id}`, JSON.stringify(extraData));
+    } catch (e) {
+      console.error("Error saving profile extras to AsyncStorage:", e);
+    }
+
+    if (supabase) {
+      const dbUpdates: any = {};
+      if (newProfile.full_name !== undefined) dbUpdates.full_name = newProfile.full_name;
+      if (newProfile.farm_name !== undefined) dbUpdates.farm_name = newProfile.farm_name;
+      
+      if (Object.keys(dbUpdates).length > 0) {
+        try {
+          const { error } = await supabase
+            .from('profiles')
+            .update(dbUpdates)
+            .eq('id', profile.id);
+          if (error) throw error;
+        } catch (e) {
+          console.error("Error updating profile in Supabase:", e);
+        }
+      }
+    }
+  };
+
   return (
     <FarmDataContext.Provider
       value={{
@@ -2240,6 +2692,7 @@ export const FarmDataProvider: React.FC<{ children: ReactNode }> = ({ children }
         drugs,
         feedInventory,
         addAnimal,
+        deleteAnimal,
         addHealthRecord,
         addBreedingRecord,
         addPregnancyRecord,
@@ -2258,6 +2711,12 @@ export const FarmDataProvider: React.FC<{ children: ReactNode }> = ({ children }
         addFeedInventoryItem,
         updateFeedInventoryItem,
         deleteFeedInventoryItem,
+        updateHealthRecord,
+        updateBreedingRecord,
+        updatePregnancyRecord,
+        updateMortalityRecord,
+        updateTransaction,
+        deleteTransaction,
         farmEvents,
         todoList,
         observations,
@@ -2265,6 +2724,9 @@ export const FarmDataProvider: React.FC<{ children: ReactNode }> = ({ children }
         addTodoTask,
         addObservation,
         toggleTodoStatus,
+        updateFarmEvent,
+        updateObservation,
+        updateTodoTask,
 
         // Auth values
         user,
@@ -2276,6 +2738,7 @@ export const FarmDataProvider: React.FC<{ children: ReactNode }> = ({ children }
         setSelectedFarmer,
         logout,
         deleteAccount,
+        updateProfile,
 
         metrics: {
           adg,

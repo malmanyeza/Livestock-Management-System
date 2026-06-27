@@ -294,18 +294,18 @@ export default function Nutrition() {
   )
 
   return (
-    <div className="space-y-5 max-w-3xl mx-auto">
+    <div className="space-y-5 max-w-[1400px] mx-auto">
       <div>
         <h2 className="text-xl font-bold" style={{ color: C.neutral900 }}>Nutrition</h2>
         <p className="text-sm mt-0.5" style={{ color: C.neutral500 }}>Review livestock nutritional metrics and make adjustments as needed.</p>
       </div>
 
       {/* Main metrics table card — same as mobile */}
-      <div className="card">
+      <div className="card w-full">
         <p className="font-semibold text-base mb-1" style={{ color: C.neutral900 }}>Nutrition Assessment</p>
         <p className="text-sm mb-4" style={{ color: C.neutral600 }}>Review your livestock's nutritional metrics and make adjustments as needed.</p>
-        <div className="overflow-x-auto">
-          <table className="w-full data-table" style={{ minWidth: '850px' }}>
+        <div className="w-full overflow-x-auto">
+          <table className="w-full data-table" style={{ minWidth: '800px' }}>
             <thead>
               <tr>
                 <th>Category</th>

@@ -6,6 +6,7 @@ import { Card } from '../../components/ui/Card';
 import { ClipboardList, Baby, Pill, Skull, FileHeart, DollarSign, Activity, Package, Stethoscope } from 'lucide-react-native';
 import Colors from '../../constants/Colors';
 import { Stack } from 'expo-router';
+import { useFarmData } from '../../context/FarmDataContext';
 
 interface RegisterType {
   id: string;
@@ -28,6 +29,8 @@ export default function AddScreen() {
 }
 
 function AddContent() {
+  const { profile } = useFarmData();
+  const isAdmin = profile?.role === 'admin';
   const [selectedRegister, setSelectedRegister] = useState<string | null>(null);
 
   const registerTypes: RegisterType[] = [
@@ -85,7 +88,7 @@ function AddContent() {
       icon: <Stethoscope size={24} color={Colors.white} />,
       color: Colors.success[600],
     },
-  ];
+  ].filter(t => t.id !== 'breeding' || isAdmin);
 
   const renderRegisterForm = () => {
     switch (selectedRegister) {
@@ -132,6 +135,7 @@ function AddContent() {
           </Card>
         );
       case 'breeding':
+        if (!isAdmin) return null;
         return (
           <Card title="Add Bull Breeding Soundness Evaluation" style={styles.formCard}>
             {/* Add Bull Breeding Soundness form components here */}
