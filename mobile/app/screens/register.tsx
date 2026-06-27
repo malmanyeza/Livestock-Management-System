@@ -620,7 +620,8 @@ function RegisterContent() {
     date: new Date().toISOString().split('T')[0],
     animalId: '',
     cause: '',
-    description: ''
+    description: '',
+    observer: ''
   });
   const [newDrug, setNewDrug] = useState<Omit<DrugData, 'id'>>({ 
     drugClass: '',
@@ -688,13 +689,15 @@ function RegisterContent() {
         date: newMortality.date,
         cause: newMortality.cause,
         description: newMortality.description,
+        observer: newMortality.observer,
         isPreWeaning: false,
       });
       setNewMortality({
         date: new Date().toISOString().split('T')[0],
         animalId: '',
         cause: '',
-        description: ''
+        description: '',
+        observer: ''
       });
       setIsAddMortalityModalVisible(false);
     } catch (error: any) {
@@ -768,6 +771,16 @@ function RegisterContent() {
                   value={newMortality.cause}
                   onChangeText={(text) => setNewMortality({...newMortality, cause: text})}
                   placeholder="e.g., Disease, Injury"
+                />
+              </View>
+
+              <View style={styles.formGroup}>
+                <Text variant="body2" style={styles.label}>Observer</Text>
+                <TextInput
+                  style={styles.input}
+                  value={newMortality.observer}
+                  onChangeText={(text) => setNewMortality({...newMortality, observer: text})}
+                  placeholder="e.g., John Doe"
                 />
               </View>
               
@@ -1728,6 +1741,7 @@ function RegisterContent() {
         date: editingMortalityRecord.date,
         cause: editingMortalityRecord.cause,
         description: editingMortalityRecord.description,
+        observer: editingMortalityRecord.observer,
         isPreWeaning: editingMortalityRecord.isPreWeaning,
       });
       setIsEditMortalityRecordModalVisible(false);
@@ -2900,6 +2914,16 @@ function RegisterContent() {
                   value={editingMortalityRecord?.description || ''}
                   onChangeText={(text) => editingMortalityRecord && setEditingMortalityRecord({...editingMortalityRecord, description: text})}
                   placeholder="Provide details..."
+                />
+              </View>
+
+              <View style={styles.formGroup}>
+                <Text variant="body2" style={styles.label}>Observer</Text>
+                <TextInput
+                  style={styles.input}
+                  value={editingMortalityRecord?.observer || ''}
+                  onChangeText={(text) => editingMortalityRecord && setEditingMortalityRecord({...editingMortalityRecord, observer: text})}
+                  placeholder="e.g., John Doe"
                 />
               </View>
 
@@ -6120,6 +6144,9 @@ function RegisterContent() {
                 { key: 'animalId', title: 'Animal ID', width: 100 },
                 { key: 'cause', title: 'Cause', width: 120, render: (value: string) => (
                   <Text style={{ color: value === 'Disease' ? Colors.error[500] : Colors.warning[600] }}>{value}</Text>
+                )},
+                { key: 'observer', title: 'Observer', width: 120, render: (value: string) => (
+                  <Text numberOfLines={1} ellipsizeMode="tail" style={{ fontWeight: '500' }}>{value || '—'}</Text>
                 )},
                 { key: 'description', title: 'Description', width: 200, render: (value: string) => (
                   <Text numberOfLines={1} ellipsizeMode="tail">{value}</Text>

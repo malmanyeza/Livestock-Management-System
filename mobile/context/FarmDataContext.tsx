@@ -111,6 +111,7 @@ export interface MortalityRecord {
   date: string;
   cause: string;
   description: string;
+  observer?: string;
   isPreWeaning: boolean;
 }
 
@@ -518,6 +519,7 @@ const mapMortalityFromDb = (row: any): MortalityRecord => ({
   date: row.date,
   cause: row.cause,
   description: row.description || '',
+  observer: row.observer || '',
   isPreWeaning: row.is_pre_weaning ?? false,
 });
 
@@ -1396,6 +1398,7 @@ export const FarmDataProvider: React.FC<{ children: ReactNode }> = ({ children }
       date: record.date,
       cause: record.cause,
       description: record.description || null,
+      observer: record.observer || null,
       is_pre_weaning: record.isPreWeaning,
       user_id: targetUserId,
     };
@@ -1749,6 +1752,7 @@ export const FarmDataProvider: React.FC<{ children: ReactNode }> = ({ children }
       if (updates.date !== undefined) dbUpdates.date = updates.date;
       if (updates.cause !== undefined) dbUpdates.cause = updates.cause;
       if (updates.description !== undefined) dbUpdates.description = updates.description;
+      if (updates.observer !== undefined) dbUpdates.observer = updates.observer;
       if (updates.isPreWeaning !== undefined) dbUpdates.is_pre_weaning = updates.isPreWeaning;
 
       const { data, error } = await supabase

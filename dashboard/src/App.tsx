@@ -9,6 +9,7 @@ import Nutrition from './pages/Nutrition'
 import Register from './pages/Register'
 import Marketplace from './pages/Marketplace'
 import LivestockPro from './pages/LivestockPro'
+import Tasks from './pages/Tasks'
 import Login from './pages/Login'
 import { AuthProvider, useAuth } from './context/AuthContext'
 
@@ -30,6 +31,7 @@ function ProtectedRoutes() {
         <Route path="/records" element={<Records />} />
         <Route path="/nutrition" element={<Nutrition />} />
         <Route path="/register" element={<Register />} />
+        <Route path="/tasks" element={<Tasks />} />
         <Route path="/marketplace" element={<Marketplace />} />
         <Route path="/livestock-pro" element={<LivestockPro />} />
         <Route path="*" element={<Navigate to="/" replace />} />

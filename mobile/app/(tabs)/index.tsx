@@ -214,6 +214,27 @@ export default function HomeScreen() {
   }, [animals, mortalityRecords]);
   const currentDLShiftScore = metrics.scoreDLShift;
   const isAdmin = profile?.role === 'admin';
+
+  const displayCards = React.useMemo(() => {
+    if (isAdmin) {
+      return navigationCards.map(card => {
+        if (card.id === 'settings') {
+          return {
+            id: 'livestock-pro',
+            title: 'Livestock Pro',
+            icon: <ShieldCheck size={24} color={Colors.white} />,
+            description: 'Manage admin missions and coverage tracking',
+            route: '/screens/livestock_pro',
+            color: '#8E44AD',
+            gradient: ['#9B59B6', '#8E44AD'] as const,
+          };
+        }
+        return card;
+      });
+    }
+    return navigationCards;
+  }, [isAdmin]);
+
   const displayName = profile?.full_name || profile?.email || 'Farmer';
   const viewingName = isAdmin && selectedFarmer
     ? (selectedFarmer.full_name || selectedFarmer.email || 'Farmer')
@@ -541,7 +562,7 @@ export default function HomeScreen() {
         </Text>
         
         <View style={styles.gridContainer}>
-          {navigationCards.map((item) => renderNavigationCard({ item }))}
+          {displayCards.map((item) => renderNavigationCard({ item }))}
         </View>
       </ScrollView>
       {/* Farmer Selection Modal */}

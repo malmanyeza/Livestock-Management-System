@@ -252,7 +252,7 @@ function AddDrugModal({ editingDrug, onClose, onSave }: { editingDrug?: any; onC
 
 // ─── Add Mortality Modal ──────────────────────────────────────────────────────
 function AddMortalityModal({ animals, onClose, onSave }: { animals: any[]; onClose: () => void; onSave: (d: any) => Promise<void> }) {
-  const [form, setForm] = useState({ date: new Date().toISOString().split('T')[0], animalId: '', cause: '', description: '' })
+  const [form, setForm] = useState({ date: new Date().toISOString().split('T')[0], animalId: '', cause: '', description: '', observer: '' })
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
@@ -294,6 +294,13 @@ function AddMortalityModal({ animals, onClose, onSave }: { animals: any[]; onClo
             <label className="block text-xs font-semibold mb-1 uppercase tracking-wider" style={{ color: C.neutral500 }}>Cause</label>
             <input value={form.cause} onChange={e => setForm(p => ({ ...p, cause: e.target.value }))}
               placeholder="e.g., Disease, Injury"
+              className="w-full rounded-xl px-4 py-2.5 text-sm outline-none border transition-colors focus:border-[#7AC142]"
+              style={{ borderColor: C.neutral200, color: C.neutral900, backgroundColor: C.neutral50 }} />
+          </div>
+          <div>
+            <label className="block text-xs font-semibold mb-1 uppercase tracking-wider" style={{ color: C.neutral500 }}>Observer</label>
+            <input value={form.observer} onChange={e => setForm(p => ({ ...p, observer: e.target.value }))}
+              placeholder="e.g., John Doe"
               className="w-full rounded-xl px-4 py-2.5 text-sm outline-none border transition-colors focus:border-[#7AC142]"
               style={{ borderColor: C.neutral200, color: C.neutral900, backgroundColor: C.neutral50 }} />
           </div>
@@ -1963,6 +1970,7 @@ export default function Register() {
       date: d.date,
       cause: d.cause,
       description: d.description || null,
+      observer: d.observer || null,
       is_pre_weaning: false
     }
     const { data, error } = await supabase.from('mortality_records').insert(dbPayload).select().single()
@@ -2604,6 +2612,7 @@ export default function Register() {
                 { key: 'animal_tag',  label: 'Animal',      render: tagBadge },
                 { key: 'date',        label: 'Date' },
                 { key: 'cause',       label: 'Cause',       render: (v) => <span className="font-semibold" style={{ color: C.error500 }}>{v}</span> },
+                { key: 'observer',    label: 'Observer',    render: (v) => <span className="font-medium" style={{ color: C.neutral700 }}>{v || '—'}</span> },
                 { key: 'description', label: 'Description', render: (v) => <span className="font-medium" style={{ color: C.neutral500 }}>{v}</span> },
               ]} />
             </>

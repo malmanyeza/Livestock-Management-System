@@ -707,21 +707,30 @@ function HealthContent() {
           <View style={styles.inventoryHeader}>
             <View style={styles.inventoryTitleContainer}>
               <Activity size={24} color={Colors.primary[500]} style={styles.inventoryIcon} />
-              <Text variant="h5" weight="medium">
+              <Text variant="h5" weight="medium" style={{ flexShrink: 1 }}>
                 Animal Health Records
               </Text>
             </View>
-            <TouchableOpacity 
-              style={styles.inventoryButton}
-              onPress={() => router.push('/screens/register?tab=health')}
-            >
-              <Text variant="button" color="primary.500">View Records</Text>
-              <ArrowRight size={20} color={Colors.primary[500]} />
-            </TouchableOpacity>
           </View>
-          <Text variant="body2" color="neutral.600" style={styles.inventoryDescription}>
+          <Text variant="body2" color="neutral.600" style={[styles.inventoryDescription, { marginBottom: 16 }]}>
             Access and manage comprehensive health records, treatments, and medical history for your livestock.
           </Text>
+          <TouchableOpacity 
+            style={[styles.inventoryButton, { 
+              backgroundColor: Colors.white, 
+              borderWidth: 1, 
+              borderColor: Colors.primary[200],
+              justifyContent: 'center',
+              paddingVertical: 12,
+              borderRadius: 10,
+              flexDirection: 'row',
+              alignItems: 'center',
+            }]}
+            onPress={() => router.push('/screens/register?tab=health')}
+          >
+            <Text variant="button" color="primary.500" style={{ marginRight: 6 }}>View Records</Text>
+            <ArrowRight size={18} color={Colors.primary[500]} />
+          </TouchableOpacity>
         </Card>
       </ScrollView>
 
