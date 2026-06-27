@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { View, StyleSheet, TouchableOpacity, ScrollView, Dimensions, Platform, Text as RNText, Modal, TextInput } from 'react-native';
 
 import { router } from 'expo-router';
-import { Heart, Dna, Wheat, BarChart3, ClipboardList, FileEdit, ShoppingCart, User, TrendingUp, ShieldCheck, ChevronDown, Search, X, Check } from 'lucide-react-native';
+import { Heart, Dna, Wheat, BarChart3, ClipboardList, FileEdit, ShoppingCart, User, TrendingUp, ShieldCheck, ChevronDown, Search, X, Check, Settings } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Text } from '../../components/typography/Text';
 import { ScreenContainer } from '../../components/layout/ScreenContainer';
@@ -141,6 +141,15 @@ const navigationCards: NavigationCard[] = [
     route: '/screens/marketplace',
     color: Colors.success[600],
     gradient: [Colors.success[500], Colors.success[700]],
+  },
+  {
+    id: 'settings',
+    title: 'Settings',
+    icon: <Settings size={24} color={Colors.white} />,
+    description: 'Manage farm profile and account settings',
+    route: '/profile',
+    color: Colors.neutral[600],
+    gradient: [Colors.neutral[500], Colors.neutral[700]],
   },
 ];
 

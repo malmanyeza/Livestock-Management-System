@@ -5,7 +5,7 @@ import { ScreenContainer } from '../../components/layout/ScreenContainer';
 import { Card } from '../../components/ui/Card';
 import { ClipboardList, Baby, Pill, Skull, FileHeart, DollarSign, Activity, Package, Stethoscope } from 'lucide-react-native';
 import Colors from '../../constants/Colors';
-import { Stack } from 'expo-router';
+import { Stack, router } from 'expo-router';
 import { useFarmData } from '../../context/FarmDataContext';
 
 interface RegisterType {
@@ -31,7 +31,6 @@ export default function AddScreen() {
 function AddContent() {
   const { profile } = useFarmData();
   const isAdmin = profile?.role === 'admin';
-  const [selectedRegister, setSelectedRegister] = useState<string | null>(null);
 
   const registerTypes: RegisterType[] = [
     {
@@ -90,75 +89,23 @@ function AddContent() {
     },
   ].filter(t => t.id !== 'breeding' || isAdmin);
 
-  const renderRegisterForm = () => {
-    switch (selectedRegister) {
-      case 'herd':
-        return (
-          <Card title="Add to Herd Register" style={styles.formCard}>
-            {/* Add Herd Register form components here */}
-            <Text>Herd Register Form</Text>
-          </Card>
-        );
-      case 'calf':
-        return (
-          <Card title="Add to Calf Register" style={styles.formCard}>
-            {/* Add Calf Register form components here */}
-            <Text>Calf Register Form</Text>
-          </Card>
-        );
-      case 'drug':
-        return (
-          <Card title="Add to Drug Register" style={styles.formCard}>
-            {/* Add Drug Register form components here */}
-            <Text>Drug Register Form</Text>
-          </Card>
-        );
-      case 'mortality':
-        return (
-          <Card title="Add to Cull & Mortalities" style={styles.formCard}>
-            {/* Add Mortality Register form components here */}
-            <Text>Mortality Register Form</Text>
-          </Card>
-        );
-      case 'pregnancy':
-        return (
-          <Card title="Add to Pregnancy & Calving" style={styles.formCard}>
-            {/* Add Pregnancy Register form components here */}
-            <Text>Pregnancy Register Form</Text>
-          </Card>
-        );
-      case 'sales':
-        return (
-          <Card title="Add to Sales & Purchases" style={styles.formCard}>
-            {/* Add Sales Register form components here */}
-            <Text>Sales Register Form</Text>
-          </Card>
-        );
-      case 'breeding':
-        if (!isAdmin) return null;
-        return (
-          <Card title="Add Bull Breeding Soundness Evaluation" style={styles.formCard}>
-            {/* Add Bull Breeding Soundness form components here */}
-            <Text>Bull Breeding Soundness Evaluation Form</Text>
-          </Card>
-        );
-      case 'feed':
-        return (
-          <Card title="Add to Feed Inventory" style={styles.formCard}>
-            {/* Add Feed Inventory form components here */}
-            <Text>Feed Inventory Form</Text>
-          </Card>
-        );
-      case 'health':
-        return (
-          <Card title="Add Health Record" style={styles.formCard}>
-            {/* Add Health Record form components here */}
-            <Text>Health Record Form</Text>
-          </Card>
-        );
-      default:
-        return null;
-    }
+  const handlePressRegister = (id: string) => {
+    const tabMap: Record<string, string> = {
+      herd: 'herd',
+      calf: 'calves',
+      drug: 'drugs',
+      mortality: 'mortality',
+      pregnancy: 'pregnancy',
+      sales: 'sales',
+      breeding: 'bulls',
+      feed: 'feed',
+      health: 'health'
+    };
+    const targetTab = tabMap[id] || 'overview';
+    router.push({
+      pathname: '/screens/register',
+      params: { tab: targetTab }
+    });
   };
 
   return (
@@ -166,18 +113,18 @@ function AddContent() {
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
         <Card style={styles.stepCard}>
           <Text variant="h6" weight="medium" style={styles.stepTitle}>
-            Step 1: Select Record Type
+            Select Record Type
           </Text>
           <Text variant="body2" color="neutral.500" style={styles.stepDescription}>
-            Choose the type of record you want to add to your farm management system.
+            Choose the type of record register you want to access or add entries to.
           </Text>
 
           <View style={styles.grid}>
             {registerTypes.map((type) => (
               <TouchableOpacity
                 key={type.id}
-                style={[styles.gridItem, selectedRegister === type.id && styles.selectedItem]}
-                onPress={() => setSelectedRegister(type.id)}
+                style={styles.gridItem}
+                onPress={() => handlePressRegister(type.id)}
                 activeOpacity={0.7}
               >
                 <View style={[styles.iconContainer, { backgroundColor: type.color }]}>
@@ -185,9 +132,9 @@ function AddContent() {
                 </View>
                 <Text
                   variant="body2"
-                  weight={selectedRegister === type.id ? 'bold' : 'medium'}
+                  weight="medium"
                   style={styles.itemTitle}
-                  color={selectedRegister === type.id ? type.color : 'neutral.700'}
+                  color="neutral.700"
                 >
                   {type.title}
                 </Text>
@@ -195,18 +142,6 @@ function AddContent() {
             ))}
           </View>
         </Card>
-
-        {selectedRegister && (
-          <Card style={styles.stepCard}>
-            <Text variant="h6" weight="medium" style={styles.stepTitle}>
-              Step 2: Fill in Details
-            </Text>
-            <Text variant="body2" color="neutral.500" style={styles.stepDescription}>
-              Provide the necessary information for your {registerTypes.find(t => t.id === selectedRegister)?.title.toLowerCase()}.
-            </Text>
-            {renderRegisterForm()}
-          </Card>
-        )}
       </ScrollView>
     </ScreenContainer>
   );
