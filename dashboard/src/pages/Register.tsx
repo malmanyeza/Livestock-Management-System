@@ -1826,7 +1826,7 @@ function AddTransactionModal({ animals, onClose, onSave }: { animals: any[]; onC
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 export default function Register() {
-  const { session, targetUserId } = useAuth()
+  const { session, targetUserId, profile } = useAuth()
   const [searchParams] = useSearchParams()
   const tabParam = searchParams.get('tab') as Tab
   const [activeTab, setActiveTab]   = useState<Tab>(tabParam || 'herd')
@@ -2260,7 +2260,10 @@ export default function Register() {
 
       {/* Tab bar — exact mobile pill style */}
       <div className="flex gap-1 p-1 rounded-xl overflow-x-auto bg-neutral-100 shadow-sm border border-neutral-200/40">
-        {TABS.map(({ key, label, icon: Icon }) => (
+        {TABS.filter(t => {
+          if (t.key === 'sales' && profile?.role === 'worker') return false;
+          return true;
+        }).map(({ key, label, icon: Icon }) => (
           <button key={key} onClick={() => { setActiveTab(key); setSearch('') }}
             className="flex items-center gap-2 flex-shrink-0 px-4 py-2.5 rounded-lg text-sm font-semibold transition-all whitespace-nowrap"
             style={activeTab === key

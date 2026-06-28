@@ -107,7 +107,10 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
         {/* Nav */}
         <nav className="flex-1 p-3 space-y-1 overflow-y-auto">
-          {NAV.map(({ to, icon: Icon, label, color }) => {
+          {NAV.filter(n => {
+            if (n.to === '/marketplace' && profile?.role === 'worker') return false;
+            return true;
+          }).map(({ to, icon: Icon, label, color }) => {
             const exact = to === '/'
             const active = exact ? location.pathname === '/' : location.pathname.startsWith(to)
             return (
@@ -122,6 +125,16 @@ export default function Layout({ children }: { children: React.ReactNode }) {
               </NavLink>
             )
           })}
+          {profile?.role === 'farmer' && (
+            <NavLink
+              to="/workers"
+              className={location.pathname.startsWith('/workers') ? 'nav-link-active' : 'nav-link'}
+              title={!sidebarOpen ? 'Manage Workers' : undefined}
+            >
+              <User size={18} className="flex-shrink-0" style={{ color: location.pathname.startsWith('/workers') ? '#8E44AD' : '#6C757D' }} />
+              {sidebarOpen && <span className="truncate">Manage Workers</span>}
+            </NavLink>
+          )}
           {isAdmin && (
             <NavLink
               to="/livestock-pro"
@@ -145,7 +158,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
               <div className="overflow-hidden flex-1">
                 <p className="text-xs font-semibold truncate" style={{ color: '#121416' }}>{session.user.email}</p>
                 <p className="text-xs font-medium" style={{ color: '#7AC142' }}>
-                  {profile?.role === 'admin' ? 'Admin' : 'Farmer'}
+                  {profile?.role === 'admin' ? 'Admin' : (profile?.role === 'worker' ? 'Worker' : 'Farmer')}
                 </p>
               </div>
             </div>

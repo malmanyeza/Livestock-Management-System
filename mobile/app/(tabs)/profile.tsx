@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
-import { View, StyleSheet, TouchableOpacity, ScrollView, Alert, Platform, Modal, TextInput, KeyboardAvoidingView } from 'react-native';
-import { Settings, LogOut, HelpCircle, Bell, User, ShieldCheck, Trash2 } from 'lucide-react-native';
+import React, { useState, useEffect } from 'react';
+import { View, StyleSheet, TouchableOpacity, ScrollView, Alert, Platform, Modal, TextInput, KeyboardAvoidingView, ActivityIndicator } from 'react-native';
+import { Settings, LogOut, HelpCircle, Bell, User, ShieldCheck, Trash2, Plus, X } from 'lucide-react-native';
 import { Text } from '../../components/typography/Text';
 import { ScreenContainer } from '../../components/layout/ScreenContainer';
 import Colors from '../../constants/Colors';
@@ -8,6 +8,8 @@ import { Card } from '../../components/ui/Card';
 import { Stack, router } from 'expo-router';
 import { useFarmData } from '../../context/FarmDataContext';
 import * as WebBrowser from 'expo-web-browser';
+import { createClient } from '@supabase/supabase-js';
+import { supabase } from '../../utils/supabase';
 
 export default function ProfileScreen() {
   return (
@@ -28,6 +30,141 @@ function ProfileContent() {
   const [isEditProfileModalVisible, setIsEditProfileModalVisible] = useState(false);
   const [editingProfile, setEditingProfile] = useState<Partial<typeof profile> | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Worker account management states
+  const [workers, setWorkers] = useState<any[]>([]);
+  const [loadingWorkers, setLoadingWorkers] = useState(false);
+  const [isAddWorkerVisible, setIsAddWorkerVisible] = useState(false);
+  const [newWorkerName, setNewWorkerName] = useState('');
+  const [newWorkerPassword, setNewWorkerPassword] = useState('');
+  const [addingWorker, setAddingWorker] = useState(false);
+
+  const fetchWorkers = async () => {
+    if (!supabase || !profile?.id || profile?.role !== 'farmer') return;
+    setLoadingWorkers(true);
+    try {
+      const { data, error } = await supabase
+        .from('workers')
+        .select('*')
+        .eq('farmer_id', profile.id)
+        .order('created_at', { ascending: false });
+      if (!error && data) {
+        setWorkers(data);
+      }
+    } catch (err) {
+      console.error('Error fetching workers:', err);
+    } finally {
+      setLoadingWorkers(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchWorkers();
+  }, [profile]);
+
+  const handleAddWorker = async () => {
+    if (!newWorkerName.trim() || !newWorkerPassword.trim()) {
+      Alert.alert('Error', 'Please fill in all fields.');
+      return;
+    }
+    if (newWorkerPassword.length < 6) {
+      Alert.alert('Error', 'Password must be at least 6 characters.');
+      return;
+    }
+    if (!profile?.email || !profile?.id) return;
+
+    setAddingWorker(true);
+    try {
+      const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL || 'https://odtlbpsjwhlmiwgmkrxa.supabase.co';
+      const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9kdGxicHNqd2hsbWl3Z21rcnhhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODExNjIyMDEsImV4cCI6MjA5NjczODIwMX0.owMEl-lvuaRE8stDdCoAH0q3ln4EDxNZ5PhJy0trozA';
+      
+      const workerAuthClient = createClient(supabaseUrl, supabaseAnonKey, {
+        auth: { persistSession: false, autoRefreshToken: false }
+      });
+
+      const randomSuffix = Math.floor(1000 + Math.random() * 9000);
+      const sanitizedName = newWorkerName.toLowerCase().replace(/[^a-z0-9]/g, '');
+      const authEmail = `${profile.email.split('@')[0]}+${sanitizedName}_${randomSuffix}@zvipfuwo.internal`;
+
+      // 1. SignUp
+      const { data: signUpData, error: signUpError } = await workerAuthClient.auth.signUp({
+        email: authEmail,
+        password: newWorkerPassword,
+        options: {
+          data: {
+            full_name: newWorkerName,
+            role: 'worker'
+          }
+        }
+      });
+
+      if (signUpError) throw signUpError;
+      if (!signUpData.user) throw new Error('Worker auth account registration failed.');
+
+      // 2. DB Insert
+      const { error: insertError } = await supabase.from('workers').insert({
+        farmer_id: profile.id,
+        farmer_email: profile.email,
+        worker_name: newWorkerName,
+        password: newWorkerPassword,
+        auth_email: authEmail
+      });
+
+      if (insertError) throw insertError;
+
+      if (Platform.OS === 'web') {
+        alert(`Worker ${newWorkerName} registered successfully.`);
+      } else {
+        Alert.alert('Success', `Worker ${newWorkerName} registered successfully.`);
+      }
+      setNewWorkerName('');
+      setNewWorkerPassword('');
+      setIsAddWorkerVisible(false);
+      fetchWorkers();
+    } catch (err: any) {
+      if (Platform.OS === 'web') {
+        alert(err.message || 'Failed to create worker account.');
+      } else {
+        Alert.alert('Error', err.message || 'Failed to create worker account.');
+      }
+    } finally {
+      setAddingWorker(false);
+    }
+  };
+
+  const handleDeleteWorker = async (worker: any) => {
+    const performDelete = async () => {
+      try {
+        if (!supabase) return;
+        const { error } = await supabase
+          .from('workers')
+          .delete()
+          .eq('id', worker.id);
+        if (error) throw error;
+        fetchWorkers();
+      } catch (err: any) {
+        if (Platform.OS === 'web') {
+          alert('Failed to delete worker: ' + err.message);
+        } else {
+          Alert.alert('Error', 'Failed to delete worker: ' + err.message);
+        }
+      }
+    };
+
+    if (Platform.OS === 'web') {
+      const confirmed = window.confirm(`Are you sure you want to delete worker "${worker.worker_name}"? This will immediately revoke their access.`);
+      if (confirmed) performDelete();
+    } else {
+      Alert.alert(
+        'Delete Worker',
+        `Are you sure you want to delete worker "${worker.worker_name}"? This will immediately revoke their access.`,
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Delete', style: 'destructive', onPress: performDelete }
+        ]
+      );
+    }
+  };
 
   const handleEditProfile = () => {
     if (!profile) return;
@@ -156,7 +293,7 @@ function ProfileContent() {
   ];
 
   const displayName = profile?.full_name || profile?.email || 'Farmer';
-  const roleLabel = profile?.role === 'admin' ? 'Administrator' : 'Farm Owner';
+  const roleLabel = profile?.role === 'admin' ? 'Administrator' : (profile?.role === 'worker' ? 'Farm Worker' : 'Farm Owner');
 
   return (
     <ScreenContainer 
@@ -165,133 +302,180 @@ function ProfileContent() {
       contentContainerStyle={{ paddingBottom: 100 }}
     >
       <View style={styles.header}>
-          <View style={styles.profileInfo}>
-            <View style={styles.avatar}>
-              {profile?.role === 'admin' ? (
-                <ShieldCheck size={48} color={Colors.primary[600]} />
-              ) : (
-                <User size={48} color={Colors.neutral[600]} />
-              )}
-            </View>
-            <View style={styles.nameContainer}>
-              <Text variant="h4" weight="bold">
-                {displayName}
-              </Text>
-              <Text variant="body" color="neutral.500">
-                {roleLabel}
-              </Text>
-              {profile?.farm_name && (
-                <Text variant="body2" color="primary.600" weight="medium" style={{ marginTop: 2 }}>
-                  🚜 {profile.farm_name}
-                </Text>
-              )}
-              {profile?.email && (
-                <Text variant="caption" color="neutral.400" style={{ marginTop: 4 }}>
-                  {profile.email}
-                </Text>
-              )}
-            </View>
+        <View style={styles.profileInfo}>
+          <View style={styles.avatar}>
+            {profile?.role === 'admin' ? (
+              <ShieldCheck size={48} color={Colors.primary[600]} />
+            ) : (
+              <User size={48} color={Colors.neutral[600]} />
+            )}
           </View>
-
-          <View style={styles.statsContainer}>
-            <View style={styles.statItem}>
-              <Text variant="h4" weight="bold" color="primary.500">
-                {animals.length}
+          <View style={styles.nameContainer}>
+            <Text variant="h4" weight="bold">
+              {displayName}
+            </Text>
+            <Text variant="body" color="neutral.500">
+              {roleLabel}
+            </Text>
+            {profile?.farm_name && (
+              <Text variant="body2" color="primary.600" weight="medium" style={{ marginTop: 2 }}>
+                🚜 {profile.farm_name}
               </Text>
-              <Text variant="caption" color="neutral.500">
-                Animals
+            )}
+            {profile?.email && (
+              <Text variant="caption" color="neutral.400" style={{ marginTop: 4 }}>
+                {profile.email}
               </Text>
-            </View>
-            <View style={styles.statDivider} />
-            <View style={styles.statItem}>
-              <Text variant="h4" weight="bold" color="primary.500">
-                {profile?.role === 'admin' ? '👑' : '🌾'}
-              </Text>
-              <Text variant="caption" color="neutral.500">
-                {profile?.role === 'admin' ? 'Admin' : 'Farmer'}
-              </Text>
-            </View>
+            )}
           </View>
         </View>
 
-        <Card
-          title="Farm Profile"
-          style={styles.detailsCard}
-          headerRight={
+        <View style={styles.statsContainer}>
+          <View style={styles.statItem}>
+            <Text variant="h4" weight="bold" color="primary.500">
+              {animals.length}
+            </Text>
+            <Text variant="caption" color="neutral.500">
+              Animals
+            </Text>
+          </View>
+          <View style={styles.statDivider} />
+          <View style={styles.statItem}>
+            <Text variant="h4" weight="bold" color="primary.500">
+              {profile?.role === 'admin' ? '👑' : (profile?.role === 'worker' ? '🛠️' : '🌾')}
+            </Text>
+            <Text variant="caption" color="neutral.500">
+              {profile?.role === 'admin' ? 'Admin' : (profile?.role === 'worker' ? 'Worker' : 'Farmer')}
+            </Text>
+          </View>
+        </View>
+      </View>
+
+      <Card
+        title="Farm Profile"
+        style={styles.detailsCard}
+        headerRight={
+          profile?.role !== 'worker' ? (
             <TouchableOpacity onPress={handleEditProfile} style={styles.editButton} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
               <Text variant="body2" color="primary.600" weight="bold">Edit</Text>
             </TouchableOpacity>
+          ) : null
+        }
+      >
+        <View style={styles.detailRow}>
+          <Text variant="body2" color="neutral.500" style={styles.detailLabel}>Farm Name</Text>
+          <Text variant="body" weight="medium" color="neutral.800">{profile?.farm_name || 'Not Set'}</Text>
+        </View>
+        <View style={styles.detailRow}>
+          <Text variant="body2" color="neutral.500" style={styles.detailLabel}>Owner First Name</Text>
+          <Text variant="body" weight="medium" color="neutral.800">{profile?.owner_first_name || 'Not Set'}</Text>
+        </View>
+        <View style={styles.detailRow}>
+          <Text variant="body2" color="neutral.500" style={styles.detailLabel}>Owner Last Name</Text>
+          <Text variant="body" weight="medium" color="neutral.800">{profile?.owner_last_name || 'Not Set'}</Text>
+        </View>
+        <View style={styles.detailRow}>
+          <Text variant="body2" color="neutral.500" style={styles.detailLabel}>Email</Text>
+          <Text variant="body" weight="medium" color="neutral.800">{profile?.email || 'Not Set'}</Text>
+        </View>
+        <View style={styles.detailRow}>
+          <Text variant="body2" color="neutral.500" style={styles.detailLabel}>Phone Number</Text>
+          <Text variant="body" weight="medium" color="neutral.800">{profile?.phone_number || 'Not Set'}</Text>
+        </View>
+        <View style={styles.detailRow}>
+          <Text variant="body2" color="neutral.500" style={styles.detailLabel}>Address</Text>
+          <Text variant="body" weight="medium" color="neutral.800">{profile?.address || 'Not Set'}</Text>
+        </View>
+        <View style={styles.detailRow}>
+          <Text variant="body2" color="neutral.500" style={styles.detailLabel}>Location</Text>
+          <Text variant="body" weight="medium" color="neutral.800">{profile?.location || 'Not Set'}</Text>
+        </View>
+        <View style={styles.detailRow}>
+          <Text variant="body2" color="neutral.500" style={styles.detailLabel}>Province</Text>
+          <Text variant="body" weight="medium" color="neutral.800">{profile?.province || 'Not Set'}</Text>
+        </View>
+      </Card>
+
+      {/* Farm Workers Management Section for Farmers */}
+      {profile?.role === 'farmer' && (
+        <Card
+          title="Farm Workers"
+          style={styles.detailsCard}
+          headerRight={
+            <TouchableOpacity onPress={() => setIsAddWorkerVisible(true)} style={styles.editButton}>
+              <Text variant="body2" color="primary.600" weight="bold">+ Add Worker</Text>
+            </TouchableOpacity>
           }
         >
-          <View style={styles.detailRow}>
-            <Text variant="body2" color="neutral.500" style={styles.detailLabel}>Farm Name</Text>
-            <Text variant="body" weight="medium" color="neutral.800">{profile?.farm_name || 'Not Set'}</Text>
-          </View>
-          <View style={styles.detailRow}>
-            <Text variant="body2" color="neutral.500" style={styles.detailLabel}>Owner First Name</Text>
-            <Text variant="body" weight="medium" color="neutral.800">{profile?.owner_first_name || 'Not Set'}</Text>
-          </View>
-          <View style={styles.detailRow}>
-            <Text variant="body2" color="neutral.500" style={styles.detailLabel}>Owner Last Name</Text>
-            <Text variant="body" weight="medium" color="neutral.800">{profile?.owner_last_name || 'Not Set'}</Text>
-          </View>
-          <View style={styles.detailRow}>
-            <Text variant="body2" color="neutral.500" style={styles.detailLabel}>Email</Text>
-            <Text variant="body" weight="medium" color="neutral.800">{profile?.email || 'Not Set'}</Text>
-          </View>
-          <View style={styles.detailRow}>
-            <Text variant="body2" color="neutral.500" style={styles.detailLabel}>Phone Number</Text>
-            <Text variant="body" weight="medium" color="neutral.800">{profile?.phone_number || 'Not Set'}</Text>
-          </View>
-          <View style={styles.detailRow}>
-            <Text variant="body2" color="neutral.500" style={styles.detailLabel}>Address</Text>
-            <Text variant="body" weight="medium" color="neutral.800">{profile?.address || 'Not Set'}</Text>
-          </View>
-          <View style={styles.detailRow}>
-            <Text variant="body2" color="neutral.500" style={styles.detailLabel}>Location</Text>
-            <Text variant="body" weight="medium" color="neutral.800">{profile?.location || 'Not Set'}</Text>
-          </View>
-          <View style={styles.detailRow}>
-            <Text variant="body2" color="neutral.500" style={styles.detailLabel}>Province</Text>
-            <Text variant="body" weight="medium" color="neutral.800">{profile?.province || 'Not Set'}</Text>
-          </View>
-        </Card>
-
-        <View style={styles.menuContainer}>
-          {menuItems.map((item, idx) => (
-            <TouchableOpacity
-              key={item.id}
-              style={[
-                styles.menuItem,
-                idx < menuItems.length - 1 && { borderBottomWidth: 1, borderBottomColor: Colors.neutral[100] }
-              ]}
-              onPress={item.onPress ?? (() => item.route && router.push(item.route as any))}
-            >
-              {item.icon}
-              <Text
-                variant="body"
-                weight="medium"
-                style={styles.menuText}
-                color="neutral.700"
-              >
-                {item.title}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-
-        <TouchableOpacity
-          style={styles.menuContainer}
-          onPress={handleLogout}
-        >
-          <View style={styles.menuItem}>
-            <LogOut size={24} color={Colors.error[500]} />
-            <Text variant="body" weight="medium" style={styles.menuText} color={Colors.error[500]}>
-              Log Out
+          <View style={styles.workerInfoBox}>
+            <Text variant="caption" color="neutral.600" style={{ lineHeight: 16 }}>
+              Workers log in using your email ({profile.email}) and their assigned password. They cannot view marketplace or financial/sales records.
             </Text>
           </View>
-        </TouchableOpacity>
 
+          {loadingWorkers ? (
+            <ActivityIndicator size="small" color={Colors.primary[500]} style={{ marginVertical: 12 }} />
+          ) : workers.length === 0 ? (
+            <View style={{ paddingVertical: 12 }}>
+              <Text variant="body2" color="neutral.400">No worker accounts registered yet.</Text>
+            </View>
+          ) : (
+            workers.map((w) => (
+              <View key={w.id} style={styles.workerRow}>
+                <View style={{ flex: 1 }}>
+                  <Text variant="body" weight="bold" color="neutral.800">{w.worker_name}</Text>
+                  <Text variant="caption" color="neutral.500">
+                    Login Email: <Text weight="medium" style={{ fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace' }}>{w.farmer_email}</Text>
+                  </Text>
+                  <Text variant="caption" color="neutral.500">
+                    Password: <Text weight="medium" style={{ fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace' }}>{w.password}</Text>
+                  </Text>
+                </View>
+                <TouchableOpacity onPress={() => handleDeleteWorker(w)} style={styles.workerDeleteBtn}>
+                  <Trash2 size={16} color={Colors.error[500]} />
+                </TouchableOpacity>
+              </View>
+            ))
+          )}
+        </Card>
+      )}
+
+      <View style={styles.menuContainer}>
+        {menuItems.map((item, idx) => (
+          <TouchableOpacity
+            key={item.id}
+            style={[
+              styles.menuItem,
+              idx < menuItems.length - 1 && { borderBottomWidth: 1, borderBottomColor: Colors.neutral[100] }
+            ]}
+            onPress={item.onPress ?? (() => item.route && router.push(item.route as any))}
+          >
+            {item.icon}
+            <Text
+              variant="body"
+              weight="medium"
+              style={styles.menuText}
+              color="neutral.700"
+            >
+              {item.title}
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+
+      <TouchableOpacity
+        style={styles.menuContainer}
+        onPress={handleLogout}
+      >
+        <View style={styles.menuItem}>
+          <LogOut size={24} color={Colors.error[500]} />
+          <Text variant="body" weight="medium" style={styles.menuText} color={Colors.error[500]}>
+            Log Out
+          </Text>
+        </View>
+      </TouchableOpacity>
+
+      {profile?.role !== 'worker' && (
         <View style={styles.dangerZoneContainer}>
           <Text variant="body2" weight="bold" color="error.500" style={styles.dangerZoneTitle}>
             DANGER ZONE
@@ -309,7 +493,9 @@ function ProfileContent() {
             </Text>
           </TouchableOpacity>
         </View>
+      )}
       
+      {/* Edit Profile Modal */}
       <Modal
         animationType="slide"
         transparent={true}
@@ -397,7 +583,7 @@ function ProfileContent() {
                     style={styles.input}
                     value={editingProfile?.location || ''}
                     onChangeText={(text) => editingProfile && setEditingProfile({...editingProfile, location: text})}
-                    placeholder="e.g. Marondera"
+                    placeholder="e.g. Bindura"
                   />
                 </View>
 
@@ -407,25 +593,90 @@ function ProfileContent() {
                     style={styles.input}
                     value={editingProfile?.province || ''}
                     onChangeText={(text) => editingProfile && setEditingProfile({...editingProfile, province: text})}
-                    placeholder="e.g. Mashonaland East"
+                    placeholder="e.g. Mashonaland Central"
                   />
                 </View>
               </ScrollView>
 
               <View style={styles.modalButtons}>
-                <TouchableOpacity 
-                  style={styles.cancelButton} 
-                  onPress={() => { setIsEditProfileModalVisible(false); setEditingProfile(null); }}
+                <TouchableOpacity
+                  style={styles.cancelButton}
+                  onPress={() => setIsEditProfileModalVisible(false)}
+                  disabled={isSubmitting}
                 >
-                  <Text style={styles.cancelButtonText}>Cancel</Text>
+                  <Text variant="body" weight="bold" color="neutral.700" style={styles.cancelButtonText}>Cancel</Text>
                 </TouchableOpacity>
-                <TouchableOpacity 
-                  style={styles.saveButton} 
+                <TouchableOpacity
+                  style={styles.saveButton}
                   onPress={handleSaveProfile}
                   disabled={isSubmitting}
                 >
-                  <Text style={styles.saveButtonText}>
-                    {isSubmitting ? 'Saving...' : 'Save Changes'}
+                  <Text variant="body" weight="bold" color="white" style={styles.saveButtonText}>
+                    {isSubmitting ? 'Saving...' : 'Save Profile'}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
+
+      {/* Add Worker Modal */}
+      <Modal
+        animationType="slide"
+        transparent={true}
+        visible={isAddWorkerVisible}
+        onRequestClose={() => setIsAddWorkerVisible(false)}
+      >
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          style={{ flex: 1 }}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalContent}>
+              <Text variant="h6" weight="bold" style={styles.modalTitle}>Register Farm Worker</Text>
+              
+              <View style={styles.formGroup}>
+                <Text variant="body2" style={styles.label}>Worker Name</Text>
+                <TextInput
+                  style={styles.input}
+                  value={newWorkerName}
+                  onChangeText={setNewWorkerName}
+                  placeholder="e.g. John"
+                  autoCapitalize="words"
+                />
+              </View>
+
+              <View style={styles.formGroup}>
+                <Text variant="body2" style={styles.label}>Worker Password</Text>
+                <TextInput
+                  style={styles.input}
+                  value={newWorkerPassword}
+                  onChangeText={setNewWorkerPassword}
+                  placeholder="Enter worker password"
+                  secureTextEntry
+                  autoCapitalize="none"
+                />
+                <Text variant="caption" color="neutral.400" style={{ marginTop: 4 }}>
+                  Minimum 6 characters. Used with your email to log in.
+                </Text>
+              </View>
+
+              <View style={styles.modalButtons}>
+                <TouchableOpacity
+                  style={styles.cancelButton}
+                  onPress={() => setIsAddWorkerVisible(false)}
+                  disabled={addingWorker}
+                >
+                  <Text variant="body" weight="bold" color="neutral.700" style={styles.cancelButtonText}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.saveButton}
+                  onPress={handleAddWorker}
+                  disabled={addingWorker}
+                >
+                  <Text variant="body" weight="bold" color="white" style={styles.saveButtonText}>
+                    {addingWorker ? 'Registering...' : 'Register Worker'}
                   </Text>
                 </TouchableOpacity>
               </View>
@@ -443,59 +694,59 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.neutral[50],
   },
   header: {
-    padding: 24,
     backgroundColor: Colors.white,
-    borderRadius: 16,
-    margin: 16,
-    shadowColor: Colors.black,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 2,
+    padding: 24,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.neutral[150],
+    alignItems: 'stretch',
   },
   profileInfo: {
+    flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 24,
+    marginBottom: 20,
   },
   avatar: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    marginBottom: 16,
-    backgroundColor: Colors.neutral[100],
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: Colors.neutral[50],
+    borderWidth: 1,
+    borderColor: Colors.neutral[150],
     justifyContent: 'center',
     alignItems: 'center',
+    marginRight: 20,
   },
   nameContainer: {
-    alignItems: 'center',
+    flex: 1,
+    justifyContent: 'center',
   },
   statsContainer: {
     flexDirection: 'row',
-    justifyContent: 'space-around',
-    alignItems: 'center',
-    paddingTop: 16,
-    borderTopWidth: 1,
-    borderTopColor: Colors.neutral[100],
+    backgroundColor: Colors.neutral[50],
+    borderRadius: 16,
+    paddingVertical: 14,
+    borderWidth: 1,
+    borderColor: Colors.neutral[150],
   },
   statItem: {
-    alignItems: 'center',
     flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   statDivider: {
     width: 1,
-    height: 40,
+    height: '60%',
     backgroundColor: Colors.neutral[200],
+    alignSelf: 'center',
   },
   menuContainer: {
     backgroundColor: Colors.white,
     borderRadius: 16,
-    margin: 16,
-    paddingVertical: 8,
-    shadowColor: Colors.black,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 2,
+    marginHorizontal: 16,
+    marginVertical: 8,
+    borderWidth: 1,
+    borderColor: Colors.neutral[150],
+    overflow: 'hidden',
   },
   menuItem: {
     flexDirection: 'row',
@@ -622,5 +873,24 @@ const styles = StyleSheet.create({
   },
   cancelButtonText: {
     color: Colors.neutral[600],
+  },
+  workerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.neutral[100],
+  },
+  workerDeleteBtn: {
+    padding: 8,
+  },
+  workerInfoBox: {
+    backgroundColor: '#F5EEF8',
+    borderColor: '#EBDEF0',
+    borderWidth: 1,
+    borderRadius: 8,
+    padding: 10,
+    marginBottom: 12,
   },
 });

@@ -8,6 +8,7 @@ export interface Profile {
   role: string
   full_name?: string
   farm_name?: string
+  farmer_id?: string
 }
 
 interface AuthContextType {
@@ -118,7 +119,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signOut = async () => { await supabase.auth.signOut() }
 
-  const targetUserId = profile?.role === 'admin' ? (selectedFarmer?.id || session?.user.id) : session?.user.id
+  const targetUserId = profile?.role === 'admin' ? (selectedFarmer?.id || session?.user.id) : (profile?.role === 'worker' ? profile?.farmer_id : session?.user.id)
 
   return (
     <AuthContext.Provider value={{

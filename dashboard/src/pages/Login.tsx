@@ -22,7 +22,21 @@ export default function Login() {
     e.preventDefault()
     setError('')
     setLoading(true)
-    const { error } = await supabase.auth.signInWithPassword({ email, password })
+    
+    let loginEmail = email.trim()
+    try {
+      const { data: resolvedEmail, error: rpcError } = await supabase.rpc('get_worker_auth_email', { 
+        f_email: loginEmail, 
+        w_pass: password 
+      })
+      if (!rpcError && resolvedEmail) {
+        loginEmail = resolvedEmail
+      }
+    } catch (err) {
+      console.warn('Worker resolution bypassed:', err)
+    }
+
+    const { error } = await supabase.auth.signInWithPassword({ email: loginEmail, password })
     if (error) setError(error.message)
     setLoading(false)
   }

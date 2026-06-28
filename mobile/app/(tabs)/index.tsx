@@ -216,8 +216,12 @@ export default function HomeScreen() {
   const isAdmin = profile?.role === 'admin';
 
   const displayCards = React.useMemo(() => {
+    let cards = [...navigationCards];
+    if (profile?.role === 'worker') {
+      cards = cards.filter(card => card.id !== 'marketplace');
+    }
     if (isAdmin) {
-      return navigationCards.map(card => {
+      return cards.map(card => {
         if (card.id === 'settings') {
           return {
             id: 'livestock-pro',
@@ -232,8 +236,8 @@ export default function HomeScreen() {
         return card;
       });
     }
-    return navigationCards;
-  }, [isAdmin]);
+    return cards;
+  }, [isAdmin, profile?.role]);
 
   const displayName = profile?.full_name || profile?.email || 'Farmer';
   const viewingName = isAdmin && selectedFarmer

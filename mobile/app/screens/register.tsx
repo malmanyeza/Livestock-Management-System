@@ -5554,7 +5554,7 @@ function RegisterContent() {
     { key: 'weights',    label: 'Weights'    },
     { key: 'drugs',      label: 'Drugs'      },
     { key: 'mortality',  label: 'Mortality'  },
-    { key: 'sales',      label: 'Sales'      },
+    ...(profile?.role !== 'worker' ? [{ key: 'sales',      label: 'Sales'      }] : []),
     { key: 'feed',       label: 'Feed'       },
   ];
 

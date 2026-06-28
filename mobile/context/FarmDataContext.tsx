@@ -1009,7 +1009,7 @@ export const FarmDataProvider: React.FC<{ children: ReactNode }> = ({ children }
     await logout();
   };
 
-  const targetUserId = profile?.role === 'admin' ? selectedFarmer?.id : user?.id;
+  const targetUserId = profile?.role === 'admin' ? selectedFarmer?.id : (profile?.role === 'worker' ? profile?.farmer_id : user?.id);
 
   // --- FETCH SCORING RECORDS BY USER_ID ---
 
