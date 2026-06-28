@@ -39,7 +39,7 @@ function ProtectedRoutes() {
         />
         <Route 
           path="/workers" 
-          element={profile?.role === 'farmer' ? <Workers /> : <Navigate to="/" replace />} 
+          element={(profile?.role === 'farmer' || profile?.role === 'admin') ? <Workers /> : <Navigate to="/" replace />} 
         />
         <Route path="/livestock-pro" element={<LivestockPro />} />
         <Route path="*" element={<Navigate to="/" replace />} />

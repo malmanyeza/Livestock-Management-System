@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import { createClient } from '@supabase/supabase-js'
-import { Plus, Trash2, User, Key, Search, X, ShieldAlert, Clock, UserCheck } from 'lucide-react'
+import { Plus, Trash2, User, Key, Search, X, ShieldAlert, Users } from 'lucide-react'
 
 const C = {
   primary50:   '#F0F9EB',
@@ -35,7 +35,7 @@ const workerAuthClient = createClient(supabaseUrl, supabaseAnonKey, {
 })
 
 export default function Workers() {
-  const { profile } = useAuth()
+  const { profile, selectedFarmer } = useAuth()
   const [workers, setWorkers] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
@@ -47,14 +47,23 @@ export default function Workers() {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
+  const isSystemAdmin = profile?.role === 'admin'
+  const targetFarmerId = isSystemAdmin ? selectedFarmer?.id : profile?.id
+  const targetFarmerEmail = isSystemAdmin ? selectedFarmer?.email : profile?.email
+  const targetFarmerName = isSystemAdmin ? (selectedFarmer?.full_name || selectedFarmer?.email) : (profile?.full_name || profile?.email)
+
   const fetchWorkers = async () => {
-    if (!profile?.id) return
+    if (!targetFarmerId) {
+      setWorkers([])
+      setLoading(false)
+      return
+    }
     setLoading(true)
     try {
       const { data, error } = await supabase
         .from('workers')
         .select('*')
-        .eq('farmer_id', profile.id)
+        .eq('farmer_id', targetFarmerId)
         .order('created_at', { ascending: false })
       
       if (error) throw error
@@ -68,11 +77,14 @@ export default function Workers() {
 
   useEffect(() => {
     fetchWorkers()
-  }, [profile])
+  }, [targetFarmerId])
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!profile?.email || !profile?.id) return
+    if (!targetFarmerEmail || !targetFarmerId) {
+      setError('No active farmer selected.')
+      return
+    }
     if (!workerName.trim() || !password.trim()) {
       setError('Please fill in all fields.')
       return
@@ -88,7 +100,7 @@ export default function Workers() {
       // Create unique internal email suffix
       const randomSuffix = Math.floor(1000 + Math.random() * 9000)
       const sanitizedName = workerName.toLowerCase().replace(/[^a-z0-9]/g, '')
-      const authEmail = `${profile.email.split('@')[0]}+${sanitizedName}_${randomSuffix}@zvipfuwo.internal`
+      const authEmail = `${targetFarmerEmail.split('@')[0]}+${sanitizedName}_${randomSuffix}@zvipfuwo.internal`
 
       // 1. Create Auth user inside auth.users (triggers profile creation)
       const { data: signUpData, error: signUpError } = await workerAuthClient.auth.signUp({
@@ -107,8 +119,8 @@ export default function Workers() {
 
       // 2. Log worker in workers database table
       const { error: insertError } = await supabase.from('workers').insert({
-        farmer_id: profile.id,
-        farmer_email: profile.email,
+        farmer_id: targetFarmerId,
+        farmer_email: targetFarmerEmail,
         worker_name: workerName,
         password: password,
         auth_email: authEmail
@@ -149,6 +161,18 @@ export default function Workers() {
     w.auth_email.toLowerCase().includes(search.toLowerCase())
   )
 
+  if (isSystemAdmin && !selectedFarmer) {
+    return (
+      <div className="flex flex-col items-center justify-center h-96 p-6 text-center bg-white rounded-2xl border shadow-sm" style={{ borderColor: C.neutral200 }}>
+        <Users size={48} style={{ color: C.purple500 }} className="mb-4" />
+        <h3 className="text-lg font-bold" style={{ color: C.neutral900 }}>Select a Farmer</h3>
+        <p className="text-sm mt-1 max-w-sm text-neutral-500">
+          Please select a farmer portal from the top bar dropdown list to view or register their farm workers.
+        </p>
+      </div>
+    )
+  }
+
   if (loading && workers.length === 0) {
     return (
       <div className="flex items-center justify-center py-24">
@@ -162,7 +186,9 @@ export default function Workers() {
       <div className="flex items-center justify-between pb-2 border-b" style={{ borderColor: C.neutral100 }}>
         <div>
           <h2 className="text-2xl font-bold tracking-tight text-neutral-900">Farm Workers</h2>
-          <p className="text-sm mt-0.5 text-neutral-500">Add and manage worker credentials linked to your farm portal.</p>
+          <p className="text-sm mt-0.5 text-neutral-500">
+            Add and manage worker credentials linked to {isSystemAdmin ? `${targetFarmerName}'s` : 'your'} farm portal.
+          </p>
         </div>
       </div>
 
@@ -175,7 +201,7 @@ export default function Workers() {
         <div className="space-y-1">
           <h4 className="text-sm font-bold text-neutral-900">How Workers Log In</h4>
           <p className="text-xs leading-relaxed text-neutral-600">
-            Workers log in using **your email address** (<span className="font-semibold">{profile?.email}</span>) and the **unique password** you assign to them below. 
+            Workers log in using **the farmer's email address** (<span className="font-semibold">{targetFarmerEmail}</span>) and the **unique password** assigned to them below. 
             Once logged in, they can view and update herd registers, health logs, and events, but **marketplace, financial dashboards, and transaction tabs** will be completely hidden and inaccessible to them.
           </p>
         </div>
@@ -225,7 +251,7 @@ export default function Workers() {
               {filteredWorkers.length === 0 ? (
                 <tr>
                   <td colSpan={6} className="text-center py-12 text-neutral-500 font-normal">
-                    No worker accounts found.
+                    No worker accounts found for this farmer portal.
                   </td>
                 </tr>
               ) : filteredWorkers.map(item => (
@@ -295,7 +321,7 @@ export default function Workers() {
                   className="w-full rounded-xl px-4 py-2.5 text-sm outline-none border transition-colors focus:border-[#7AC142]"
                   style={{ borderColor: C.neutral200, color: C.neutral900, backgroundColor: C.neutral50 }} 
                 />
-                <p className="text-xs text-neutral-400 mt-1">Minimum 6 characters. This password will be used along with your email to log in.</p>
+                <p className="text-xs text-neutral-400 mt-1">Minimum 6 characters. This password will be used along with the farmer email to log in.</p>
               </div>
 
               <div className="flex gap-3 pt-4 border-t" style={{ borderColor: C.neutral100 }}>

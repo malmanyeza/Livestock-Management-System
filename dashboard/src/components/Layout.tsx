@@ -125,7 +125,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
               </NavLink>
             )
           })}
-          {profile?.role === 'farmer' && (
+          {(profile?.role === 'farmer' || (profile?.role === 'admin' && selectedFarmer)) && (
             <NavLink
               to="/workers"
               className={location.pathname.startsWith('/workers') ? 'nav-link-active' : 'nav-link'}

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { View, StyleSheet, TouchableOpacity, ScrollView, Alert, Platform, Modal, TextInput, KeyboardAvoidingView, ActivityIndicator } from 'react-native';
-import { Settings, LogOut, HelpCircle, Bell, User, ShieldCheck, Trash2, Plus, X } from 'lucide-react-native';
+import { Settings, LogOut, HelpCircle, Bell, User, ShieldCheck, Trash2, Plus, X, Users } from 'lucide-react-native';
 import { Text } from '../../components/typography/Text';
 import { ScreenContainer } from '../../components/layout/ScreenContainer';
 import Colors from '../../constants/Colors';
@@ -25,7 +25,7 @@ export default function ProfileScreen() {
 }
 
 function ProfileContent() {
-  const { profile, animals, logout, deleteAccount, updateProfile } = useFarmData();
+  const { profile, animals, logout, deleteAccount, updateProfile, selectedFarmer } = useFarmData();
 
   const [isEditProfileModalVisible, setIsEditProfileModalVisible] = useState(false);
   const [editingProfile, setEditingProfile] = useState<Partial<typeof profile> | null>(null);
@@ -39,14 +39,23 @@ function ProfileContent() {
   const [newWorkerPassword, setNewWorkerPassword] = useState('');
   const [addingWorker, setAddingWorker] = useState(false);
 
+  const isSystemAdmin = profile?.role === 'admin';
+  const targetFarmer = isSystemAdmin ? selectedFarmer : profile;
+  const targetFarmerId = targetFarmer?.id;
+  const targetFarmerEmail = targetFarmer?.email;
+  const targetFarmerName = isSystemAdmin ? (selectedFarmer?.full_name || selectedFarmer?.email) : (profile?.full_name || profile?.email);
+
   const fetchWorkers = async () => {
-    if (!supabase || !profile?.id || profile?.role !== 'farmer') return;
+    if (!supabase || !targetFarmerId) {
+      setWorkers([]);
+      return;
+    }
     setLoadingWorkers(true);
     try {
       const { data, error } = await supabase
         .from('workers')
         .select('*')
-        .eq('farmer_id', profile.id)
+        .eq('farmer_id', targetFarmerId)
         .order('created_at', { ascending: false });
       if (!error && data) {
         setWorkers(data);
@@ -60,7 +69,7 @@ function ProfileContent() {
 
   useEffect(() => {
     fetchWorkers();
-  }, [profile]);
+  }, [targetFarmerId]);
 
   const handleAddWorker = async () => {
     if (!newWorkerName.trim() || !newWorkerPassword.trim()) {
@@ -71,7 +80,7 @@ function ProfileContent() {
       Alert.alert('Error', 'Password must be at least 6 characters.');
       return;
     }
-    if (!profile?.email || !profile?.id) return;
+    if (!targetFarmerEmail || !targetFarmerId) return;
 
     setAddingWorker(true);
     try {
@@ -84,7 +93,7 @@ function ProfileContent() {
 
       const randomSuffix = Math.floor(1000 + Math.random() * 9000);
       const sanitizedName = newWorkerName.toLowerCase().replace(/[^a-z0-9]/g, '');
-      const authEmail = `${profile.email.split('@')[0]}+${sanitizedName}_${randomSuffix}@zvipfuwo.internal`;
+      const authEmail = `${targetFarmerEmail.split('@')[0]}+${sanitizedName}_${randomSuffix}@zvipfuwo.internal`;
 
       // 1. SignUp
       const { data: signUpData, error: signUpError } = await workerAuthClient.auth.signUp({
@@ -103,8 +112,8 @@ function ProfileContent() {
 
       // 2. DB Insert
       const { error: insertError } = await supabase.from('workers').insert({
-        farmer_id: profile.id,
-        farmer_email: profile.email,
+        farmer_id: targetFarmerId,
+        farmer_email: targetFarmerEmail,
         worker_name: newWorkerName,
         password: newWorkerPassword,
         auth_email: authEmail
@@ -396,8 +405,8 @@ function ProfileContent() {
         </View>
       </Card>
 
-      {/* Farm Workers Management Section for Farmers */}
-      {profile?.role === 'farmer' && (
+      {/* Farm Workers Management Section for Farmers and Admins */}
+      {(profile?.role === 'farmer' || (isSystemAdmin && selectedFarmer)) ? (
         <Card
           title="Farm Workers"
           style={styles.detailsCard}
@@ -409,7 +418,7 @@ function ProfileContent() {
         >
           <View style={styles.workerInfoBox}>
             <Text variant="caption" color="neutral.600" style={{ lineHeight: 16 }}>
-              Workers log in using your email ({profile.email}) and their assigned password. They cannot view marketplace or financial/sales records.
+              Workers log in using {isSystemAdmin ? `${targetFarmerName}'s` : 'your'} email ({targetFarmerEmail}) and their assigned password. They cannot view marketplace or financial/sales records.
             </Text>
           </View>
 
@@ -438,7 +447,16 @@ function ProfileContent() {
             ))
           )}
         </Card>
-      )}
+      ) : isSystemAdmin ? (
+        <Card title="Farm Workers" style={styles.detailsCard}>
+          <View style={styles.promptContainer}>
+            <Users size={32} color={Colors.neutral[400]} style={{ marginBottom: 8 }} />
+            <Text variant="body2" color="neutral.500" style={{ textAlign: 'center' }}>
+              Please select a farmer portal from the home screen quick access list to view or manage their farm workers.
+            </Text>
+          </View>
+        </Card>
+      ) : null}
 
       <View style={styles.menuContainer}>
         {menuItems.map((item, idx) => (
@@ -658,7 +676,7 @@ function ProfileContent() {
                   autoCapitalize="none"
                 />
                 <Text variant="caption" color="neutral.400" style={{ marginTop: 4 }}>
-                  Minimum 6 characters. Used with your email to log in.
+                  Minimum 6 characters. Used with the farmer's email to log in.
                 </Text>
               </View>
 
@@ -892,5 +910,10 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     padding: 10,
     marginBottom: 12,
+  },
+  promptContainer: {
+    paddingVertical: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });
