@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { supabase } from '../lib/supabase'
+import { supabase, supabaseUrl, supabaseAnonKey } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import { createClient } from '@supabase/supabase-js'
 import { Plus, Trash2, User, Key, Search, X, ShieldAlert, Users } from 'lucide-react'
@@ -28,8 +28,6 @@ const C = {
 }
 
 // Temporary, non-persisted client for worker sign-up
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || ''
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || ''
 const workerAuthClient = createClient(supabaseUrl, supabaseAnonKey, {
   auth: { persistSession: false, autoRefreshToken: false }
 })
