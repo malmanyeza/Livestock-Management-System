@@ -139,7 +139,7 @@ function ProductionMetricCard({
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export default function Production() {
-  const { targetUserId } = useAuth()
+  const { targetUserId, selectedProductionYear } = useAuth()
   const [animals, setAnimals]   = useState<any[]>([])
   const [mortality, setMortality] = useState(0)
   const [loading, setLoading]   = useState(true)
@@ -153,14 +153,14 @@ export default function Production() {
     if (!targetUserId) return
     setLoading(true)
     Promise.all([
-      supabase.from('animals').select('weight,previous_weight,days_between_weights,stock_type,age').eq('user_id', targetUserId),
-      supabase.from('mortality_records').select('id,is_pre_weaning', { count: 'exact' }).eq('user_id', targetUserId),
+      supabase.from('animals').select('weight,previous_weight,days_between_weights,stock_type,age').eq('user_id', targetUserId).eq('production_year', selectedProductionYear),
+      supabase.from('mortality_records').select('id,is_pre_weaning', { count: 'exact' }).eq('user_id', targetUserId).eq('production_year', selectedProductionYear),
     ]).then(([{ data: a }, { data: m, count }]) => {
       setAnimals(a ?? [])
       setMortality(count ?? 0)
       setLoading(false)
     })
-  }, [targetUserId])
+  }, [targetUserId, selectedProductionYear])
 
   // Derived metrics — same formulas as FarmDataContext
   const calves = animals.filter(a => isCalf(a.age, a.stock_type))

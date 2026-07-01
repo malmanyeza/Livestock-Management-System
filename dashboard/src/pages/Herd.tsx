@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import { Search } from 'lucide-react'
+import AnimalProfileModal from '../components/AnimalProfileModal'
 
 interface Animal {
   id: string; tag: string; breed: string; sex: string
@@ -9,25 +10,27 @@ interface Animal {
   date_of_birth: string; weight?: number; bcs?: number
   sire?: string; dam?: string; birth_weight?: string
   date_of_weaning?: string; weaning_weight?: number; description?: string
+  user_id: string
 }
 
 export default function Herd() {
-  const { targetUserId } = useAuth()
+  const { targetUserId, selectedProductionYear } = useAuth()
   const [animals, setAnimals] = useState<Animal[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [filterSex, setFilterSex] = useState('')
   const [filterStock, setFilterStock] = useState('')
+  const [selectedAnimalProfile, setSelectedAnimalProfile] = useState<any | null>(null)
 
   useEffect(() => {
     if (!targetUserId) return
     setLoading(true)
-    supabase.from('animals').select('*').eq('user_id', targetUserId)
+    supabase.from('animals').select('*').eq('user_id', targetUserId).eq('production_year', selectedProductionYear)
       .order('tag').then(({ data }) => {
         setAnimals(data ?? [])
         setLoading(false)
       })
-  }, [targetUserId])
+  }, [targetUserId, selectedProductionYear])
 
   const filtered = animals.filter(a => {
     const q = search.toLowerCase()
@@ -89,7 +92,15 @@ export default function Herd() {
                 ) : filtered.map((a, index) => (
                   <tr key={a.id} className="hover:bg-gray-800/40 transition-colors">
                     <td className="px-4 py-3 text-gray-400 font-medium">{index + 1}</td>
-                    <td className="px-4 py-3 font-semibold text-white">{a.tag}</td>
+                    <td className="px-4 py-3 font-semibold">
+                      <button
+                        onClick={() => setSelectedAnimalProfile(a)}
+                        className="hover:underline font-bold text-left outline-none"
+                        style={{ color: '#7AC142' }}
+                      >
+                        {a.tag}
+                      </button>
+                    </td>
                     <td className="px-4 py-3 text-gray-300">{a.breed || '—'}</td>
                     <td className="px-4 py-3">
                       <span className={a.sex === 'Male' ? 'badge-blue' : 'badge-green'}>{a.sex}</span>
@@ -113,6 +124,13 @@ export default function Herd() {
           </div>
         )}
       </div>
+
+      {selectedAnimalProfile && (
+        <AnimalProfileModal
+          animal={selectedAnimalProfile}
+          onClose={() => setSelectedAnimalProfile(null)}
+        />
+      )}
     </div>
   )
 }

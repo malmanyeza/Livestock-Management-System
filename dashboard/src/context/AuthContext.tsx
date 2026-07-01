@@ -9,6 +9,7 @@ export interface Profile {
   full_name?: string
   farm_name?: string
   farmer_id?: string
+  current_production_year?: number
 }
 
 interface AuthContextType {
@@ -22,6 +23,9 @@ interface AuthContextType {
   targetUserId: string | undefined
   farmerModalOpen: boolean
   setFarmerModalOpen: (open: boolean) => void
+  selectedProductionYear: number
+  setSelectedProductionYear: (year: number) => void
+  refreshProfile: () => Promise<void>
 }
 
 const AuthContext = createContext<AuthContextType>({
@@ -34,7 +38,10 @@ const AuthContext = createContext<AuthContextType>({
   setSelectedFarmer: () => {},
   targetUserId: undefined,
   farmerModalOpen: false,
-  setFarmerModalOpen: () => {}
+  setFarmerModalOpen: () => {},
+  selectedProductionYear: 2026,
+  setSelectedProductionYear: () => {},
+  refreshProfile: async () => {}
 })
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
@@ -44,6 +51,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [selectedFarmer, setSelectedFarmerState] = useState<Profile | null>(null)
   const [farmerModalOpen, setFarmerModalOpen] = useState(false)
   const [loading, setLoading] = useState(true)
+  const [selectedProductionYear, setSelectedProductionYear] = useState<number>(2026)
 
   const setSelectedFarmer = (farmer: Profile | null) => {
     setSelectedFarmerState(farmer)
@@ -56,10 +64,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }
 
+  const refreshProfile = async () => {
+    if (session?.user.id) {
+      await loadProfileAndFarmers(session.user.id)
+    }
+  }
+
   const loadProfileAndFarmers = async (uid: string) => {
     try {
       const { data: prof } = await supabase.from('profiles').select('*').eq('id', uid).maybeSingle()
       setProfile(prof)
+      if (prof?.current_production_year) {
+        setSelectedProductionYear(prof.current_production_year)
+      }
       if (prof?.role === 'admin') {
         const { data: farmersList } = await supabase.from('profiles').select('*').eq('role', 'farmer').order('full_name')
         const list = farmersList || []
@@ -132,7 +149,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setSelectedFarmer,
       targetUserId,
       farmerModalOpen,
-      setFarmerModalOpen
+      setFarmerModalOpen,
+      selectedProductionYear,
+      setSelectedProductionYear,
+      refreshProfile
     }}>
       {children}
     </AuthContext.Provider>

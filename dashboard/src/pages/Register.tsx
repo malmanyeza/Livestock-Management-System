@@ -2,9 +2,10 @@ import { useEffect, useState, useMemo } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import {
-  Plus, Search, X, Database, ClipboardList, Heart, Dna, ShieldAlert, Scale, ChevronDown, Package, DollarSign, Edit
+  Plus, Search, X, Database, ClipboardList, Heart, Dna, ShieldAlert, Scale, ChevronDown, Package, DollarSign, Edit, Trash2
 } from 'lucide-react'
 import { useSearchParams } from 'react-router-dom'
+import AnimalProfileModal from '../components/AnimalProfileModal'
 
 // ─── Color constants ──────────────────────────────────────────────────────────
 const C = {
@@ -36,22 +37,6 @@ const TABS: { key: Tab; label: string; icon: any }[] = [
 ]
 
 // Badge helpers
-const tagBadge = (tag: string) => {
-  if (!tag) return '—'
-  const isAll = tag.toLowerCase() === 'all'
-  return (
-    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold border shadow-sm transition-all hover:scale-105"
-      style={{
-        backgroundColor: isAll ? '#E6F9F1' : '#F8F9FA',
-        borderColor: isAll ? '#9FE4C1' : '#DEE2E6',
-        color: isAll ? '#27714B' : '#343A40',
-        fontFamily: 'monospace',
-      }}>
-      {isAll ? '👥 All Herd' : `🏷️ ${tag}`}
-    </span>
-  )
-}
-
 const statusBadge = (s: string | null | undefined) => {
   if (!s) return <span className="text-neutral-400">—</span>
   let bg = '#F8F9FA', border = '#DEE2E6', color = '#495057'
@@ -1347,18 +1332,18 @@ function AddPregnancyModal({ animals, onClose, onSave }: { animals: any[]; onClo
 }
 
 // ─── Add Bull Modal ──────────────────────────────────────────────────────────
-function AddBullModal({ animals, onClose, onSave }: { animals: any[]; onClose: () => void; onSave: (d: any) => Promise<void> }) {
+function AddBullModal({ animals, editingBull, onClose, onSave }: { animals: any[]; editingBull?: any; onClose: () => void; onSave: (d: any) => Promise<void> }) {
   const [form, setForm] = useState({
-    bullId: '',
-    date: new Date().toISOString().split('T')[0],
-    age: '',
-    pe: 'Good',
-    spermMotility: '',
-    spermMorphology: '',
-    scrotal: '',
-    libido: 'Good',
-    score: '',
-    classification: 'SPB'
+    bullId: editingBull?.bull_id || '',
+    date: editingBull?.date || new Date().toISOString().split('T')[0],
+    age: editingBull?.age || '',
+    pe: editingBull?.pe || 'Good',
+    spermMotility: editingBull?.sperm_motility || '',
+    spermMorphology: editingBull?.sperm_morphology || '',
+    scrotal: editingBull?.scrotal || '',
+    libido: editingBull?.libido || 'Good',
+    score: editingBull?.score || '',
+    classification: editingBull?.classification || 'SPB'
   })
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
@@ -1383,8 +1368,8 @@ function AddBullModal({ animals, onClose, onSave }: { animals: any[]; onClose: (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/55" style={{ backgroundColor: 'rgba(0,0,0,0.45)' }}>
       <div className="w-full max-w-md rounded-2xl overflow-hidden flex flex-col shadow-2xl transition-all" style={{ backgroundColor: C.white, maxHeight: '90vh' }}>
         <div className="flex items-center justify-between px-6 py-5 border-b" style={{ borderColor: C.neutral100 }}>
-          <h3 className="text-lg font-bold" style={{ color: C.neutral900 }}>Add Bull Evaluation</h3>
-          <button onClick={onClose} className="p-1 hover:bg-neutral-100 rounded-lg"><X size={18} style={{ color: C.neutral500 }} /></button>
+          <h3 className="text-lg font-bold" style={{ color: C.neutral900 }}>{editingBull ? 'Edit Bull Evaluation' : 'Add Bull Evaluation'}</h3>
+          <button onClick={onClose} className="p-1 hover:bg-neutral-100 rounded-lg"><X size={18} style={{ color: C.neutral50 }} /></button>
         </div>
         <div className="overflow-y-auto flex-1 px-6 py-4 space-y-4">
           {error && <p className="text-sm px-3 py-2 rounded-xl" style={{ backgroundColor: C.error50, color: C.error500 }}>{error}</p>}
@@ -1392,13 +1377,13 @@ function AddBullModal({ animals, onClose, onSave }: { animals: any[]; onClose: (
           <div>
             <label className="block text-xs font-semibold mb-1 uppercase tracking-wider" style={{ color: C.neutral500 }}>Select Bull</label>
             <div className="relative">
-              <select value={form.bullId} onChange={e => setForm(p => ({ ...p, bullId: e.target.value }))}
-                className="w-full rounded-xl px-4 py-2.5 text-sm outline-none border appearance-none cursor-pointer"
+              <select value={form.bullId} onChange={e => setForm(p => ({ ...p, bullId: e.target.value }))} disabled={!!editingBull}
+                className="w-full rounded-xl px-4 py-2.5 text-sm outline-none border appearance-none cursor-pointer disabled:opacity-60"
                 style={{ borderColor: C.neutral200, color: C.neutral900, backgroundColor: C.neutral50 }}>
                 <option value="">Select bull…</option>
                 {bullAnimals.map(a => <option key={a.id} value={a.tag}>{a.tag} ({a.breed})</option>)}
               </select>
-              <ChevronDown size={14} className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: C.neutral500 }} />
+              {!editingBull && <ChevronDown size={14} className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: C.neutral500 }} />}
             </div>
           </div>
 
@@ -1495,7 +1480,7 @@ function AddBullModal({ animals, onClose, onSave }: { animals: any[]; onClose: (
             style={{ backgroundColor: C.neutral100, color: C.neutral700 }}>Cancel</button>
           <button onClick={handleSave} disabled={saving} className="flex-1 py-3 rounded-xl text-sm font-bold text-white shadow-sm hover:opacity-95 active:scale-[0.98] transition-all"
             style={{ backgroundColor: C.primary600, opacity: saving ? 0.7 : 1 }}>
-            {saving ? 'Saving…' : 'Save Record'}
+            {saving ? 'Saving…' : (editingBull ? 'Save Changes' : 'Add Record')}
           </button>
         </div>
       </div>
@@ -1826,7 +1811,7 @@ function AddTransactionModal({ animals, onClose, onSave }: { animals: any[]; onC
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 export default function Register() {
-  const { session, targetUserId, profile } = useAuth()
+  const { session, targetUserId, profile, selectedProductionYear } = useAuth()
   const [searchParams] = useSearchParams()
   const tabParam = searchParams.get('tab') as Tab
   const [activeTab, setActiveTab]   = useState<Tab>(tabParam || 'herd')
@@ -1844,6 +1829,49 @@ export default function Register() {
   const [pregnancyRecords, setPregnancyRecords] = useState<any[]>([])
   const [bullRecords, setBullRecords]           = useState<any[]>([])
   const [transactions, setTransactions]         = useState<any[]>([])
+
+  const [selectedAnimalProfile, setSelectedAnimalProfile] = useState<any | null>(null)
+
+  const openAnimalProfileByTag = (tag: string | null | undefined) => {
+    if (!tag || tag.toLowerCase() === 'all') return
+    const found = animals.find(a => a.tag === tag)
+    if (found) {
+      setSelectedAnimalProfile(found)
+    } else {
+      setSelectedAnimalProfile({
+        tag,
+        user_id: targetUserId,
+        breed: 'Unknown',
+        sex: 'Unknown',
+        stock_type: 'Unknown'
+      })
+    }
+  }
+
+  const tagBadge = (tag: string) => {
+    if (!tag) return '—'
+    const isAll = tag.toLowerCase() === 'all'
+    return (
+      <button
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation()
+          openAnimalProfileByTag(tag)
+        }}
+        className="outline-none text-left hover:opacity-80 transition-opacity"
+      >
+        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold border shadow-sm transition-all hover:scale-105"
+          style={{
+            backgroundColor: isAll ? '#E6F9F1' : '#F8F9FA',
+            borderColor: isAll ? '#9FE4C1' : '#DEE2E6',
+            color: isAll ? '#27714B' : '#343A40',
+            fontFamily: 'monospace',
+          }}>
+          {isAll ? '👥 All Herd' : `🏷️ ${tag}`}
+        </span>
+      </button>
+    )
+  }
 
   useEffect(() => {
     if (tabParam && TABS.some(t => t.key === tabParam)) {
@@ -1868,21 +1896,22 @@ export default function Register() {
   const [editingDrug, setEditingDrug]           = useState<any | null>(null)
   const [editingHealth, setEditingHealth]       = useState<any | null>(null)
   const [editingBreeding, setEditingBreeding]   = useState<any | null>(null)
+  const [editingBull, setEditingBull]           = useState<any | null>(null)
 
   useEffect(() => {
     if (!targetUserId) return
     setLoading(true)
     Promise.all([
-      supabase.from('animals').select('*').eq('user_id', targetUserId).order('tag'),
+      supabase.from('animals').select('*').eq('user_id', targetUserId).eq('production_year', selectedProductionYear).order('tag'),
       supabase.from('drugs').select('*').eq('user_id', targetUserId).order('name'),
-      supabase.from('health_records').select('*').eq('user_id', targetUserId).order('date', { ascending: false }),
-      supabase.from('breeding_records').select('*').eq('user_id', targetUserId).order('heat_detection_date', { ascending: false }),
-      supabase.from('mortality_records').select('*').eq('user_id', targetUserId).order('date', { ascending: false }),
-      supabase.from('animal_weights').select('*').eq('user_id', targetUserId).order('animal_tag'),
+      supabase.from('health_records').select('*').eq('user_id', targetUserId).eq('production_year', selectedProductionYear).order('date', { ascending: false }),
+      supabase.from('breeding_records').select('*').eq('user_id', targetUserId).eq('production_year', selectedProductionYear).order('heat_detection_date', { ascending: false }),
+      supabase.from('mortality_records').select('*').eq('user_id', targetUserId).eq('production_year', selectedProductionYear).order('date', { ascending: false }),
+      supabase.from('animal_weights').select('*').eq('user_id', targetUserId).eq('production_year', selectedProductionYear).order('animal_tag'),
       supabase.from('feed_inventory').select('*').eq('user_id', targetUserId).order('name'),
-      supabase.from('pregnancy_records').select('*').eq('user_id', targetUserId).order('last_service_date', { ascending: false }),
-      supabase.from('bull_breeding_records').select('*').eq('user_id', targetUserId).order('date', { ascending: false }),
-      supabase.from('transaction_records').select('*').eq('user_id', targetUserId).order('date', { ascending: false }),
+      supabase.from('pregnancy_records').select('*').eq('user_id', targetUserId).eq('production_year', selectedProductionYear).order('last_service_date', { ascending: false }),
+      supabase.from('bull_breeding_records').select('*').eq('user_id', targetUserId).eq('production_year', selectedProductionYear).order('date', { ascending: false }),
+      supabase.from('transaction_records').select('*').eq('user_id', targetUserId).eq('production_year', selectedProductionYear).order('date', { ascending: false }),
     ]).then(([a, d, h, b, m, w, f, p, bull, txs]) => {
       const deadTags = new Set((m.data || []).map((row: any) => row.animal_tag).filter(Boolean))
       const aliveAnimals = (a.data || []).filter((row: any) => !deadTags.has(row.tag))
@@ -1899,7 +1928,7 @@ export default function Register() {
       setTransactions(txs.data ?? [])
       setLoading(false)
     })
-  }, [targetUserId])
+  }, [targetUserId, selectedProductionYear])
 
   // Filtered search
   const q = search.toLowerCase()
@@ -1971,7 +2000,8 @@ export default function Register() {
       cause: d.cause,
       description: d.description || null,
       observer: d.observer || null,
-      is_pre_weaning: false
+      is_pre_weaning: false,
+      production_year: selectedProductionYear
     }
     const { data, error } = await supabase.from('mortality_records').insert(dbPayload).select().single()
     if (error) throw error
@@ -1982,6 +2012,7 @@ export default function Register() {
       .delete()
       .eq('tag', d.animalId)
       .eq('user_id', targetUserId)
+      .eq('production_year', selectedProductionYear)
     if (delErr) console.warn("Error deleting dead animal:", delErr)
 
     setAnimals(prev => prev.filter(a => a.tag !== d.animalId))
@@ -1991,7 +2022,7 @@ export default function Register() {
 
   const addAnimal = async (d: any) => {
     if (!session || !targetUserId) return
-    const { data, error } = await supabase.from('animals').insert({ ...d, user_id: targetUserId }).select().single()
+    const { data, error } = await supabase.from('animals').insert({ ...d, user_id: targetUserId, production_year: selectedProductionYear }).select().single()
     if (error) throw error
     setAnimals(prev => [...prev, data])
     setShowAddAnimal(false)
@@ -1999,7 +2030,7 @@ export default function Register() {
 
   const addCalf = async (d: any) => {
     if (!session || !targetUserId) return
-    const { data, error } = await supabase.from('animals').insert({ ...d, user_id: targetUserId }).select().single()
+    const { data, error } = await supabase.from('animals').insert({ ...d, user_id: targetUserId, production_year: selectedProductionYear }).select().single()
     if (error) throw error
     setAnimals(prev => [...prev, data])
     setShowAddCalf(false)
@@ -2030,7 +2061,8 @@ export default function Register() {
       treatment: d.treatment,
       status: d.status,
       done_by: d.doneBy || null,
-      special_notes: d.specialNotes || null
+      special_notes: d.specialNotes || null,
+      production_year: selectedProductionYear
     }
     const { data, error } = await supabase.from('health_records').insert(dbPayload).select().single()
     if (error) throw error
@@ -2074,7 +2106,8 @@ export default function Register() {
       date_served_2: d.dateServed2 || null,
       breeding_method_2: d.breedingMethod2 || null,
       sire_used_2: d.sireUsed2 || null,
-      return_to_heat_date_2: d.returnToHeatDate2 || null
+      return_to_heat_date_2: d.returnToHeatDate2 || null,
+      production_year: selectedProductionYear
     }
     const { data, error } = await supabase.from('breeding_records').insert(dbPayload).select().single()
     if (error) throw error
@@ -2129,7 +2162,8 @@ export default function Register() {
       expected_return_to_heat_date: d.expectedReturnToHeatDate || null,
       actual_first_heat_date: d.actualFirstHeatDate || null,
       expected_second_heat_date: d.expectedSecondHeatDate || null,
-      actual_second_heat_date: d.actualSecondHeatDate || null
+      actual_second_heat_date: d.actualSecondHeatDate || null,
+      production_year: selectedProductionYear
     }
     const { data, error } = await supabase.from('pregnancy_records').insert(dbPayload).select().single()
     if (error) throw error
@@ -2150,12 +2184,40 @@ export default function Register() {
       scrotal: d.scrotal || null,
       libido: d.libido,
       score: d.score || null,
-      classification: d.classification
+      classification: d.classification,
+      production_year: selectedProductionYear
     }
     const { data, error } = await supabase.from('bull_breeding_records').insert(dbPayload).select().single()
     if (error) throw error
     setBullRecords(prev => [...prev, data])
     setShowAddBull(false)
+  }
+
+  const saveEditedBull = async (d: any) => {
+    if (!session || !targetUserId || !editingBull) return
+    const dbPayload = {
+      date: d.date,
+      age: d.age || null,
+      pe: d.pe,
+      sperm_motility: d.spermMotility || null,
+      sperm_morphology: d.spermMorphology || null,
+      scrotal: d.scrotal || null,
+      libido: d.libido,
+      score: d.score || null,
+      classification: d.classification
+    }
+    const { data, error } = await supabase.from('bull_breeding_records').update(dbPayload).eq('id', editingBull.id).select().single()
+    if (error) throw error
+    setBullRecords(prev => prev.map(item => item.id === editingBull.id ? data : item))
+    setEditingBull(null)
+  }
+
+  const deleteBullRecord = async (id: string) => {
+    if (!window.confirm('Are you sure you want to delete this bull evaluation record?')) return
+    const { error } = await supabase.from('bull_breeding_records').delete().eq('id', id)
+    if (error) throw error
+    setBullRecords(prev => prev.filter(item => item.id !== id))
+    setEditingBull(null)
   }
 
   const addWeightRecord = async (d: any) => {
@@ -2175,9 +2237,10 @@ export default function Register() {
       sep: d.sep ? Number(d.sep) : null,
       oct: d.oct ? Number(d.oct) : null,
       nov: d.nov ? Number(d.nov) : null,
-      dec: d.dec ? Number(d.dec) : null
+      dec: d.dec ? Number(d.dec) : null,
+      production_year: selectedProductionYear
     }
-    const { data, error } = await supabase.from('animal_weights').upsert(dbPayload, { onConflict: 'user_id,animal_tag,year' }).select().single()
+    const { data, error } = await supabase.from('animal_weights').upsert(dbPayload, { onConflict: 'user_id,animal_tag,year,production_year' }).select().single()
     if (error) throw error
     setWeights(prev => {
       const idx = prev.findIndex(w => w.animal_tag === d.animalTag && w.year === Number(d.year))
@@ -2219,6 +2282,8 @@ export default function Register() {
         .from('animals')
         .delete()
         .eq('tag', d.animalTag)
+        .eq('user_id', targetUserId)
+        .eq('production_year', selectedProductionYear)
       if (delErr) console.warn("Error deleting sold animal:", delErr)
       setAnimals(prev => prev.filter(a => a.tag !== d.animalTag))
     }
@@ -2229,7 +2294,8 @@ export default function Register() {
       type: d.type,
       amount: d.type === 'Sale' ? Math.abs(amt) : -Math.abs(amt),
       description: d.description,
-      category: d.category || 'Livestock'
+      category: d.category || 'Livestock',
+      production_year: selectedProductionYear
     }
 
     const { data, error } = await supabase.from('transaction_records').insert(dbPayload).select().single()
@@ -2601,6 +2667,21 @@ export default function Register() {
                 { key: 'libido',           label: 'Libido', render: statusBadge, align: 'center' },
                 { key: 'score',            label: 'Score', align: 'center', render: (v) => v ? <span className="font-bold text-neutral-800">{v}</span> : '—' },
                 { key: 'classification',   label: 'Classification', render: statusBadge, align: 'center' },
+                {
+                  key: 'actions',
+                  label: 'Actions',
+                  align: 'center',
+                  render: (_, row) => (
+                    <div className="flex items-center justify-center gap-2">
+                      <button onClick={() => setEditingBull(row)} className="p-1.5 text-neutral-500 hover:text-neutral-900 hover:bg-neutral-100 rounded-lg transition-colors">
+                        <Edit size={14} />
+                      </button>
+                      <button onClick={() => deleteBullRecord(row.id)} className="p-1.5 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors">
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                  )
+                }
               ]} />
             </>
           )}
@@ -2721,6 +2802,14 @@ export default function Register() {
       {editingDrug     && <AddDrugModal     editingDrug={editingDrug} onClose={() => setEditingDrug(null)} onSave={saveEditedDrug} />}
       {editingHealth   && <AddHealthModal   animals={animals} editingHealth={editingHealth} onClose={() => setEditingHealth(null)} onSave={saveEditedHealth} />}
       {editingBreeding && <AddBreedingModal animals={animals} editingBreeding={editingBreeding} onClose={() => setEditingBreeding(null)} onSave={saveEditedBreeding} />}
+      {editingBull     && <AddBullModal     animals={animals} editingBull={editingBull} onClose={() => setEditingBull(null)} onSave={saveEditedBull} />}
+
+      {selectedAnimalProfile && (
+        <AnimalProfileModal
+          animal={selectedAnimalProfile}
+          onClose={() => setSelectedAnimalProfile(null)}
+        />
+      )}
     </div>
   )
 }

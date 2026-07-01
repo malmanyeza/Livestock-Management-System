@@ -132,7 +132,7 @@ function DataTable({ title, rows, cols }: {
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export default function Records() {
-  const { session, targetUserId } = useAuth()
+  const { session, targetUserId, selectedProductionYear } = useAuth()
   const [fi, setFi] = useState<Record<string, any>>({})
   const [animalCount, setAnimalCount] = useState(0)
   const [isModalOpen, setIsModalOpen] = useState(false)
@@ -148,9 +148,9 @@ export default function Records() {
         if (data?.data) setFi(data.data as Record<string, any>)
         else setFi({})
       })
-    supabase.from('animals').select('id', { count: 'exact', head: true }).eq('user_id', targetUserId)
+    supabase.from('animals').select('id', { count: 'exact', head: true }).eq('user_id', targetUserId).eq('production_year', selectedProductionYear)
       .then(({ count }) => setAnimalCount(count ?? 0))
-  }, [targetUserId])
+  }, [targetUserId, selectedProductionYear])
 
   const hasAnimals = animalCount > 0
 

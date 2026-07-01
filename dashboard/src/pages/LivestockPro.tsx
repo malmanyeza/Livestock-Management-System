@@ -3,7 +3,8 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import {
   X, Plus, Search, Calendar, Phone, MapPin, Users,
-  MessageSquare, ShieldCheck, Activity, BarChart3, Layers, CheckCircle2
+  MessageSquare, ShieldCheck, Activity, BarChart3, Layers, CheckCircle2,
+  Bell, Trash2, Edit
 } from 'lucide-react'
 import {
   ResponsiveContainer, AreaChart, Area, BarChart, Bar,
@@ -38,11 +39,12 @@ interface Mission {
   created_at: string
 }
 
-type Tab = 'missions' | 'coverage'
+type Tab = 'missions' | 'coverage' | 'reminders'
 
 const TABS: { key: Tab; label: string; icon: any }[] = [
   { key: 'missions', label: 'Missions Register', icon: Layers },
   { key: 'coverage',  label: 'Coverage Analysis',  icon: BarChart3 },
+  { key: 'reminders', label: 'Disease & Reminders',  icon: Bell },
 ]
 
 export default function LivestockPro() {
@@ -63,6 +65,8 @@ export default function LivestockPro() {
 
   // Modals
   const [isAddModalOpen, setIsAddModalOpen] = useState(false)
+  const [editingMission, setEditingMission] = useState<Mission | null>(null)
+  const [customCategory, setCustomCategory] = useState('')
   const [newMission, setNewMission] = useState({
     mission_number: '',
     date: new Date().toISOString().split('T')[0],
@@ -74,6 +78,15 @@ export default function LivestockPro() {
     review_client: '',
     user_id: ''
   })
+
+  // Reminders states
+  const [reminderType, setReminderType] = useState<'guideline' | 'outbreak'>('guideline')
+  const [reminderTitle, setReminderTitle] = useState('')
+  const [reminderDetails, setReminderDetails] = useState('')
+  const [reminderAdvice, setReminderAdvice] = useState('')
+  const [reminderTargetFarmerId, setReminderTargetFarmerId] = useState('all')
+  const [reminderPriority, setReminderPriority] = useState<'low' | 'medium' | 'high'>('medium')
+  const [sendingReminder, setSendingReminder] = useState(false)
 
   // Fetch data
   const fetchData = async () => {
@@ -101,6 +114,8 @@ export default function LivestockPro() {
   const openAddModal = () => {
     const nextNum = missions.length + 1
     const padNum = String(nextNum).padStart(3, '0')
+    setEditingMission(null)
+    setCustomCategory('')
     setNewMission({
       mission_number: `MIS-${padNum}`,
       date: new Date().toISOString().split('T')[0],
@@ -115,6 +130,50 @@ export default function LivestockPro() {
     setIsAddModalOpen(true)
   }
 
+  const openEditModal = (m: Mission) => {
+    setEditingMission(m)
+    const predefined = ['Vaccination', 'Check-up', 'Audit', 'Inspection', 'Deworming', 'Sick animal check-up', 'Other']
+    if (predefined.includes(m.visit_category)) {
+      setNewMission({
+        mission_number: m.mission_number,
+        date: m.date,
+        visit_category: m.visit_category,
+        farm_name: m.farm_name,
+        client_phone: m.client_phone || '',
+        province: m.province,
+        attending_team: m.attending_team,
+        review_client: m.review_client || '',
+        user_id: (m as any).user_id || ''
+      })
+      setCustomCategory('')
+    } else {
+      setNewMission({
+        mission_number: m.mission_number,
+        date: m.date,
+        visit_category: 'Custom...',
+        farm_name: m.farm_name,
+        client_phone: m.client_phone || '',
+        province: m.province,
+        attending_team: m.attending_team,
+        review_client: m.review_client || '',
+        user_id: (m as any).user_id || ''
+      })
+      setCustomCategory(m.visit_category)
+    }
+    setIsAddModalOpen(true)
+  }
+
+  const handleDeleteMission = async (id: string) => {
+    if (!window.confirm("Are you sure you want to delete this logged mission?")) return
+    try {
+      const { error } = await supabase.from('missions').delete().eq('id', id)
+      if (error) throw error
+      fetchData()
+    } catch (e: any) {
+      alert("Failed to delete mission: " + e.message)
+    }
+  }
+
   // Handle Add Mission Submit
   const handleAddMission = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -127,12 +186,18 @@ export default function LivestockPro() {
       return
     }
 
+    const categoryToSave = newMission.visit_category === 'Custom...' ? customCategory.trim() : newMission.visit_category
+    if (!categoryToSave) {
+      alert("Please select or enter a category.")
+      return
+    }
+
     setSubmitting(true)
     try {
       const payload = {
         mission_number: newMission.mission_number,
         date: newMission.date,
-        visit_category: newMission.visit_category,
+        visit_category: categoryToSave,
         farm_name: newMission.farm_name,
         client_phone: newMission.client_phone || null,
         province: newMission.province,
@@ -140,14 +205,25 @@ export default function LivestockPro() {
         review_client: newMission.review_client || null,
         user_id: newMission.user_id
       }
-      const { error } = await supabase.from('missions').insert([payload])
-      if (error) throw error
+
+      if (editingMission) {
+        const { error } = await supabase
+          .from('missions')
+          .update(payload)
+          .eq('id', editingMission.id)
+        if (error) throw error
+      } else {
+        const { error } = await supabase.from('missions').insert([payload])
+        if (error) throw error
+      }
 
       setIsAddModalOpen(false)
+      setEditingMission(null)
+      setCustomCategory('')
       fetchData()
     } catch (err: any) {
-      console.error("Error creating mission:", err)
-      alert(err.message || "Failed to create mission record.")
+      console.error("Error saving mission:", err)
+      alert(err.message || "Failed to save mission record.")
     } finally {
       setSubmitting(false)
     }
@@ -233,6 +309,99 @@ export default function LivestockPro() {
       }
     })
   }, [missions])
+
+  const seasonalTemplates = [
+    {
+      title: 'Summer Tick Dipping',
+      details: 'Weekly dipping in summer is critical to prevent tick-borne diseases (Heartwater, Anaplasmosis, Babesiosis).',
+      advice: 'Dip all cattle weekly. Check ears and tail-head for ticks. Report any fever or loss of coordination.'
+    },
+    {
+      title: 'Winter BVD & Leptospirosis Vaccination',
+      details: 'Vaccinate breeding herds for Bovine Viral Diarrhea (BVD) and Leptospirosis before the winter season.',
+      advice: 'Administer booster shots to cows. Ensure dry calving environment. Monitor pregnant stock closely.'
+    },
+    {
+      title: 'Spring Deworming',
+      details: 'Deworming treatments for calves in spring to control worm build-up from fresh pasture grazing.',
+      advice: 'Dose all calves under 12 months. Rotate grazing pastures if possible to reduce parasite load.'
+    }
+  ]
+
+  const outbreakTemplates = [
+    {
+      title: 'Anthrax Outbreak Alert',
+      details: 'Active anthrax outbreak reported in the local region. Anthrax is highly contagious and fatal.',
+      advice: 'Strictly restrict livestock movement. Arrange immediate emergency vaccinations. Report any sudden deaths to veterinary services.'
+    },
+    {
+      title: 'Foot & Mouth Disease Alert',
+      details: 'Foot and mouth disease cases detected in the province. High transmission risk.',
+      advice: 'Isolate new stock. Disinfect vehicle tires entering the farm. Report any salivation or limping immediately.'
+    },
+    {
+      title: 'Lumpy Skin Disease Alert',
+      details: 'Lumpy Skin Disease outbreak confirmed. Transmitted by biting insects during warm/wet weather.',
+      advice: 'Vaccinate non-infected animals. Apply insect repellents/dips. Quarantine affected animals immediately.'
+    }
+  ]
+
+  const handleApplyTemplate = (tpl: { title: string; details: string; advice: string }) => {
+    setReminderTitle(tpl.title)
+    setReminderDetails(tpl.details)
+    setReminderAdvice(tpl.advice)
+  }
+
+  const handleSendReminder = async () => {
+    if (!reminderTitle.trim() || !reminderDetails.trim()) {
+      alert("Please enter a title and details.")
+      return
+    }
+
+    setSendingReminder(true)
+    try {
+      const dateStr = new Date().toISOString().split('T')[0]
+      const fullDescription = `${reminderType === 'outbreak' ? '🚨 OUTBREAK ALERT' : '📅 SEASONAL GUIDELINE'}\n${reminderTitle}\n\nDetails: ${reminderDetails}\n\nAdvice: ${reminderAdvice}`
+
+      let targets: string[] = []
+      if (reminderTargetFarmerId === 'all') {
+        targets = farmers.map(f => f.id)
+      } else {
+        targets = [reminderTargetFarmerId]
+      }
+
+      if (targets.length === 0) {
+        alert("No recipient farmers found.")
+        setSendingReminder(false)
+        return
+      }
+
+      const inserts = targets.map(userId => ({
+        date: dateStr,
+        description: fullDescription,
+        status: 'pending',
+        created_by: 'admin',
+        last_edited: dateStr,
+        priority: reminderPriority,
+        user_id: userId
+      }))
+
+      const { error } = await supabase.from('todo_tasks').insert(inserts)
+      if (error) throw error
+
+      alert(`Successfully sent ${reminderType === 'outbreak' ? 'alert' : 'reminder'} to ${reminderTargetFarmerId === 'all' ? 'all' : 'selected'} farm(s).`)
+      
+      setReminderTitle('')
+      setReminderDetails('')
+      setReminderAdvice('')
+      setReminderTargetFarmerId('all')
+      setReminderPriority('medium')
+    } catch (e: any) {
+      alert("Failed to send: " + e.message)
+    } finally {
+      setSendingReminder(false)
+    }
+  }
 
   if (!isAdmin) {
     return (
@@ -363,6 +532,7 @@ export default function LivestockPro() {
                         <th>Province</th>
                         <th>Attending Team</th>
                         <th>Review (Client)</th>
+                        <th style={{ width: '90px' }} className="text-center">Actions</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -388,11 +558,21 @@ export default function LivestockPro() {
                           <td style={{ color: C.neutral500, maxWidth: '250px' }} className="truncate" title={row.review_client || undefined}>
                             {row.review_client || '—'}
                           </td>
+                          <td className="text-center">
+                            <div className="flex items-center justify-center gap-2">
+                              <button onClick={() => openEditModal(row)} className="p-1.5 text-neutral-500 hover:text-neutral-900 rounded-lg hover:bg-neutral-100 transition-colors">
+                                <Edit size={14} />
+                              </button>
+                              <button onClick={() => handleDeleteMission(row.id)} className="p-1.5 text-red-500 hover:text-red-700 rounded-lg hover:bg-red-50 transition-colors">
+                                <Trash2 size={14} />
+                              </button>
+                            </div>
+                          </td>
                         </tr>
                       ))}
                       {filteredMissions.length === 0 && (
                         <tr>
-                          <td colSpan={9} className="text-center py-12" style={{ color: C.neutral400 }}>
+                          <td colSpan={10} className="text-center py-12" style={{ color: C.neutral400 }}>
                             No mission logs found matching the filters.
                           </td>
                         </tr>
@@ -513,6 +693,131 @@ export default function LivestockPro() {
               </div>
             </div>
           )}
+
+          {activeTab === 'reminders' && (
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
+              {/* Reminder Form Card */}
+              <div className="card p-6 shadow-sm lg:col-span-2 space-y-4">
+                <p className="font-bold text-base" style={{ color: C.neutral900 }}>Create New Reminder / Emergency Alert</p>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-bold uppercase mb-1.5" style={{ color: C.neutral600 }}>Notification Type</label>
+                    <select
+                      value={reminderType}
+                      onChange={e => {
+                        setReminderType(e.target.value as any)
+                        setReminderTitle('')
+                        setReminderDetails('')
+                        setReminderAdvice('')
+                      }}
+                      className="w-full text-sm rounded-xl px-3 py-2 border outline-none bg-white cursor-pointer"
+                      style={{ borderColor: C.neutral200, color: C.neutral700 }}
+                    >
+                      <option value="guideline">📅 Seasonal Veterinary Guideline</option>
+                      <option value="outbreak">🚨 Outbreak Emergency Alert</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold uppercase mb-1.5" style={{ color: C.neutral600 }}>Priority Level</label>
+                    <select
+                      value={reminderPriority}
+                      onChange={e => setReminderPriority(e.target.value as any)}
+                      className="w-full text-sm rounded-xl px-3 py-2 border outline-none bg-white cursor-pointer"
+                      style={{ borderColor: C.neutral200, color: C.neutral700 }}
+                    >
+                      <option value="low">Low</option>
+                      <option value="medium">Medium</option>
+                      <option value="high">High</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold uppercase mb-1.5" style={{ color: C.neutral600 }}>Destination Farm(s)</label>
+                  <select
+                    value={reminderTargetFarmerId}
+                    onChange={e => setReminderTargetFarmerId(e.target.value)}
+                    className="w-full text-sm rounded-xl px-3 py-2 border outline-none bg-white cursor-pointer"
+                    style={{ borderColor: C.neutral200, color: C.neutral700 }}
+                  >
+                    <option value="all">📢 All Active Farms (Broadcast)</option>
+                    {farmers.map(f => (
+                      <option key={f.id} value={f.id}>
+                        🚜 {f.farm_name || f.full_name || f.email}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold uppercase mb-1.5" style={{ color: C.neutral600 }}>Title *</label>
+                  <input
+                    value={reminderTitle}
+                    onChange={e => setReminderTitle(e.target.value)}
+                    placeholder="e.g. Anthrax Outbreak Alert"
+                    className="w-full text-sm rounded-xl px-3 py-2 border outline-none"
+                    style={{ borderColor: C.neutral200, color: C.neutral800 }}
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold uppercase mb-1.5" style={{ color: C.neutral600 }}>Description &amp; Details *</label>
+                  <textarea
+                    value={reminderDetails}
+                    onChange={e => setReminderDetails(e.target.value)}
+                    placeholder="Detailed explanation of the alert or guideline..."
+                    rows={4}
+                    className="w-full text-sm rounded-xl px-3 py-2 border outline-none resize-none"
+                    style={{ borderColor: C.neutral200, color: C.neutral800 }}
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold uppercase mb-1.5" style={{ color: C.neutral600 }}>Action Advice for Farmers</label>
+                  <textarea
+                    value={reminderAdvice}
+                    onChange={e => setReminderAdvice(e.target.value)}
+                    placeholder="e.g. Dipping twice weekly, check water temperature..."
+                    rows={2}
+                    className="w-full text-sm rounded-xl px-3 py-2 border outline-none resize-none"
+                    style={{ borderColor: C.neutral200, color: C.neutral800 }}
+                  />
+                </div>
+
+                <div className="flex justify-end pt-2">
+                  <button
+                    onClick={handleSendReminder}
+                    disabled={sendingReminder || !reminderTitle || !reminderDetails}
+                    className="px-6 py-2.5 rounded-xl text-xs font-bold text-white shadow-sm hover:opacity-90 active:scale-[0.98] transition-all disabled:opacity-50"
+                    style={{ backgroundColor: C.primary500 }}
+                  >
+                    {sendingReminder ? "Publishing..." : "Publish Reminder / Alert"}
+                  </button>
+                </div>
+              </div>
+
+              {/* Templates Card */}
+              <div className="card p-6 shadow-sm space-y-4">
+                <p className="font-bold text-sm" style={{ color: C.neutral700 }}>Quick Templates</p>
+                <p className="text-xs text-neutral-500">Select one of the standard templates to populate the form instantly.</p>
+                <div className="space-y-3">
+                  {(reminderType === 'guideline' ? seasonalTemplates : outbreakTemplates).map((tpl, i) => (
+                    <button
+                      key={i}
+                      onClick={() => handleApplyTemplate(tpl)}
+                      className="w-full text-left p-3.5 border rounded-xl hover:border-primary-300 hover:bg-neutral-50 transition-all block"
+                      style={{ borderColor: reminderTitle === tpl.title ? C.primary500 : C.neutral200, backgroundColor: reminderTitle === tpl.title ? C.primary50 : '#fff' }}
+                    >
+                      <p className="font-bold text-xs" style={{ color: reminderTitle === tpl.title ? C.primary600 : C.neutral800 }}>
+                        {tpl.title}
+                      </p>
+                      <p className="text-xs text-neutral-500 mt-1 line-clamp-2">{tpl.details}</p>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
         </>
       )}
 
@@ -524,7 +829,9 @@ export default function LivestockPro() {
             style={{ maxHeight: '90vh' }}>
             {/* Header */}
             <div className="flex items-center justify-between px-6 py-5 border-b" style={{ borderColor: C.neutral100 }}>
-              <h3 className="text-lg font-bold" style={{ color: C.neutral900 }}>Log Mission Visit</h3>
+              <h3 className="text-lg font-bold" style={{ color: C.neutral900 }}>
+                {editingMission ? "Edit Mission Visit" : "Log Mission Visit"}
+              </h3>
               <button onClick={() => setIsAddModalOpen(false)} className="p-1 hover:bg-neutral-100 rounded-lg">
                 <X size={18} style={{ color: C.neutral500 }} />
               </button>
@@ -598,8 +905,23 @@ export default function LivestockPro() {
                   <option value="Deworming">Deworming</option>
                   <option value="Sick animal check-up">Sick animal check-up</option>
                   <option value="Other">Other</option>
+                  <option value="Custom...">Custom...</option>
                 </select>
               </div>
+
+              {newMission.visit_category === 'Custom...' && (
+                <div>
+                  <label className="block text-xs font-bold uppercase mb-1.5" style={{ color: C.neutral600 }}>Custom Category Name *</label>
+                  <input
+                    required
+                    value={customCategory}
+                    onChange={e => setCustomCategory(e.target.value)}
+                    placeholder="Enter category name"
+                    className="w-full text-sm rounded-xl px-3 py-2 border outline-none"
+                    style={{ borderColor: C.neutral200, color: C.neutral800 }}
+                  />
+                </div>
+              )}
 
               <div>
                 <label className="block text-xs font-bold uppercase mb-1.5" style={{ color: C.neutral600 }}>Farm Name *</label>
@@ -677,7 +999,7 @@ export default function LivestockPro() {
                   className="px-4 py-2 rounded-xl text-xs font-bold text-white shadow-sm hover:opacity-90 active:scale-[0.98] transition-all"
                   style={{ backgroundColor: C.primary500 }}
                 >
-                  {submitting ? "Logging..." : "Log Mission"}
+                  {editingMission ? (submitting ? "Saving..." : "Save Changes") : (submitting ? "Logging..." : "Log Mission")}
                 </button>
               </div>
             </form>

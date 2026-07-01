@@ -44,7 +44,7 @@ const MONTHLY_DATA = [
 ]
 const YEARLY_DATA = [
   {m:'2020',v:58},{m:'2021',v:65},{m:'2022',v:70},
-  {m:'2023',v:72},{m:'2024',v:78},{m:'2025',v:83},
+  {m:'2023',v:72},{m:'2024',v:78},{m:'2025',v:82},{m:'2026',v:85},
 ]
 
 // ─── Colour helpers ───────────────────────────────────────────────────────────
@@ -71,7 +71,7 @@ const C = {
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export default function Dashboard() {
-  const { session, profile, farmers, selectedFarmer, setSelectedFarmer, targetUserId, setFarmerModalOpen } = useAuth()
+  const { session, profile, farmers, selectedFarmer, setSelectedFarmer, targetUserId, setFarmerModalOpen, selectedProductionYear } = useAuth()
   const navigate = useNavigate()
 
   // Data
@@ -91,18 +91,38 @@ export default function Dashboard() {
   const [timeframe, setTimeframe]       = useState<'monthly'|'yearly'>('monthly')
   const [activeChart, setActiveChart]   = useState(0)      // 0 = line, 1 = bar
 
+  // YoY Comparison States
+  const [yearlyPerformances, setYearlyPerformances] = useState<any[]>([])
+  const [compareYear, setCompareYear] = useState<number>(2025)
+  const [kpis, setKpis] = useState<any>({
+    conceptionRate: 0,
+    calvingPercentage: 0,
+    herdMortality: 0,
+    avgWeaningWeight: 0,
+    cattleFcr: 0,
+    weaningPercentage: 0
+  })
+
+  useEffect(() => {
+    if (!targetUserId) return
+    supabase.from('yearly_performance').select('*').eq('user_id', targetUserId)
+      .then(({ data }) => {
+        setYearlyPerformances(data ?? [])
+      })
+  }, [targetUserId, selectedProductionYear])
+
   // Load data
   useEffect(() => {
     if (!targetUserId) return
 
     Promise.all([
-      supabase.from('animals').select('*').eq('user_id', targetUserId),
+      supabase.from('animals').select('*').eq('user_id', targetUserId).eq('production_year', selectedProductionYear),
       supabase.from('todo_tasks').select('id', { count: 'exact', head: true }).eq('user_id', targetUserId),
-      supabase.from('breeding_records').select('*').eq('user_id', targetUserId),
-      supabase.from('pregnancy_records').select('*').eq('user_id', targetUserId),
-      supabase.from('feed_records').select('*').eq('user_id', targetUserId),
-      supabase.from('production_records').select('*').eq('user_id', targetUserId),
-      supabase.from('mortality_records').select('*').eq('user_id', targetUserId),
+      supabase.from('breeding_records').select('*').eq('user_id', targetUserId).eq('production_year', selectedProductionYear),
+      supabase.from('pregnancy_records').select('*').eq('user_id', targetUserId).eq('production_year', selectedProductionYear),
+      supabase.from('feed_records').select('*').eq('user_id', targetUserId).eq('production_year', selectedProductionYear),
+      supabase.from('production_records').select('*').eq('user_id', targetUserId).eq('production_year', selectedProductionYear),
+      supabase.from('mortality_records').select('*').eq('user_id', targetUserId).eq('production_year', selectedProductionYear),
       supabase.from('farm_inspections').select('*').eq('user_id', targetUserId).maybeSingle()
     ]).then(([
       { data: animalsData },
@@ -373,20 +393,41 @@ export default function Dashboard() {
       const scoreProduction = productionCount > 0 ? Math.round((mortPts + weaningPts) / productionCount) : (isDemo ? 75 : 0)
 
       // 5. RECORDS
-      let tracePoints = 0
-      if (farmInspection) {
-        if (farmInspection.maintainsBirth) tracePoints += 20
-        if (farmInspection.maintainsMovements) tracePoints += 20
-        if (farmInspection.maintainsHealth) tracePoints += 20
-        if (farmInspection.maintainsMortalities) tracePoints += 20
-        if (farmInspection.maintainsFeed) tracePoints += 20
+      const getRecordsMetricValue = (key: string, defaultValue: number): number => {
+        const overrides = (farmInspection?.recordsOverrides as any) || {}
+        const override = overrides[key]
+        if (override && override.attained) {
+          const parsed = parseFloat(override.attained.replace('%', ''))
+          if (!isNaN(parsed)) return parsed
+        }
+        return defaultValue
       }
-      const subjRecords = (!farmInspection || farmInspection.recordsSatisfaction === 0) ? 0 : ((farmInspection.recordsSatisfaction || 0) + (farmInspection.recordsTrainingEvidence || 0) + (farmInspection.recordAccessibilityUsage || 0)) / 15 * 100
 
-      let recordsCount = 0
-      if (tracePoints > 0) recordsCount++
-      if (subjRecords > 0) recordsCount++
-      const scoreRecords = recordsCount > 0 ? Math.round((tracePoints + subjRecords) / recordsCount) : (isDemo ? 78 : 0)
+      const accuracyPct = Math.round((farmInspection?.recordsSatisfaction || 0) * 20)
+      const knowledgePct = Math.round((farmInspection?.recordsTrainingEvidence || 0) * 20)
+      const usagePct = Math.round((farmInspection?.recordAccessibilityUsage || 0) * 20)
+      const birthPct = farmInspection?.maintainsBirth ? 100 : 0
+      const movementPct = farmInspection?.maintainsMovements ? 100 : 0
+      const healthPct = farmInspection?.maintainsHealth ? 100 : 0
+      const mortalityPct = farmInspection?.maintainsMortalities ? 100 : 0
+      const feedPct = farmInspection?.maintainsFeed ? 100 : 0
+
+      const values = [
+        getRecordsMetricValue('ear tags', hasAnimals ? 100 : 0),
+        getRecordsMetricValue('electronic id', hasAnimals ? 85 : 0),
+        getRecordsMetricValue('brand registration', hasAnimals ? 92 : 0),
+        getRecordsMetricValue('dna profiles', hasAnimals ? 65 : 0),
+        getRecordsMetricValue('data accuracy', accuracyPct),
+        getRecordsMetricValue('knowledge', knowledgePct),
+        getRecordsMetricValue('use in decision making', usagePct),
+        getRecordsMetricValue('birth registration', birthPct),
+        getRecordsMetricValue('movement records', movementPct),
+        getRecordsMetricValue('health treatments', healthPct),
+        getRecordsMetricValue('mortality records', mortalityPct),
+        getRecordsMetricValue('feed records', feedPct),
+      ]
+
+      const scoreRecords = Math.round(values.reduce((sum, v) => sum + v, 0) / values.length)
 
       // 6. DLSHIFT SCORE
       let activeCategories = 0
@@ -407,8 +448,29 @@ export default function Dashboard() {
         scoreRecords,
         scoreDLShift
       })
+
+      // Calculate avg weaning weight
+      const isCalfLocal = (age: string | null | undefined, stockType?: string | null) => {
+        if (stockType === 'Calve' || stockType === 'Calf') return true
+        if (!age) return false
+        const ageMatch = age.match(/(\d+)([ym])/)
+        if (!ageMatch) return false
+        const [_, value, unit] = ageMatch
+        return (unit === 'm' && parseInt(value) < 12) || (unit === 'y' && parseInt(value) === 0)
+      }
+      const calvesWithWeight = aliveAnimalsData.filter((a: any) => isCalfLocal(a.age, a.stock_type) && Number(a.weaning_weight || 0) > 0)
+      const avgWeaning = calvesWithWeight.length > 0 ? calvesWithWeight.reduce((sum, a) => sum + Number(a.weaning_weight), 0) / calvesWithWeight.length : 0
+
+      setKpis({
+        conceptionRate: repro.conceptionRate,
+        calvingPercentage: repro.calvingPercentage,
+        herdMortality: prod.mortalityRates.herd,
+        avgWeaningWeight: avgWeaning,
+        cattleFcr: fcr.cattle,
+        weaningPercentage: prod.weaningPercentage
+      })
     })
-  }, [targetUserId])
+  }, [targetUserId, selectedProductionYear])
 
   const isAdmin = profile?.role === 'admin'
   const displayName = profile?.full_name || profile?.email || 'Farmer'
@@ -639,6 +701,82 @@ export default function Dashboard() {
             ))}
           </div>
         </div>
+      </div>
+
+      {/* ── YoY COMPARISON WIDGET ── */}
+      <div className="card">
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h3 className="text-lg font-bold text-gray-900">Year-by-Year Comparison</h3>
+            <p className="text-xs text-gray-500 mt-0.5">Compare herd stats and performance KPIs between cycles</p>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-semibold text-gray-500">Compare {selectedProductionYear} vs:</span>
+            <select
+              value={compareYear}
+              onChange={e => setCompareYear(Number(e.target.value))}
+              className="bg-neutral-50 border border-neutral-200 rounded-xl px-3 py-1.5 text-xs font-bold text-neutral-800 outline-none focus:border-[#7AC142]"
+            >
+              {[2024, 2025, 2026, 2027, 2028, 2029, 2030].filter(y => y !== selectedProductionYear).map(y => (
+                <option key={y} value={y}>{y}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        {(() => {
+          const comparePerformance = yearlyPerformances.find(p => p.year === compareYear)
+
+          const renderCompareMetric = (label: string, curVal: number, compVal: number | undefined, unit: string = '', isLowerBetter: boolean = false) => {
+            const formattedCur = curVal ? curVal.toFixed(1) : '0.0'
+            const formattedComp = compVal !== undefined ? compVal.toFixed(1) : '—'
+            
+            let trend = 'same'
+            let diff = 0
+            if (compVal !== undefined && compVal > 0) {
+              diff = curVal - compVal
+              if (diff > 0.05) trend = isLowerBetter ? 'bad' : 'good'
+              else if (diff < -0.05) trend = isLowerBetter ? 'good' : 'bad'
+            }
+
+            return (
+              <div className="flex items-center justify-between p-4 rounded-2xl bg-gray-50/50 border border-gray-100">
+                <div>
+                  <p className="text-xs font-semibold text-gray-500">{label}</p>
+                  <div className="flex items-baseline gap-2 mt-1.5">
+                    <span className="text-xl font-black text-gray-900">{formattedCur}{unit}</span>
+                    <span className="text-xs text-gray-400">vs {formattedComp}{unit}</span>
+                  </div>
+                </div>
+                {trend !== 'same' && (
+                  <div className={`flex items-center gap-0.5 px-2.5 py-1 rounded-full text-xs font-bold ${trend === 'good' ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700'}`}>
+                    {trend === 'good' ? '▲' : '▼'} {Math.abs(diff).toFixed(1)}{unit}
+                  </div>
+                )}
+              </div>
+            )
+          }
+
+          if (comparePerformance) {
+            return (
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+                {renderCompareMetric('Conception Rate', kpis.conceptionRate, comparePerformance.conception_rate, '%')}
+                {renderCompareMetric('Calving Rate', kpis.calvingPercentage, comparePerformance.calving_rate, '%')}
+                {renderCompareMetric('Mortality Rate', kpis.herdMortality, comparePerformance.mortality_rate, '%', true)}
+                {renderCompareMetric('Avg Weaning Weight', kpis.avgWeaningWeight, comparePerformance.avg_weaning_weight, ' kg')}
+                {renderCompareMetric('Feed Conversion (FCR)', kpis.cattleFcr, comparePerformance.fcr, '', true)}
+                {renderCompareMetric('Weaning Percentage', kpis.weaningPercentage, comparePerformance.weaning_percentage, '%')}
+              </div>
+            )
+          } else {
+            return (
+              <div className="text-center py-8 rounded-2xl bg-gray-50 border border-dashed border-gray-200">
+                <p className="text-sm text-gray-500">No performance records archived for year {compareYear}.</p>
+                <p className="text-xs text-gray-400 mt-1">End the {compareYear} production cycle to save and compare metrics.</p>
+              </div>
+            )
+          }
+        })()}
       </div>
 
       {/* ── 6. QUICK ACCESS GRID ── 2-column, same as mobile */}

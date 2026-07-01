@@ -359,6 +359,8 @@ interface FarmDataContextProps {
   updateAnimal: (tag: string, updates: Partial<Animal>) => void;
   updateAnimalWeight: (tag: string, weight: number, previousWeight?: number, daysBetweenWeights?: number) => void;
   addBullBreedingRecord: (record: Omit<BullBreedingRecord, 'id'>) => Promise<void>;
+  updateBullBreedingRecord: (id: string, record: Partial<Omit<BullBreedingRecord, 'id'>>) => Promise<void>;
+  deleteBullBreedingRecord: (id: string) => Promise<void>;
   saveAnimalWeight: (record: Omit<AnimalWeight, 'id'>) => Promise<void>;
   addDrug: (record: Omit<Drug, 'id'>) => Promise<void>;
   updateDrug: (id: string, updates: Partial<Drug>) => Promise<void>;
@@ -373,7 +375,8 @@ interface FarmDataContextProps {
   updateTransaction: (id: string, updates: Partial<TransactionRecord>) => Promise<void>;
   deleteTransaction: (id: string) => Promise<void>;
 
-
+  selectedProductionYear: number;
+  setSelectedProductionYear: (year: number) => void;
 
   // Derived Metrics & Scores
   metrics: {
@@ -839,7 +842,7 @@ const emptyFarmInspection: FarmInspection = {
 export interface Profile {
   id: string;
   email: string;
-  role: 'farmer' | 'admin';
+  role: 'farmer' | 'admin' | 'worker';
   full_name?: string;
   farm_name?: string;
   created_at?: string;
@@ -849,6 +852,7 @@ export interface Profile {
   location?: string;
   province?: string;
   phone_number?: string;
+  farmer_id?: string;
 }
 
 // --- PROVIDER COMPONENT ---
@@ -861,6 +865,7 @@ export const FarmDataProvider: React.FC<{ children: ReactNode }> = ({ children }
   const [loadingData, setLoadingData] = useState(false);
   const [farmers, setFarmers] = useState<Profile[]>([]);
   const [selectedFarmer, setSelectedFarmer] = useState<Profile | null>(null);
+  const [selectedProductionYear, setSelectedProductionYear] = useState<number>(2026);
 
   const [animals, setAnimals] = useState<Animal[]>(supabase ? [] : initialAnimals);
   const [healthRecords, setHealthRecords] = useState<HealthRecord[]>(supabase ? [] : initialHealthRecords);
@@ -919,6 +924,9 @@ export const FarmDataProvider: React.FC<{ children: ReactNode }> = ({ children }
           if (prof) {
             const profWithExtras = await loadProfileWithExtras(prof);
             setProfile(profWithExtras);
+            if (prof.current_production_year) {
+              setSelectedProductionYear(prof.current_production_year);
+            }
             if (prof.role === 'admin') {
               const { data: farmersData } = await client
                 .from('profiles')
@@ -953,6 +961,9 @@ export const FarmDataProvider: React.FC<{ children: ReactNode }> = ({ children }
           if (prof) {
             const profWithExtras = await loadProfileWithExtras(prof);
             setProfile(profWithExtras);
+            if (prof.current_production_year) {
+              setSelectedProductionYear(prof.current_production_year);
+            }
             if (prof.role === 'admin') {
               const { data: farmersData } = await client
                 .from('profiles')
@@ -1062,17 +1073,17 @@ export const FarmDataProvider: React.FC<{ children: ReactNode }> = ({ children }
           { data: tTasks, error: tTasksErr },
           { data: obsvs, error: obsvsErr }
         ] = await Promise.all([
-          supabase.from('animals').select('*').eq('user_id', targetUserId),
-          supabase.from('health_records').select('*').eq('user_id', targetUserId),
-          supabase.from('breeding_records').select('*').eq('user_id', targetUserId),
-          supabase.from('pregnancy_records').select('*').eq('user_id', targetUserId),
-          supabase.from('feed_records').select('*').eq('user_id', targetUserId),
-          supabase.from('production_records').select('*').eq('user_id', targetUserId),
-          supabase.from('mortality_records').select('*').eq('user_id', targetUserId),
-          supabase.from('transaction_records').select('*').eq('user_id', targetUserId),
+          supabase.from('animals').select('*').eq('user_id', targetUserId).eq('production_year', selectedProductionYear),
+          supabase.from('health_records').select('*').eq('user_id', targetUserId).eq('production_year', selectedProductionYear),
+          supabase.from('breeding_records').select('*').eq('user_id', targetUserId).eq('production_year', selectedProductionYear),
+          supabase.from('pregnancy_records').select('*').eq('user_id', targetUserId).eq('production_year', selectedProductionYear),
+          supabase.from('feed_records').select('*').eq('user_id', targetUserId).eq('production_year', selectedProductionYear),
+          supabase.from('production_records').select('*').eq('user_id', targetUserId).eq('production_year', selectedProductionYear),
+          supabase.from('mortality_records').select('*').eq('user_id', targetUserId).eq('production_year', selectedProductionYear),
+          supabase.from('transaction_records').select('*').eq('user_id', targetUserId).eq('production_year', selectedProductionYear),
           supabase.from('farm_inspections').select('*').eq('user_id', targetUserId).maybeSingle(),
-          supabase.from('bull_breeding_records').select('*').eq('user_id', targetUserId),
-          supabase.from('animal_weights').select('*').eq('user_id', targetUserId),
+          supabase.from('bull_breeding_records').select('*').eq('user_id', targetUserId).eq('production_year', selectedProductionYear),
+          supabase.from('animal_weights').select('*').eq('user_id', targetUserId).eq('production_year', selectedProductionYear),
           supabase.from('drugs').select('*').eq('user_id', targetUserId),
           supabase.from('feed_inventory').select('*').eq('user_id', targetUserId),
           supabase.from('farm_events').select('*').eq('user_id', targetUserId),
@@ -1155,7 +1166,7 @@ export const FarmDataProvider: React.FC<{ children: ReactNode }> = ({ children }
     };
 
     loadData();
-  }, [targetUserId]);
+  }, [targetUserId, selectedProductionYear]);
 
   // --- ADD ACTIONS ---
 
@@ -1192,6 +1203,7 @@ export const FarmDataProvider: React.FC<{ children: ReactNode }> = ({ children }
       calf_status: animal.calfStatus || null,
       pre_weaning_mortality: animal.preWeaningMortality ?? false,
       user_id: targetUserId,
+      production_year: selectedProductionYear,
     };
     const { data, error } = await supabase
       .from('animals')
@@ -1213,7 +1225,8 @@ export const FarmDataProvider: React.FC<{ children: ReactNode }> = ({ children }
         .from('animals')
         .delete()
         .eq('tag', tag)
-        .eq('user_id', targetUserId);
+        .eq('user_id', targetUserId)
+        .eq('production_year', selectedProductionYear);
 
       if (error) throw error;
       setAnimals(prev => prev.filter(a => a.tag.toLowerCase() !== tag.toLowerCase()));
@@ -1241,6 +1254,7 @@ export const FarmDataProvider: React.FC<{ children: ReactNode }> = ({ children }
       user_id: targetUserId,
       special_notes: record.specialNotes || null,
       done_by: record.doneBy || null,
+      production_year: selectedProductionYear,
     };
     const { data, error } = await supabase
       .from('health_records')
@@ -1280,6 +1294,7 @@ export const FarmDataProvider: React.FC<{ children: ReactNode }> = ({ children }
       sire_used_2: record.sireUsed2 || null,
       return_to_heat_date_2: record.returnToHeatDate2 || null,
       user_id: targetUserId,
+      production_year: selectedProductionYear,
     };
     const { data, error } = await supabase
       .from('breeding_records')
@@ -1319,6 +1334,7 @@ export const FarmDataProvider: React.FC<{ children: ReactNode }> = ({ children }
       expected_second_heat_date: record.expectedSecondHeatDate || null,
       actual_second_heat_date: record.actualSecondHeatDate || null,
       user_id: targetUserId,
+      production_year: selectedProductionYear,
     };
     const { data, error } = await supabase
       .from('pregnancy_records')
@@ -1346,6 +1362,7 @@ export const FarmDataProvider: React.FC<{ children: ReactNode }> = ({ children }
       cost_per_kg: record.costPerKg,
       date: record.date,
       user_id: targetUserId,
+      production_year: selectedProductionYear,
     };
     const { data, error } = await supabase
       .from('feed_records')
@@ -1372,6 +1389,7 @@ export const FarmDataProvider: React.FC<{ children: ReactNode }> = ({ children }
       quantity: record.quantity,
       date: record.date,
       user_id: targetUserId,
+      production_year: selectedProductionYear,
     };
     const { data, error } = await supabase
       .from('production_records')
@@ -1401,6 +1419,7 @@ export const FarmDataProvider: React.FC<{ children: ReactNode }> = ({ children }
       observer: record.observer || null,
       is_pre_weaning: record.isPreWeaning,
       user_id: targetUserId,
+      production_year: selectedProductionYear,
     };
     const { data, error } = await supabase
       .from('mortality_records')
@@ -1417,7 +1436,8 @@ export const FarmDataProvider: React.FC<{ children: ReactNode }> = ({ children }
         .from('animals')
         .delete()
         .eq('tag', record.animalId)
-        .eq('user_id', targetUserId);
+        .eq('user_id', targetUserId)
+        .eq('production_year', selectedProductionYear);
       if (delErr) console.warn("Error deleting dead animal from database:", delErr);
 
       // Delete from local state
@@ -1438,6 +1458,7 @@ export const FarmDataProvider: React.FC<{ children: ReactNode }> = ({ children }
       amount: record.amount,
       type: record.type,
       user_id: targetUserId,
+      production_year: selectedProductionYear,
     };
     const { data, error } = await supabase
       .from('transaction_records')
@@ -1470,6 +1491,7 @@ export const FarmDataProvider: React.FC<{ children: ReactNode }> = ({ children }
       score: record.score,
       classification: record.classification,
       user_id: targetUserId,
+      production_year: selectedProductionYear,
     };
     const { data, error } = await supabase
       .from('bull_breeding_records')
@@ -1481,6 +1503,50 @@ export const FarmDataProvider: React.FC<{ children: ReactNode }> = ({ children }
     if (data) {
       setBullBreedingRecords(prev => [...prev, mapBullBreedingFromDb(data)]);
     }
+  };
+
+  const updateBullBreedingRecord = async (id: string, record: Partial<Omit<BullBreedingRecord, 'id'>>) => {
+    if (!supabase) {
+      setBullBreedingRecords(prev => prev.map(r => r.id === id ? { ...r, ...record } as BullBreedingRecord : r));
+      return;
+    }
+    const dbData: any = {};
+    if (record.bullId !== undefined) dbData.bull_id = record.bullId;
+    if (record.date !== undefined) dbData.date = record.date;
+    if (record.age !== undefined) dbData.age = record.age;
+    if (record.pe !== undefined) dbData.pe = record.pe;
+    if (record.spermMotility !== undefined) dbData.sperm_motility = record.spermMotility;
+    if (record.spermMorphology !== undefined) dbData.sperm_morphology = record.spermMorphology;
+    if (record.scrotal !== undefined) dbData.scrotal = record.scrotal;
+    if (record.libido !== undefined) dbData.libido = record.libido;
+    if (record.score !== undefined) dbData.score = record.score;
+    if (record.classification !== undefined) dbData.classification = record.classification;
+
+    const { data, error } = await supabase
+      .from('bull_breeding_records')
+      .update(dbData)
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (error) throw error;
+    if (data) {
+      setBullBreedingRecords(prev => prev.map(r => r.id === id ? mapBullBreedingFromDb(data) : r));
+    }
+  };
+
+  const deleteBullBreedingRecord = async (id: string) => {
+    if (!supabase) {
+      setBullBreedingRecords(prev => prev.filter(r => r.id !== id));
+      return;
+    }
+    const { error } = await supabase
+      .from('bull_breeding_records')
+      .delete()
+      .eq('id', id);
+
+    if (error) throw error;
+    setBullBreedingRecords(prev => prev.filter(r => r.id !== id));
   };
 
   const addDrug = async (record: Omit<Drug, 'id'>) => {
@@ -2029,11 +2095,12 @@ export const FarmDataProvider: React.FC<{ children: ReactNode }> = ({ children }
       oct: record.oct ? Number(record.oct) : null,
       nov: record.nov ? Number(record.nov) : null,
       dec: record.dec ? Number(record.dec) : null,
+      production_year: selectedProductionYear,
     };
 
     const { data, error } = await supabase
       .from('animal_weights')
-      .upsert(dbData, { onConflict: 'user_id,animal_tag,year' })
+      .upsert(dbData, { onConflict: 'user_id,animal_tag,year,production_year' })
       .select()
       .single();
 
@@ -2588,20 +2655,41 @@ export const FarmDataProvider: React.FC<{ children: ReactNode }> = ({ children }
     const scoreProduction = productionCount > 0 ? Math.round((mortPts + weaningPts) / productionCount) : 0;
 
     // 5. RECORDS SCORE (0-100)
-    let tracePoints = 0;
-    if (farmInspection.maintainsBirth) tracePoints += 20;
-    if (farmInspection.maintainsMovements) tracePoints += 20;
-    if (farmInspection.maintainsHealth) tracePoints += 20;
-    if (farmInspection.maintainsMortalities) tracePoints += 20;
-    if (farmInspection.maintainsFeed) tracePoints += 20;
+    const getRecordsMetricValue = (key: string, defaultValue: number): number => {
+      const overrides = (farmInspection.recordsOverrides as any) || {};
+      const override = overrides[key];
+      if (override && override.attained) {
+        const parsed = parseFloat(override.attained.replace('%', ''));
+        if (!isNaN(parsed)) return parsed;
+      }
+      return defaultValue;
+    };
 
-    const subjRecords = farmInspection.recordsSatisfaction === 0 ? 0 : (farmInspection.recordsSatisfaction + farmInspection.recordsTrainingEvidence + farmInspection.recordAccessibilityUsage) / 15 * 100;
-    
-    let recordsCount = 0;
-    if (tracePoints > 0) recordsCount++;
-    if (subjRecords > 0) recordsCount++;
-    
-    const scoreRecords = recordsCount > 0 ? Math.round((tracePoints + subjRecords) / recordsCount) : 0;
+    const accuracyPct = Math.round((farmInspection.recordsSatisfaction || 0) * 20);
+    const knowledgePct = Math.round((farmInspection.recordsTrainingEvidence || 0) * 20);
+    const usagePct = Math.round((farmInspection.recordAccessibilityUsage || 0) * 20);
+    const birthPct = farmInspection.maintainsBirth ? 100 : 0;
+    const movementPct = farmInspection.maintainsMovements ? 100 : 0;
+    const healthPct = farmInspection.maintainsHealth ? 100 : 0;
+    const mortalityPct = farmInspection.maintainsMortalities ? 100 : 0;
+    const feedPct = farmInspection.maintainsFeed ? 100 : 0;
+
+    const values = [
+      getRecordsMetricValue('ear tags', hasAnimals ? 100 : 0),
+      getRecordsMetricValue('electronic id', hasAnimals ? 85 : 0),
+      getRecordsMetricValue('brand registration', hasAnimals ? 92 : 0),
+      getRecordsMetricValue('dna profiles', hasAnimals ? 65 : 0),
+      getRecordsMetricValue('data accuracy', accuracyPct),
+      getRecordsMetricValue('knowledge', knowledgePct),
+      getRecordsMetricValue('use in decision making', usagePct),
+      getRecordsMetricValue('birth registration', birthPct),
+      getRecordsMetricValue('movement records', movementPct),
+      getRecordsMetricValue('health treatments', healthPct),
+      getRecordsMetricValue('mortality records', mortalityPct),
+      getRecordsMetricValue('feed records', feedPct),
+    ];
+
+    const scoreRecords = Math.round(values.reduce((sum, v) => sum + v, 0) / values.length);
 
     // 6. OVERALL DLSHIFT SCORE (average of active category scores)
     let activeCategories = 0;
@@ -2708,6 +2796,8 @@ export const FarmDataProvider: React.FC<{ children: ReactNode }> = ({ children }
         updateAnimal,
         updateAnimalWeight,
         addBullBreedingRecord,
+        updateBullBreedingRecord,
+        deleteBullBreedingRecord,
         saveAnimalWeight,
         addDrug,
         updateDrug,
@@ -2743,6 +2833,8 @@ export const FarmDataProvider: React.FC<{ children: ReactNode }> = ({ children }
         logout,
         deleteAccount,
         updateProfile,
+        selectedProductionYear,
+        setSelectedProductionYear,
 
         metrics: {
           adg,

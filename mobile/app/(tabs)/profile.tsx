@@ -31,6 +31,9 @@ function ProfileContent() {
   const [editingProfile, setEditingProfile] = useState<Partial<typeof profile> | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  const [isDeleteModalVisible, setIsDeleteModalVisible] = useState(false);
+  const [deleteConfirmText, setDeleteConfirmText] = useState('');
+
   // Worker account management states
   const [workers, setWorkers] = useState<any[]>([]);
   const [loadingWorkers, setLoadingWorkers] = useState(false);
@@ -111,6 +114,7 @@ function ProfileContent() {
       if (!signUpData.user) throw new Error('Worker auth account registration failed.');
 
       // 2. DB Insert
+      if (!supabase) throw new Error('Supabase client is not initialized.');
       const { error: insertError } = await supabase.from('workers').insert({
         farmer_id: targetFarmerId,
         farmer_email: targetFarmerEmail,
@@ -246,43 +250,23 @@ function ProfileContent() {
     }
   };
 
-  const handleDeleteAccount = () => {
-    const performDeletion = async () => {
-      try {
-        await deleteAccount();
-        setTimeout(() => {
-          router.replace('/(auth)/login');
-        }, 100);
-      } catch (err) {
-        console.error("Account deletion execution error:", err);
-        if (Platform.OS === 'web') {
-          alert('Failed to delete account. Please try again.');
-        } else {
-          Alert.alert('Error', 'Failed to delete account. Please try again.');
-        }
+  const handleDeleteAccount = async () => {
+    setIsSubmitting(true);
+    try {
+      await deleteAccount();
+      setIsDeleteModalVisible(false);
+      setTimeout(() => {
+        router.replace('/(auth)/login');
+      }, 100);
+    } catch (err) {
+      console.error("Account deletion execution error:", err);
+      if (Platform.OS === 'web') {
+        alert('Failed to delete account. Please try again.');
+      } else {
+        Alert.alert('Error', 'Failed to delete account. Please try again.');
       }
-    };
-
-    if (Platform.OS === 'web') {
-      const confirmed = window.confirm(
-        'Delete Account: This action is permanent and cannot be undone. All of your farm records, animal registries, and profile details will be permanently erased. Are you sure you want to proceed?'
-      );
-      if (confirmed) {
-        performDeletion();
-      }
-    } else {
-      Alert.alert(
-        'Delete Account',
-        'This action is permanent and cannot be undone. All of your farm records, animal registries, and profile details will be permanently erased. Are you sure you want to proceed?',
-        [
-          { text: 'Cancel', style: 'cancel' },
-          {
-            text: 'Delete Account',
-            style: 'destructive',
-            onPress: performDeletion,
-          },
-        ]
-      );
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -494,23 +478,17 @@ function ProfileContent() {
       </TouchableOpacity>
 
       {profile?.role !== 'worker' && (
-        <View style={styles.dangerZoneContainer}>
-          <Text variant="body2" weight="bold" color="error.500" style={styles.dangerZoneTitle}>
-            DANGER ZONE
+        <TouchableOpacity
+          style={{ alignSelf: 'center', marginTop: 32, marginBottom: 16 }}
+          onPress={() => {
+            setDeleteConfirmText('');
+            setIsDeleteModalVisible(true);
+          }}
+        >
+          <Text variant="caption" color="neutral.400" style={{ textDecorationLine: 'underline' }}>
+            Delete Account
           </Text>
-          <Text variant="caption" color="neutral.500" style={styles.dangerZoneText}>
-            Deleting your account will permanently erase your profile, farm records, livestock register, and all associated data. This action is irreversible.
-          </Text>
-          <TouchableOpacity
-            style={styles.deleteAccountButton}
-            onPress={handleDeleteAccount}
-          >
-            <Trash2 size={18} color={Colors.white} />
-            <Text variant="body" weight="bold" color="white" style={{ marginLeft: 8 }}>
-              Delete Account Permanently
-            </Text>
-          </TouchableOpacity>
-        </View>
+        </TouchableOpacity>
       )}
       
       {/* Edit Profile Modal */}
@@ -702,6 +680,67 @@ function ProfileContent() {
           </View>
         </KeyboardAvoidingView>
       </Modal>
+
+      {/* Delete Account Confirmation Modal */}
+      <Modal
+        animationType="fade"
+        transparent={true}
+        visible={isDeleteModalVisible}
+        onRequestClose={() => setIsDeleteModalVisible(false)}
+      >
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          style={{ flex: 1 }}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalContent}>
+              <Text variant="h6" weight="bold" style={[styles.modalTitle, { color: Colors.error[500] }]}>
+                Confirm Account Deletion
+              </Text>
+              
+              <Text variant="body2" color="neutral.600" style={{ marginBottom: 16, textAlign: 'center', lineHeight: 20 }}>
+                This action is <Text weight="bold" color="error.500">permanent</Text> and cannot be undone. All of your farm records, livestock registers, and profile data will be permanently deleted.
+              </Text>
+              
+              <Text variant="body2" color="neutral.700" style={{ marginBottom: 8, fontWeight: 'medium', textAlign: 'center' }}>
+                Type <Text weight="bold">DELETE</Text> below to confirm:
+              </Text>
+              
+              <TextInput
+                style={[styles.input, { textAlign: 'center', fontWeight: 'bold', letterSpacing: 2, borderColor: deleteConfirmText === 'DELETE' ? Colors.error[500] : Colors.neutral[200] }]}
+                value={deleteConfirmText}
+                onChangeText={setDeleteConfirmText}
+                placeholder="DELETE"
+                placeholderTextColor={Colors.neutral[300]}
+                autoCapitalize="characters"
+                autoCorrect={false}
+              />
+
+              <View style={styles.modalButtons}>
+                <TouchableOpacity
+                  style={styles.cancelButton}
+                  onPress={() => setIsDeleteModalVisible(false)}
+                  disabled={isSubmitting}
+                >
+                  <Text variant="body" weight="bold" color="neutral.700" style={styles.cancelButtonText}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[
+                    styles.saveButton,
+                    { backgroundColor: deleteConfirmText === 'DELETE' ? Colors.error[500] : Colors.neutral[300] }
+                  ]}
+                  onPress={handleDeleteAccount}
+                  disabled={isSubmitting || deleteConfirmText !== 'DELETE'}
+                >
+                  <Text variant="body" weight="bold" color="white" style={styles.saveButtonText}>
+                    {isSubmitting ? 'Deleting...' : 'Delete Permanently'}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
     </ScreenContainer>
   );
 }
@@ -715,7 +754,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.white,
     padding: 24,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.neutral[150],
+    borderBottomColor: Colors.neutral[100],
     alignItems: 'stretch',
   },
   profileInfo: {
@@ -729,7 +768,7 @@ const styles = StyleSheet.create({
     borderRadius: 40,
     backgroundColor: Colors.neutral[50],
     borderWidth: 1,
-    borderColor: Colors.neutral[150],
+    borderColor: Colors.neutral[100],
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 20,
@@ -744,7 +783,7 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     paddingVertical: 14,
     borderWidth: 1,
-    borderColor: Colors.neutral[150],
+    borderColor: Colors.neutral[100],
   },
   statItem: {
     flex: 1,
@@ -763,7 +802,7 @@ const styles = StyleSheet.create({
     marginHorizontal: 16,
     marginVertical: 8,
     borderWidth: 1,
-    borderColor: Colors.neutral[150],
+    borderColor: Colors.neutral[100],
     overflow: 'hidden',
   },
   menuItem: {

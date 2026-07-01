@@ -120,7 +120,7 @@ function StatRow({ label, value, valueColor }: { label: string; value: string | 
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 export default function Genetics() {
-  const { session, profile, targetUserId } = useAuth()
+  const { session, profile, targetUserId, selectedProductionYear } = useAuth()
   const isAdmin = profile?.role === 'admin'
   const [activeTab, setActiveTab] = useState<Tab>('herds')
   const [animals, setAnimals]         = useState<any[]>([])
@@ -139,11 +139,11 @@ export default function Genetics() {
     setLoading(true)
     setFi({})
     Promise.all([
-      supabase.from('animals').select('*').eq('user_id', targetUserId),
-      supabase.from('breeding_records').select('*').eq('user_id', targetUserId),
-      supabase.from('pregnancy_records').select('*').eq('user_id', targetUserId),
-      supabase.from('bull_breeding_records').select('*').eq('user_id', targetUserId),
-      supabase.from('mortality_records').select('*').eq('user_id', targetUserId),
+      supabase.from('animals').select('*').eq('user_id', targetUserId).eq('production_year', selectedProductionYear),
+      supabase.from('breeding_records').select('*').eq('user_id', targetUserId).eq('production_year', selectedProductionYear),
+      supabase.from('pregnancy_records').select('*').eq('user_id', targetUserId).eq('production_year', selectedProductionYear),
+      supabase.from('bull_breeding_records').select('*').eq('user_id', targetUserId).eq('production_year', selectedProductionYear),
+      supabase.from('mortality_records').select('*').eq('user_id', targetUserId).eq('production_year', selectedProductionYear),
       supabase.from('farm_inspections').select('*').eq('user_id', targetUserId).maybeSingle(),
     ]).then(([a, b, p, bull, m, ins]) => {
       setAnimals(a.data ?? [])
@@ -158,7 +158,7 @@ export default function Genetics() {
       }
       setLoading(false)
     })
-  }, [targetUserId])
+  }, [targetUserId, selectedProductionYear])
 
   // ── 1. Breeding Herd Composition ──────────────────────────────────────────
   const cowCount    = animals.filter(a => a.stock_type === 'Cow').length
@@ -173,7 +173,7 @@ export default function Genetics() {
   // ── 2. BCS Distribution ───────────────────────────────────────────────────
   const animalsWithBCS = animals.filter(a => a.bcs)
   const totalWithBCS   = animalsWithBCS.length
-  const bcsAvg = totalWithBCS ? animalsWithBCS.reduce((s, a) => s + a.bcs, 0) / totalWithBCS : 0
+  const bcsAvg = fi.herdBcs ? fi.herdBcs : (totalWithBCS ? animalsWithBCS.reduce((s, a) => s + a.bcs, 0) / totalWithBCS : 0)
 
   const bcsRanges = useMemo(() => {
     let b1 = 0, b2 = 0, b3 = 0, b4 = 0
@@ -365,6 +365,13 @@ export default function Genetics() {
       <div>
         <h2 className="text-xl font-bold" style={{ color: C.neutral900 }}>Genetics &amp; Production</h2>
         <p className="text-sm mt-0.5" style={{ color: C.neutral500 }}>Herd composition, breeding, and pregnancy statistics</p>
+      </div>
+
+      <div className="flex items-center gap-3 p-4 rounded-xl text-sm border" style={{ backgroundColor: '#F4F9ED', borderColor: '#E2EED8', color: C.neutral700 }}>
+        <div>
+          <span className="font-bold block mb-0.5" style={{ color: C.primary600 }}>💡 Genetics &amp; Reproduction Score Source</span>
+          <span className="text-xs">The overall Genetics category score is calculated as the average of Conception Rate achieved vs target, Calving Rate performance, and subjective Veterinary Inspection scores.</span>
+        </div>
       </div>
 
       {/* Tab bar — underline style matching mobile */}

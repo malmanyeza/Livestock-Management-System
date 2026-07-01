@@ -529,6 +529,8 @@ function RegisterContent() {
     addTransaction,
     updateAnimalWeight,
     addBullBreedingRecord,
+    updateBullBreedingRecord,
+    deleteBullBreedingRecord,
     saveAnimalWeight,
     addDrug,
     updateDrug,
@@ -546,6 +548,147 @@ function RegisterContent() {
   } = useFarmData();
 
   const isAdmin = profile?.role === 'admin';
+
+  // --- STATE DECLARATIONS ---
+  // State variables moved to top of component to avoid Temporal Dead Zone errors
+  const [isAddModalVisible, setIsAddModalVisible] = useState(false);
+  const [isEditAnimalModalVisible, setIsEditAnimalModalVisible] = useState(false);
+  const [editingAnimal, setEditingAnimal] = useState<AnimalData | null>(null);
+  const [originalAnimalTag, setOriginalAnimalTag] = useState('');
+  const [modalActiveTab, setModalActiveTab] = useState<'details' | 'timeline' | 'pedigree'>('details');
+  const [isAddHealthRecordModalVisible, setIsAddHealthRecordModalVisible] = useState(false);
+  const [isAddBreedingRecordModalVisible, setIsAddBreedingRecordModalVisible] = useState(false);
+  const [showBreedingDatePicker, setShowBreedingDatePicker] = useState(false);
+  const [isAddTransactionModalVisible, setIsAddTransactionModalVisible] = useState(false);
+  const [isAddWeightRecordModalVisible, setIsAddWeightRecordModalVisible] = useState(false);
+  const [weightAnimalSearchQuery, setWeightAnimalSearchQuery] = useState('');
+  const [isAddPregnancyModalVisible, setIsAddPregnancyModalVisible] = useState(false);
+  const [isEditHealthRecordModalVisible, setIsEditHealthRecordModalVisible] = useState(false);
+  const [editingHealthRecord, setEditingHealthRecord] = useState<AnimalHealthRecord | null>(null);
+  const [isEditBreedingRecordModalVisible, setIsEditBreedingRecordModalVisible] = useState(false);
+  const [editingBreedingRecord, setEditingBreedingRecord] = useState<HeatBreedingRecord | null>(null);
+  const [isEditBullBreedingRecordModalVisible, setIsEditBullBreedingRecordModalVisible] = useState(false);
+  const [editingBullBreedingRecord, setEditingBullBreedingRecord] = useState<BullBreedingRecord | null>(null);
+  const [showEditBullBreedingDatePicker, setShowEditBullBreedingDatePicker] = useState(false);
+  const [isEditPregnancyRecordModalVisible, setIsEditPregnancyRecordModalVisible] = useState(false);
+  const [editingPregnancyRecord, setEditingPregnancyRecord] = useState<PregnancyCalvingRecord | null>(null);
+  const [isEditWeightRecordModalVisible, setIsEditWeightRecordModalVisible] = useState(false);
+  const [editingWeightRecord, setEditingWeightRecord] = useState<any | null>(null);
+  const [isEditDrugModalVisible, setIsEditDrugModalVisible] = useState(false);
+  const [editingDrug, setEditingDrug] = useState<any | null>(null);
+  const [isEditMortalityRecordModalVisible, setIsEditMortalityRecordModalVisible] = useState(false);
+  const [editingMortalityRecord, setEditingMortalityRecord] = useState<any | null>(null);
+  const [isEditTransactionModalVisible, setIsEditTransactionModalVisible] = useState(false);
+  const [editingTransaction, setEditingTransaction] = useState<any | null>(null);
+  const [isEditFeedModalVisible, setIsEditFeedModalVisible] = useState(false);
+  const [editingFeedItem, setEditingFeedItem] = useState<any | null>(null);
+  const [showAddHealthDatePicker, setShowAddHealthDatePicker] = useState(false);
+  const [showEditHealthDatePicker, setShowEditHealthDatePicker] = useState(false);
+  const [showEditBreedingHeatDatePicker, setShowEditBreedingHeatDatePicker] = useState(false);
+  const [showEditBreedingServicedDatePicker, setShowEditBreedingServicedDatePicker] = useState(false);
+  const [showEditPregnancyLastServiceDatePicker, setShowEditPregnancyLastServiceDatePicker] = useState(false);
+  const [showEditPregnancyExpectedCalvingDatePicker, setShowEditPregnancyExpectedCalvingDatePicker] = useState(false);
+  const [showEditPregnancyActualCalvingDatePicker, setShowEditPregnancyActualCalvingDatePicker] = useState(false);
+  const [showAddPregnancyExpectedReturnToHeatDatePicker, setShowAddPregnancyExpectedReturnToHeatDatePicker] = useState(false);
+  const [showEditPregnancyExpectedReturnToHeatDatePicker, setShowEditPregnancyExpectedReturnToHeatDatePicker] = useState(false);
+  const [showAddMortalityDatePicker, setShowAddMortalityDatePicker] = useState(false);
+  const [showEditMortalityDatePicker, setShowEditMortalityDatePicker] = useState(false);
+  const [showEditTransactionDatePicker, setShowEditTransactionDatePicker] = useState(false);
+  const [showEditFeedLastUpdatedDatePicker, setShowEditFeedLastUpdatedDatePicker] = useState(false);
+  const [showEditCalfWeaningDatePicker, setShowEditCalfWeaningDatePicker] = useState(false);
+  const [herdRegisterData, setHerdRegisterData] = useState<AnimalData[]>([]);
+  const [pregnancyCalvingRecords, setPregnancyCalvingRecords] = useState<PregnancyCalvingRecord[]>([]);
+  const [newPregnancyRecord, setNewPregnancyRecord] = useState<Omit<PregnancyCalvingRecord, 'id'>>({
+    cowEarTag: '',
+    bodyConditionScore: 3.0,
+    lastServiceDate: new Date().toISOString().split('T')[0],
+    firstTrimesterPD: 'Not Tested',
+    secondTrimesterPD: 'Not Tested',
+    thirdTrimesterPD: 'Not Tested',
+    gestationPeriod: 0,
+    expectedCalvingDate: '',
+    actualCalvingDate: '',
+    averageBCS: 3.0,
+    expectedReturnToHeatDate: ''
+  });
+  const [healthRecords, setHealthRecords] = useState<AnimalHealthRecord[]>([]);
+  const [breedingRecords, setBreedingRecords] = useState<BullBreedingRecord[]>([]);
+  const [transactions, setTransactions] = useState<any[]>([]);
+
+  const totalSales = React.useMemo(() => {
+    return transactions
+      .filter(t => t.type === 'Sale')
+      .reduce((sum, t) => sum + Math.abs(t.amount || 0), 0);
+  }, [transactions]);
+
+  const totalPurchases = React.useMemo(() => {
+    return transactions
+      .filter(t => t.type === 'Purchase')
+      .reduce((sum, t) => sum + Math.abs(t.amount || 0), 0);
+  }, [transactions]);
+
+  const netProfitLoss = totalSales - totalPurchases;
+
+  const [weightRecords, setWeightRecords] = useState<any[]>([]);
+  const [newAnimal, setNewAnimal] = useState<Omit<AnimalData, 'id'>>({ 
+    tag: '', 
+    age: '', 
+    dateOfBirth: '',
+    breed: '', 
+    sex: 'Male', 
+    stockType: '', 
+    source: '',
+    observer: '',
+    birthWeight: '',
+    deliveryType: 'Natural',
+    sire: '',
+    dam: '',
+    dateOfWeaning: '',
+    weaningWeight: '',
+    description: ''
+  });
+  const [showWeaningDatePicker, setShowWeaningDatePicker] = useState(false);
+  const [selectedWeaningDate, setSelectedWeaningDate] = useState(new Date());
+  const [customBreedList, setCustomBreedList] = useState<string[]>([
+    'Angus', 'Brahman', 'Hereford', 'Mashona', 'Tuli', 'Simmental', 'Other'
+  ]);
+  const [showCustomBreedInput, setShowCustomBreedInput] = useState(false);
+  const [showDatePicker, setShowDatePicker] = useState({
+    lastServiceDate: false,
+    expectedCalvingDate: false,
+    actualCalvingDate: false
+  });
+  const [showBirthDatePicker, setShowBirthDatePicker] = useState(false);
+  const toggleDatePicker = (field: 'lastServiceDate' | 'expectedCalvingDate' | 'actualCalvingDate') => {
+    setShowDatePicker(prev => ({
+      ...prev,
+      [field]: !prev[field]
+    }));
+  };
+  const [selectedDate, setSelectedDate] = useState(new Date());
+  const [newHealthRecord, setNewHealthRecord] = useState<Omit<AnimalHealthRecord, 'id'>>({
+    animalId: '',
+    date: new Date().toISOString().split('T')[0],
+    treatment: '',
+    status: 'Pending',
+    specialNotes: '',
+    doneBy: ''
+  });
+  const [applyToAll, setApplyToAll] = useState(false);
+  const [selectedAnimalTags, setSelectedAnimalTags] = useState<string[]>([]);
+  const [animalSearchQuery, setAnimalSearchQuery] = useState('');
+  const [newBullBreedingRecord, setNewBullBreedingRecord] = useState<Omit<BullBreedingRecord, 'id'>>({
+    bullId: '',
+    date: new Date().toISOString().split('T')[0],
+    age: '',
+    pe: 'Good',
+    spermMotility: '',
+    spermMorphology: '',
+    scrotal: '',
+    libido: 'Good',
+    score: '',
+    classification: 'SPB'
+  });
 
   // Define aliveAnimals by filtering out dead animals from ctxMortalityRecords
   const aliveAnimals = React.useMemo(() => {
@@ -935,6 +1078,23 @@ function RegisterContent() {
   const [selectedBreed, setSelectedBreed] = useState('All');
   const [selectedSource, setSelectedSource] = useState('All');
 
+  const [tableFilterBreed, setTableFilterBreed] = useState('All');
+  const [tableFilterSource, setTableFilterSource] = useState('All');
+  const [tableFilterStockType, setTableFilterStockType] = useState('All');
+
+  const displayedHerdData = React.useMemo(() => {
+    return herdRegisterData.filter(a => {
+      const matchBreed = tableFilterBreed === 'All' || a.breed === tableFilterBreed;
+      const matchSource = tableFilterSource === 'All' || a.source === tableFilterSource;
+      const matchStockType = tableFilterStockType === 'All' || 
+                             (tableFilterStockType === 'Calve' ? (a.stockType === 'Calf' || a.stockType === 'Calve') : a.stockType === tableFilterStockType);
+      return matchBreed && matchSource && matchStockType;
+    }).map((item, index) => ({
+      ...item,
+      count: index + 1
+    }));
+  }, [herdRegisterData, tableFilterBreed, tableFilterSource, tableFilterStockType]);
+
   // --- CALCULATE DYNAMIC STATS FOR HERD AT A GLANCE ---
 
   // Dynamic accurate calculations for herdTotals
@@ -1089,157 +1249,6 @@ function RegisterContent() {
       setActiveTab(tab);
     }
   }, [tab]);
-  const [isAddModalVisible, setIsAddModalVisible] = useState(false);
-  const [isEditAnimalModalVisible, setIsEditAnimalModalVisible] = useState(false);
-  const [editingAnimal, setEditingAnimal] = useState<AnimalData | null>(null);
-  const [originalAnimalTag, setOriginalAnimalTag] = useState('');
-  const [isAddHealthRecordModalVisible, setIsAddHealthRecordModalVisible] = useState(false);
-  const [isAddBreedingRecordModalVisible, setIsAddBreedingRecordModalVisible] = useState(false);
-  const [showBreedingDatePicker, setShowBreedingDatePicker] = useState(false);
-  const [isAddTransactionModalVisible, setIsAddTransactionModalVisible] = useState(false);
-  const [isAddWeightRecordModalVisible, setIsAddWeightRecordModalVisible] = useState(false);
-  const [weightAnimalSearchQuery, setWeightAnimalSearchQuery] = useState('');
-  const [isAddPregnancyModalVisible, setIsAddPregnancyModalVisible] = useState(false);
-  
-  // Edit modals visibility and data states
-  const [isEditHealthRecordModalVisible, setIsEditHealthRecordModalVisible] = useState(false);
-  const [editingHealthRecord, setEditingHealthRecord] = useState<AnimalHealthRecord | null>(null);
-
-  const [isEditBreedingRecordModalVisible, setIsEditBreedingRecordModalVisible] = useState(false);
-  const [editingBreedingRecord, setEditingBreedingRecord] = useState<HeatBreedingRecord | null>(null);
-
-  const [isEditPregnancyRecordModalVisible, setIsEditPregnancyRecordModalVisible] = useState(false);
-  const [editingPregnancyRecord, setEditingPregnancyRecord] = useState<PregnancyCalvingRecord | null>(null);
-
-  const [isEditWeightRecordModalVisible, setIsEditWeightRecordModalVisible] = useState(false);
-  const [editingWeightRecord, setEditingWeightRecord] = useState<any | null>(null);
-
-  const [isEditDrugModalVisible, setIsEditDrugModalVisible] = useState(false);
-  const [editingDrug, setEditingDrug] = useState<any | null>(null);
-
-  const [isEditMortalityRecordModalVisible, setIsEditMortalityRecordModalVisible] = useState(false);
-  const [editingMortalityRecord, setEditingMortalityRecord] = useState<any | null>(null);
-
-  const [isEditTransactionModalVisible, setIsEditTransactionModalVisible] = useState(false);
-  const [editingTransaction, setEditingTransaction] = useState<any | null>(null);
-
-  const [isEditFeedModalVisible, setIsEditFeedModalVisible] = useState(false);
-  const [editingFeedItem, setEditingFeedItem] = useState<any | null>(null);
-
-  // Date picker visibility states for edit modals
-  const [showAddHealthDatePicker, setShowAddHealthDatePicker] = useState(false);
-  const [showEditHealthDatePicker, setShowEditHealthDatePicker] = useState(false);
-  const [showEditBreedingHeatDatePicker, setShowEditBreedingHeatDatePicker] = useState(false);
-  const [showEditBreedingServicedDatePicker, setShowEditBreedingServicedDatePicker] = useState(false);
-  const [showEditPregnancyLastServiceDatePicker, setShowEditPregnancyLastServiceDatePicker] = useState(false);
-  const [showEditPregnancyExpectedCalvingDatePicker, setShowEditPregnancyExpectedCalvingDatePicker] = useState(false);
-  const [showEditPregnancyActualCalvingDatePicker, setShowEditPregnancyActualCalvingDatePicker] = useState(false);
-  const [showAddPregnancyExpectedReturnToHeatDatePicker, setShowAddPregnancyExpectedReturnToHeatDatePicker] = useState(false);
-  const [showEditPregnancyExpectedReturnToHeatDatePicker, setShowEditPregnancyExpectedReturnToHeatDatePicker] = useState(false);
-  const [showAddMortalityDatePicker, setShowAddMortalityDatePicker] = useState(false);
-  const [showEditMortalityDatePicker, setShowEditMortalityDatePicker] = useState(false);
-  const [showEditTransactionDatePicker, setShowEditTransactionDatePicker] = useState(false);
-  const [showEditFeedLastUpdatedDatePicker, setShowEditFeedLastUpdatedDatePicker] = useState(false);
-  const [showEditCalfWeaningDatePicker, setShowEditCalfWeaningDatePicker] = useState(false);
-
-  const [herdRegisterData, setHerdRegisterData] = useState<AnimalData[]>([]);
-  const [pregnancyCalvingRecords, setPregnancyCalvingRecords] = useState<PregnancyCalvingRecord[]>([]);
-  const [newPregnancyRecord, setNewPregnancyRecord] = useState<Omit<PregnancyCalvingRecord, 'id'>>({
-    cowEarTag: '',
-    bodyConditionScore: 3.0,
-    lastServiceDate: new Date().toISOString().split('T')[0],
-    firstTrimesterPD: 'Not Tested',
-    secondTrimesterPD: 'Not Tested',
-    thirdTrimesterPD: 'Not Tested',
-    gestationPeriod: 0,
-    expectedCalvingDate: '',
-    actualCalvingDate: '',
-    averageBCS: 3.0,
-    expectedReturnToHeatDate: ''
-  });
-  const [healthRecords, setHealthRecords] = useState<AnimalHealthRecord[]>([]);
-  const [breedingRecords, setBreedingRecords] = useState<BullBreedingRecord[]>([]);
-  const [transactions, setTransactions] = useState<any[]>([]);
-
-  const totalSales = React.useMemo(() => {
-    return transactions
-      .filter(t => t.type === 'Sale')
-      .reduce((sum, t) => sum + Math.abs(t.amount || 0), 0);
-  }, [transactions]);
-
-  const totalPurchases = React.useMemo(() => {
-    return transactions
-      .filter(t => t.type === 'Purchase')
-      .reduce((sum, t) => sum + Math.abs(t.amount || 0), 0);
-  }, [transactions]);
-
-  const netProfitLoss = totalSales - totalPurchases;
-
-  const [weightRecords, setWeightRecords] = useState<any[]>([]);
-
-  const [newAnimal, setNewAnimal] = useState<Omit<AnimalData, 'id'>>({ 
-    tag: '', 
-    age: '', 
-    dateOfBirth: '',
-    breed: '', 
-    sex: 'Male', 
-    stockType: '', 
-    source: '',
-    observer: '',
-    birthWeight: '',
-    deliveryType: 'Natural',
-    sire: '',
-    dam: '',
-    dateOfWeaning: '',
-    weaningWeight: '',
-    description: ''
-  });
-  const [showWeaningDatePicker, setShowWeaningDatePicker] = useState(false);
-  const [selectedWeaningDate, setSelectedWeaningDate] = useState(new Date());
-
-  const [customBreedList, setCustomBreedList] = useState<string[]>([
-    'Angus', 'Brahman', 'Hereford', 'Mashona', 'Tuli', 'Simmental', 'Other'
-  ]);
-  const [showCustomBreedInput, setShowCustomBreedInput] = useState(false);
-
-  const [showDatePicker, setShowDatePicker] = useState({
-    lastServiceDate: false,
-    expectedCalvingDate: false,
-    actualCalvingDate: false
-  });
-  const [showBirthDatePicker, setShowBirthDatePicker] = useState(false);
-  
-  const toggleDatePicker = (field: 'lastServiceDate' | 'expectedCalvingDate' | 'actualCalvingDate') => {
-    setShowDatePicker(prev => ({
-      ...prev,
-      [field]: !prev[field]
-    }));
-  };
-  const [selectedDate, setSelectedDate] = useState(new Date());
-  const [newHealthRecord, setNewHealthRecord] = useState<Omit<AnimalHealthRecord, 'id'>>({
-    animalId: '',
-    date: new Date().toISOString().split('T')[0],
-    treatment: '',
-    status: 'Pending',
-    specialNotes: '',
-    doneBy: ''
-  });
-  const [applyToAll, setApplyToAll] = useState(false);
-  const [selectedAnimalTags, setSelectedAnimalTags] = useState<string[]>([]);
-  const [animalSearchQuery, setAnimalSearchQuery] = useState('');
-
-  const [newBullBreedingRecord, setNewBullBreedingRecord] = useState<Omit<BullBreedingRecord, 'id'>>({
-    bullId: '',
-    date: new Date().toISOString().split('T')[0],
-    age: '',
-    pe: 'Good',
-    spermMotility: '',
-    spermMorphology: '',
-    scrotal: '',
-    libido: 'Good',
-    score: '',
-    classification: 'SPB'
-  });
 
   // --- REACTIVE STATE SYNCHRONIZATION WITH CONTEXT ---
   useEffect(() => {
@@ -1358,6 +1367,7 @@ function RegisterContent() {
         animalId: m.animalId,
         cause: m.cause,
         description: m.description,
+        observer: m.observer,
       })));
     }
   }, [ctxMortalityRecords]);
@@ -1494,6 +1504,7 @@ function RegisterContent() {
   const handleEditAnimal = (animal: AnimalData) => {
     setEditingAnimal({ ...animal });
     setOriginalAnimalTag(animal.tag);
+    setModalActiveTab('details');
     setIsEditAnimalModalVisible(true);
   };
 
@@ -1752,6 +1763,64 @@ function RegisterContent() {
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  const handleEditBullBreedingRecord = (record: any) => {
+    setEditingBullBreedingRecord({ ...record });
+    setIsEditBullBreedingRecordModalVisible(true);
+  };
+
+  const handleSaveBullBreedingRecord = async () => {
+    if (!editingBullBreedingRecord) return;
+    setIsSubmitting(true);
+    try {
+      await updateBullBreedingRecord(editingBullBreedingRecord.id, {
+        bullId: editingBullBreedingRecord.bullId,
+        date: editingBullBreedingRecord.date,
+        age: editingBullBreedingRecord.age,
+        pe: editingBullBreedingRecord.pe,
+        spermMotility: editingBullBreedingRecord.spermMotility,
+        spermMorphology: editingBullBreedingRecord.spermMorphology,
+        scrotal: editingBullBreedingRecord.scrotal,
+        libido: editingBullBreedingRecord.libido,
+        score: editingBullBreedingRecord.score,
+        classification: editingBullBreedingRecord.classification
+      });
+      setIsEditBullBreedingRecordModalVisible(false);
+      setEditingBullBreedingRecord(null);
+      alert('Bull breeding record updated successfully.');
+    } catch (e: any) {
+      alert('Failed to update record: ' + e.message);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleDeleteBullBreedingRecord = async (id: string) => {
+    Alert.alert(
+      'Delete Record',
+      'Are you sure you want to delete this bull breeding record?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { 
+          text: 'Delete', 
+          style: 'destructive',
+          onPress: async () => {
+            setIsSubmitting(true);
+            try {
+              await deleteBullBreedingRecord(id);
+              setIsEditBullBreedingRecordModalVisible(false);
+              setEditingBullBreedingRecord(null);
+              alert('Record deleted successfully.');
+            } catch (e: any) {
+              alert('Failed to delete record: ' + e.message);
+            } finally {
+              setIsSubmitting(false);
+            }
+          }
+        }
+      ]
+    );
   };
 
   const handleEditTransaction = (record: any) => {
@@ -4298,6 +4367,198 @@ function RegisterContent() {
     </Modal>
   );
 
+  const renderEditBullBreedingRecordModal = () => (
+    <Modal
+      animationType="slide"
+      transparent={true}
+      visible={isEditBullBreedingRecordModalVisible}
+      onRequestClose={() => { setIsEditBullBreedingRecordModalVisible(false); setEditingBullBreedingRecord(null); }}
+    >
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        style={{ flex: 1 }}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text variant="h6" weight="bold" style={styles.modalTitle}>Edit Bull Breeding Record</Text>
+            
+            <ScrollView 
+              style={{ flexShrink: 1 }}
+              contentContainerStyle={{ flexGrow: 1 }}
+              keyboardShouldPersistTaps="always"
+              automaticallyAdjustKeyboardInsets={true}
+              keyboardDismissMode="none"
+            >
+              <View style={styles.formGroup}>
+                <Text variant="body2" style={styles.label}>Bull ID</Text>
+                <Text variant="body" weight="medium" style={[styles.input, { backgroundColor: Colors.neutral[100], color: Colors.neutral[700] }]}>
+                  {editingBullBreedingRecord?.bullId || ''}
+                </Text>
+              </View>
+
+              <View style={styles.formGroup}>
+                <Text variant="body2" style={styles.label}>Date</Text>
+                <TouchableOpacity
+                  style={styles.dateInput}
+                  onPress={() => {
+                    setSelectedDate(editingBullBreedingRecord?.date ? new Date(editingBullBreedingRecord.date) : new Date());
+                    setShowEditBullBreedingDatePicker(true);
+                  }}
+                >
+                  <Text>{editingBullBreedingRecord?.date || 'Select date'}</Text>
+                </TouchableOpacity>
+
+                {renderAdaptiveDatePicker(
+                  showEditBullBreedingDatePicker,
+                  editingBullBreedingRecord?.date,
+                  () => setShowEditBullBreedingDatePicker(false),
+                  (formattedDate) => editingBullBreedingRecord && setEditingBullBreedingRecord({ ...editingBullBreedingRecord, date: formattedDate }),
+                  "Breeding Date"
+                )}
+              </View>
+              
+              <View style={styles.formGroup}>
+                <Text variant="body2" style={styles.label}>Age</Text>
+                <TextInput
+                  style={styles.input}
+                  value={editingBullBreedingRecord?.age || ''}
+                  onChangeText={(text) => editingBullBreedingRecord && setEditingBullBreedingRecord({...editingBullBreedingRecord, age: text})}
+                  placeholder="e.g., 2y 6m"
+                />
+              </View>
+              
+              <View style={styles.formGroup}>
+                <Text variant="body2" style={styles.label}>Physical Exam (PE)</Text>
+                <View style={{ flexDirection: 'row', marginTop: 4, flexWrap: 'wrap' }}>
+                  {['Excellent', 'Good', 'Poor'].map((pe) => (
+                    <TouchableOpacity 
+                      key={pe}
+                      style={[
+                        styles.radioButton, 
+                        editingBullBreedingRecord?.pe === pe && styles.radioButtonSelected,
+                        { marginRight: 8, marginBottom: 8 }
+                      ]}
+                      onPress={() => editingBullBreedingRecord && setEditingBullBreedingRecord({...editingBullBreedingRecord, pe: pe as BullBreedingRecord['pe']})}
+                    >
+                      <Text>{pe}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+              
+              <View style={styles.formGroup}>
+                <Text variant="body2" style={styles.label}>Sperm Motility (%)</Text>
+                <TextInput
+                  style={styles.input}
+                  value={editingBullBreedingRecord?.spermMotility || ''}
+                  onChangeText={(text) => editingBullBreedingRecord && setEditingBullBreedingRecord({...editingBullBreedingRecord, spermMotility: text})}
+                  placeholder="e.g., 85"
+                  keyboardType="numeric"
+                />
+              </View>
+              
+              <View style={styles.formGroup}>
+                <Text variant="body2" style={styles.label}>Sperm Morphology (%)</Text>
+                <TextInput
+                  style={styles.input}
+                  value={editingBullBreedingRecord?.spermMorphology || ''}
+                  onChangeText={(text) => editingBullBreedingRecord && setEditingBullBreedingRecord({...editingBullBreedingRecord, spermMorphology: text})}
+                  placeholder="e.g., 90"
+                  keyboardType="numeric"
+                />
+              </View>
+              
+              <View style={styles.formGroup}>
+                <Text variant="body2" style={styles.label}>Scrotal Circumference (cm)</Text>
+                <TextInput
+                  style={styles.input}
+                  value={editingBullBreedingRecord?.scrotal || ''}
+                  onChangeText={(text) => editingBullBreedingRecord && setEditingBullBreedingRecord({...editingBullBreedingRecord, scrotal: text})}
+                  placeholder="e.g., 35.5"
+                  keyboardType="numeric"
+                />
+              </View>
+              
+              <View style={styles.formGroup}>
+                <Text variant="body2" style={styles.label}>Libido</Text>
+                <View style={{ flexDirection: 'row', marginTop: 4, flexWrap: 'wrap' }}>
+                  {['Excellent', 'Good', 'Poor'].map((libido) => (
+                    <TouchableOpacity 
+                      key={libido}
+                      style={[
+                        styles.radioButton, 
+                        editingBullBreedingRecord?.libido === libido && styles.radioButtonSelected,
+                        { marginRight: 8, marginBottom: 8 }
+                      ]}
+                      onPress={() => editingBullBreedingRecord && setEditingBullBreedingRecord({...editingBullBreedingRecord, libido: libido as BullBreedingRecord['libido']})}
+                    >
+                      <Text>{libido}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+              
+              <View style={styles.formGroup}>
+                <Text variant="body2" style={styles.label}>Score</Text>
+                <TextInput
+                  style={styles.input}
+                  value={editingBullBreedingRecord?.score || ''}
+                  onChangeText={(text) => editingBullBreedingRecord && setEditingBullBreedingRecord({...editingBullBreedingRecord, score: text})}
+                  placeholder="e.g., 85"
+                  keyboardType="numeric"
+                />
+              </View>
+              
+              <View style={styles.formGroup}>
+                <Text variant="body2" style={styles.label}>Classification</Text>
+                <View style={{ flexDirection: 'row', marginTop: 4, flexWrap: 'wrap' }}>
+                  {['SPB', 'USPB', 'CD'].map((classification) => (
+                    <TouchableOpacity 
+                      key={classification}
+                      style={[
+                        styles.radioButton, 
+                        editingBullBreedingRecord?.classification === classification && styles.radioButtonSelected,
+                        { marginRight: 8, marginBottom: 8 }
+                      ]}
+                      onPress={() => editingBullBreedingRecord && setEditingBullBreedingRecord({...editingBullBreedingRecord, classification: classification as BullBreedingRecord['classification']})}
+                    >
+                      <Text>{classification}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+            </ScrollView>
+            
+            <View style={styles.modalButtons}>
+              <Button 
+                variant="outline" 
+                onPress={() => { setIsEditBullBreedingRecordModalVisible(false); setEditingBullBreedingRecord(null); }}
+                style={styles.cancelButton}
+              >
+                Cancel
+              </Button>
+              {isAdmin && (
+                <Button 
+                  variant="outline"
+                  onPress={() => handleDeleteBullBreedingRecord(editingBullBreedingRecord!.id)}
+                  style={StyleSheet.flatten([styles.cancelButton, { borderColor: Colors.error[500], marginRight: 8 }])}
+                >
+                  <Text color="error.500">Delete</Text>
+                </Button>
+              )}
+              <Button 
+                onPress={handleSaveBullBreedingRecord}
+                disabled={isSubmitting || !editingBullBreedingRecord?.bullId || !editingBullBreedingRecord?.age || !editingBullBreedingRecord?.spermMotility || !editingBullBreedingRecord?.spermMorphology || !editingBullBreedingRecord?.scrotal || !editingBullBreedingRecord?.score}
+              >
+                {isSubmitting ? 'Saving...' : 'Save Changes'}
+              </Button>
+            </View>
+          </View>
+        </View>
+      </KeyboardAvoidingView>
+    </Modal>
+  );
+
   const renderAddAnimalModal = () => (
     <Modal
       animationType="slide"
@@ -4550,261 +4811,512 @@ function RegisterContent() {
     </Modal>
   );
 
+  const renderTimeline = (animalTag: string) => {
+    const events: { date: string; title: string; desc: string; icon: string }[] = [];
+
+    // Find animal details
+    const anim = herdRegisterData.find(a => a.tag === animalTag);
+    if (anim) {
+      if (anim.dateOfBirth) {
+        events.push({
+          date: anim.dateOfBirth,
+          title: 'Birth',
+          desc: `Born on farm. Breed: ${anim.breed || 'Unknown'}. Sex: ${anim.sex}.`,
+          icon: '👶'
+        });
+      }
+      if (anim.source === 'Purchased') {
+        events.push({
+          date: anim.dateOfBirth || '',
+          title: 'Purchase',
+          desc: `Purchased and added to herd.`,
+          icon: '💰'
+        });
+      }
+    }
+
+    // Weight Records
+    if (animalWeights) {
+      const weights = animalWeights.filter(w => w.animalTag?.toLowerCase() === animalTag.toLowerCase());
+      weights.forEach(w => {
+        const months = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
+        months.forEach((m, idx) => {
+          const val = (w as any)[m];
+          if (val != null) {
+            events.push({
+              date: `${w.year}-${(idx + 1).toString().padStart(2, '0')}-15`,
+              title: 'Weight Log',
+              desc: `Weight: ${val} kg.`,
+              icon: '⚖️'
+            });
+          }
+        });
+      });
+    }
+
+    // Health Records
+    if (healthRecords) {
+      const healths = healthRecords.filter(h => h.animalId?.toLowerCase() === animalTag.toLowerCase());
+      healths.forEach(h => {
+        events.push({
+          date: h.date,
+          title: 'Health Treatment',
+          desc: `Treatment: ${h.treatment}. Status: ${h.status}. Done by: ${h.doneBy || 'N/A'}. Notes: ${h.specialNotes || 'None'}.`,
+          icon: '🏥'
+        });
+      });
+    }
+
+    // Breeding Records
+    if (ctxBreedingRecords) {
+      const breeds = ctxBreedingRecords.filter(b => b.earTagNumber?.toLowerCase() === animalTag.toLowerCase());
+      breeds.forEach(b => {
+        if (b.heatDetectionDate) {
+          events.push({
+            date: b.heatDetectionDate,
+            title: 'Heat Detected',
+            desc: `Observed by: ${b.observer}. BCS: ${b.bodyConditionScore}.`,
+            icon: '🔥'
+          });
+        }
+        if (b.servicedDate) {
+          events.push({
+            date: b.servicedDate,
+            title: 'Serviced (Breeding)',
+            desc: `Method: ${b.breedingMethod || 'N/A'}. Sire: ${b.sireId || 'N/A'}. Straw: ${b.strawId || 'N/A'}. Status: ${b.breedingStatus}.`,
+            icon: '❤️'
+          });
+        }
+      });
+    }
+
+    // Pregnancy Records
+    if (ctxPregnancyRecords) {
+      const pregs = ctxPregnancyRecords.filter(p => p.cowEarTag?.toLowerCase() === animalTag.toLowerCase());
+      pregs.forEach(p => {
+        if (p.lastServiceDate) {
+          events.push({
+            date: p.lastServiceDate,
+            title: 'Pregnancy Diagnosis',
+            desc: `PD1: ${p.firstTrimesterPD || 'N/A'}, PD2: ${p.secondTrimesterPD || 'N/A'}, PD3: ${p.thirdTrimesterPD || 'N/A'}. Gestation: ${p.gestationPeriod} days. Expected Calving: ${p.expectedCalvingDate || 'N/A'}.`,
+            icon: '🤰'
+          });
+        }
+        if (p.actualCalvingDate) {
+          events.push({
+            date: p.actualCalvingDate,
+            title: 'Calving (Birth Event)',
+            desc: `Calf Tag: ${p.calfId || 'N/A'}. Calf Sex: ${p.calfSex || 'N/A'}. Delivery: ${p.deliveryType || 'Natural'}.`,
+            icon: '🎉'
+          });
+        }
+      });
+    }
+
+    events.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+    return (
+      <ScrollView style={{ padding: 16 }}>
+        {events.length === 0 ? (
+          <Text align="center" color="neutral.500" style={{ marginTop: 24 }}>No events recorded for this animal.</Text>
+        ) : (
+          events.map((evt, idx) => (
+            <View key={idx} style={{ flexDirection: 'row', marginBottom: 20 }}>
+              <View style={{ alignItems: 'center', marginRight: 12 }}>
+                <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: '#E8F8F5', justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: '#A2D9CE' }}>
+                  <Text style={{ fontSize: 16 }}>{evt.icon}</Text>
+                </View>
+                {idx < events.length - 1 && (
+                  <View style={{ width: 2, flex: 1, backgroundColor: '#BDC3C7', marginTop: 4 }} />
+                )}
+              </View>
+              <View style={{ flex: 1, backgroundColor: '#F8F9F9', borderRadius: 12, padding: 12, borderWidth: 1, borderColor: '#EAEDED' }}>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
+                  <Text weight="bold" style={{ fontSize: 14 }}>{evt.title}</Text>
+                  <Text variant="caption" color="neutral.500">{evt.date}</Text>
+                </View>
+                <Text style={{ fontSize: 13, color: '#566573' }}>{evt.desc}</Text>
+              </View>
+            </View>
+          ))
+        )}
+      </ScrollView>
+    );
+  };
+
+  const renderPedigree = (animalTag: string) => {
+    const findAnimal = (tag: string): any => {
+      if (!tag) return null;
+      return herdRegisterData.find(a => a.tag.toLowerCase() === tag.trim().toLowerCase()) || { tag, breed: 'Unknown', stockType: '', sire: '', dam: '' };
+    };
+
+    const root = findAnimal(animalTag);
+    if (!root) return <Text align="center" style={{ marginTop: 24 }}>Animal not found</Text>;
+
+    const sire1 = root.sire ? findAnimal(root.sire) : null;
+    const dam1 = root.dam ? findAnimal(root.dam) : null;
+
+    const gSire1 = sire1?.sire ? findAnimal(sire1.sire) : null;
+    const gDam1 = sire1?.dam ? findAnimal(sire1.dam) : null;
+
+    const gSire2 = dam1?.sire ? findAnimal(dam1.sire) : null;
+    const gDam2 = dam1?.dam ? findAnimal(dam1.dam) : null;
+
+    const renderNode = (title: string, anim: any, relationship: string) => {
+      return (
+        <View style={{
+          backgroundColor: anim && anim.breed !== 'Unknown' ? '#F4F6F7' : '#FDFEFE',
+          borderRadius: 8,
+          borderWidth: 1,
+          borderColor: anim && anim.breed !== 'Unknown' ? '#A2D9CE' : '#E5E8E8',
+          padding: 8,
+          alignItems: 'center',
+          justifyContent: 'center',
+          flex: 1,
+          margin: 4,
+          minHeight: 60
+        }}>
+          <Text variant="caption" color="neutral.500" style={{ fontSize: 9, fontWeight: 'bold' }}>{relationship}</Text>
+          <Text weight="bold" style={{ fontSize: 12, marginTop: 2 }}>{anim ? anim.tag : 'Unknown'}</Text>
+          <Text variant="caption" style={{ fontSize: 10, color: '#7F8C8D' }}>{anim && anim.breed !== 'Unknown' ? anim.breed : '—'}</Text>
+        </View>
+      );
+    };
+
+    return (
+      <ScrollView contentContainerStyle={{ padding: 16, alignItems: 'center' }}>
+        <Text variant="caption" color="neutral.500" style={{ marginBottom: 16, textAlign: 'center' }}>
+          3-Generation Pedigree Tree. Boxes show active registered ancestors.
+        </Text>
+        <View style={{ width: '100%', flexDirection: 'row', alignItems: 'center' }}>
+          <View style={{ flex: 1, gap: 4 }}>
+            {renderNode('Grandsire (Sire)', gSire1, 'Paternal Grandsire')}
+            {renderNode('Granddam (Sire)', gDam1, 'Paternal Granddam')}
+            <View style={{ height: 16 }} />
+            {renderNode('Grandsire (Dam)', gSire2, 'Maternal Grandsire')}
+            {renderNode('Granddam (Dam)', gDam2, 'Maternal Granddam')}
+          </View>
+
+          <View style={{ width: 12, alignItems: 'center', justifyContent: 'center' }}>
+            <Text style={{ color: '#BDC3C7', fontSize: 18 }}>{'<'}</Text>
+            <View style={{ height: 80 }} />
+            <Text style={{ color: '#BDC3C7', fontSize: 18 }}>{'<'}</Text>
+          </View>
+
+          <View style={{ flex: 1, gap: 20 }}>
+            {renderNode('Sire', sire1, 'Sire (Father)')}
+            <View style={{ height: 10 }} />
+            {renderNode('Dam', dam1, 'Dam (Mother)')}
+          </View>
+
+          <View style={{ width: 12, alignItems: 'center', justifyContent: 'center' }}>
+            <Text style={{ color: '#BDC3C7', fontSize: 24 }}>{'<'}</Text>
+          </View>
+
+          <View style={{ flex: 1 }}>
+            {renderNode('Self', root, 'Animal')}
+          </View>
+        </View>
+      </ScrollView>
+    );
+  };
+
   const renderEditAnimalModal = () => (
     <Modal
       animationType="slide"
       transparent={true}
       visible={isEditAnimalModalVisible}
-      onRequestClose={() => setIsEditAnimalModalVisible(false)}
+      onRequestClose={() => {
+        setIsEditAnimalModalVisible(false);
+        setEditingAnimal(null);
+      }}
     >
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         style={{ flex: 1 }}
       >
         <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <Text variant="h6" weight="bold" style={styles.modalTitle}>Edit Animal Details</Text>
-            
-            <ScrollView
-              style={{ flexShrink: 1 }}
-              contentContainerStyle={{ flexGrow: 1 }}
-              keyboardShouldPersistTaps="always"
-              automaticallyAdjustKeyboardInsets={true}
-              keyboardDismissMode="none"
-            >
-              <View style={styles.formGroup}>
-                <Text variant="body2" style={styles.label}>Tag *</Text>
-                <TextInput
-                  style={styles.input}
-                  value={editingAnimal?.tag || ''}
-                  onChangeText={(text) => editingAnimal && setEditingAnimal({...editingAnimal, tag: text})}
-                  placeholder="e.g., TAG123"
-                />
-              </View>
-              
-              <View style={styles.formGroup}>
-                <Text variant="body2" style={styles.label}>Date of Birth *</Text>
-                <TouchableOpacity 
-                  style={styles.input}
-                  onPress={() => setShowBirthDatePicker(true)}
+          <View style={[styles.modalContent, { paddingHorizontal: 0 }]}>
+            <View style={{ paddingHorizontal: 24, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+              <Text variant="h6" weight="bold" style={styles.modalTitle}>
+                Animal Profile: {editingAnimal?.tag || ''}
+              </Text>
+              <TouchableOpacity onPress={() => { setIsEditAnimalModalVisible(false); setEditingAnimal(null); }}>
+                <Text style={{ fontSize: 28, color: '#888', fontWeight: 'bold' }}>×</Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Modal Tab Bar */}
+            <View style={{ flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: '#E5E8E8', marginBottom: 12, paddingHorizontal: 24 }}>
+              {(['details', 'timeline', 'pedigree'] as const).map((tab) => (
+                <TouchableOpacity
+                  key={tab}
+                  style={{
+                    paddingVertical: 12,
+                    marginRight: 20,
+                    borderBottomWidth: 2,
+                    borderBottomColor: modalActiveTab === tab ? Colors.primary[500] : 'transparent'
+                  }}
+                  onPress={() => setModalActiveTab(tab)}
                 >
-                  <Text style={editingAnimal?.dateOfBirth ? {} : {color: '#999'}}>
-                    {editingAnimal?.dateOfBirth || 'Select date'}
+                  <Text style={{
+                    fontSize: 14,
+                    fontWeight: 'bold',
+                    color: modalActiveTab === tab ? Colors.primary[600] : Colors.neutral[600]
+                  }}>
+                    {tab === 'details' ? 'Edit Details' : tab.charAt(0).toUpperCase() + tab.slice(1)}
                   </Text>
                 </TouchableOpacity>
-                
-                {renderAdaptiveDatePicker(
-                  showBirthDatePicker,
-                  editingAnimal?.dateOfBirth,
-                  () => setShowBirthDatePicker(false),
-                  (formattedDate) => {
-                    const today = new Date();
-                    const date = new Date(formattedDate);
-                    let years = today.getFullYear() - date.getFullYear();
-                    let months = today.getMonth() - date.getMonth();
-                    if (months < 0 || (months === 0 && today.getDate() < date.getDate())) {
-                      years--;
-                      months += 12;
-                    }
-                    const ageText = years > 0 ? `${years}y ${months}m` : `${months}m`;
-                    if (editingAnimal) {
-                      setEditingAnimal({ ...editingAnimal, dateOfBirth: formattedDate, age: ageText });
-                    }
-                  },
-                  "Date of Birth",
-                  new Date()
-                )}
-                
-                {editingAnimal?.age ? (
-                  <Text variant="caption" style={{marginTop: 4}}>Age: {editingAnimal.age}</Text>
-                ) : null}
-              </View>
-              
-              <Picker
-                label="Breed"
-                value={editingAnimal?.breed || ''}
-                onValueChange={(value) => {
-                  if (value === '__add_new__') {
-                    if (editingAnimal) setEditingAnimal({...editingAnimal, breed: ''});
-                    setShowCustomBreedInput(true);
-                  } else {
-                    if (editingAnimal) setEditingAnimal({...editingAnimal, breed: value});
-                    setShowCustomBreedInput(false);
-                  }
-                }}
-                items={[
-                  { label: 'Select Breed', value: '' },
-                  ...customBreedList.map(b => ({ label: b, value: b })),
-                  { label: '+ Add New Breed...', value: '__add_new__' },
-                ]}
-              />
-              {showCustomBreedInput && (
-                <View style={[styles.formGroup, { flexDirection: 'row', alignItems: 'center', gap: 8 }]}>
-                  <TextInput
-                    style={[styles.input, { flex: 1 }]}
+              ))}
+            </View>
+
+            {modalActiveTab === 'details' && (
+              <>
+                <ScrollView
+                  style={{ flexShrink: 1, paddingHorizontal: 24 }}
+                  contentContainerStyle={{ flexGrow: 1 }}
+                  keyboardShouldPersistTaps="always"
+                  automaticallyAdjustKeyboardInsets={true}
+                  keyboardDismissMode="none"
+                >
+                  <View style={styles.formGroup}>
+                    <Text variant="body2" style={styles.label}>Tag *</Text>
+                    <TextInput
+                      style={styles.input}
+                      value={editingAnimal?.tag || ''}
+                      onChangeText={(text) => editingAnimal && setEditingAnimal({...editingAnimal, tag: text})}
+                      placeholder="e.g., TAG123"
+                    />
+                  </View>
+                  
+                  <View style={styles.formGroup}>
+                    <Text variant="body2" style={styles.label}>Date of Birth *</Text>
+                    <TouchableOpacity 
+                      style={styles.input}
+                      onPress={() => setShowBirthDatePicker(true)}
+                    >
+                      <Text style={editingAnimal?.dateOfBirth ? {} : {color: '#999'}}>
+                        {editingAnimal?.dateOfBirth || 'Select date'}
+                      </Text>
+                    </TouchableOpacity>
+                    
+                    {renderAdaptiveDatePicker(
+                      showBirthDatePicker,
+                      editingAnimal?.dateOfBirth,
+                      () => setShowBirthDatePicker(false),
+                      (formattedDate) => {
+                        const today = new Date();
+                        const date = new Date(formattedDate);
+                        let years = today.getFullYear() - date.getFullYear();
+                        let months = today.getMonth() - date.getMonth();
+                        if (months < 0 || (months === 0 && today.getDate() < date.getDate())) {
+                          years--;
+                          months += 12;
+                        }
+                        const ageText = years > 0 ? `${years}y ${months}m` : `${months}m`;
+                        if (editingAnimal) {
+                          setEditingAnimal({ ...editingAnimal, dateOfBirth: formattedDate, age: ageText });
+                        }
+                      },
+                      "Date of Birth",
+                      new Date()
+                    )}
+                    
+                    {editingAnimal?.age ? (
+                      <Text variant="caption" style={{marginTop: 4}}>Age: {editingAnimal.age}</Text>
+                    ) : null}
+                  </View>
+                  
+                  <Picker
+                    label="Breed"
                     value={editingAnimal?.breed || ''}
-                    onChangeText={(text) => editingAnimal && setEditingAnimal({...editingAnimal, breed: text})}
-                    placeholder="Type new breed name..."
-                    autoFocus
-                  />
-                  <Button
-                    size="sm"
-                    onPress={() => {
-                      const trimmed = editingAnimal?.breed.trim();
-                      if (trimmed && !customBreedList.includes(trimmed)) {
-                        setCustomBreedList(prev => [...prev, trimmed]);
+                    onValueChange={(value) => {
+                      if (value === '__add_new__') {
+                        if (editingAnimal) setEditingAnimal({...editingAnimal, breed: ''});
+                        setShowCustomBreedInput(true);
+                      } else {
+                        if (editingAnimal) setEditingAnimal({...editingAnimal, breed: value});
+                        setShowCustomBreedInput(false);
                       }
-                      setShowCustomBreedInput(false);
                     }}
-                    disabled={!editingAnimal?.breed.trim()}
+                    items={[
+                      { label: 'Select Breed', value: '' },
+                      ...customBreedList.map(b => ({ label: b, value: b })),
+                      { label: '+ Add New Breed...', value: '__add_new__' },
+                    ]}
+                  />
+                  {showCustomBreedInput && (
+                    <View style={[styles.formGroup, { flexDirection: 'row', alignItems: 'center', gap: 8 }]}>
+                      <TextInput
+                        style={[styles.input, { flex: 1 }]}
+                        value={editingAnimal?.breed || ''}
+                        onChangeText={(text) => editingAnimal && setEditingAnimal({...editingAnimal, breed: text})}
+                        placeholder="Type new breed name..."
+                        autoFocus
+                      />
+                      <Button
+                        size="sm"
+                        onPress={() => {
+                          const trimmed = editingAnimal?.breed.trim();
+                          if (trimmed && !customBreedList.includes(trimmed)) {
+                            setCustomBreedList(prev => [...prev, trimmed]);
+                          }
+                          setShowCustomBreedInput(false);
+                        }}
+                        disabled={!editingAnimal?.breed.trim()}
+                      >
+                        Save
+                      </Button>
+                    </View>
+                  )}
+                  
+                  <View style={styles.formGroup}>
+                    <Text variant="body2" style={styles.label}>Sex</Text>
+                    <View style={styles.radioGroup}>
+                      <TouchableOpacity 
+                        style={[styles.radioButton, editingAnimal?.sex === 'Male' && styles.radioButtonSelected]}
+                        onPress={() => editingAnimal && setEditingAnimal({...editingAnimal, sex: 'Male'})}
+                      >
+                        <Text>Male</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity 
+                        style={[styles.radioButton, editingAnimal?.sex === 'Female' && styles.radioButtonSelected]}
+                        onPress={() => editingAnimal && setEditingAnimal({...editingAnimal, sex: 'Female'})}
+                      >
+                        <Text>Female</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                  
+                  <Picker
+                    label="Stock Type"
+                    value={editingAnimal?.stockType || ''}
+                    onValueChange={(value) => editingAnimal && setEditingAnimal({...editingAnimal, stockType: value})}
+                    items={[
+                      { label: 'Select Stock Type', value: '' },
+                      { label: 'Bull', value: 'Bull' },
+                      { label: 'Cow', value: 'Cow' },
+                      { label: 'Heifer', value: 'Heifer' },
+                      { label: 'Bullying Heifer', value: 'Bullying Heifer' },
+                      { label: 'Steer', value: 'Steer' },
+                      { label: 'Calf', value: 'Calve' }
+                    ]}
+                  />
+                  
+                  <Picker
+                    label="Source"
+                    value={editingAnimal?.source || ''}
+                    onValueChange={(value) => editingAnimal && setEditingAnimal({...editingAnimal, source: value})}
+                    items={[
+                      { label: 'Select Source', value: '' },
+                      { label: 'Born on Farm', value: 'Born' },
+                      { label: 'Purchased', value: 'Purchased' },
+                    ]}
+                  />
+
+                  <View style={styles.formGroup}>
+                    <Text variant="body2" style={styles.label}>Sire</Text>
+                    <TextInput
+                      style={styles.input}
+                      value={editingAnimal?.sire || ''}
+                      onChangeText={(text) => editingAnimal && setEditingAnimal({...editingAnimal, sire: text})}
+                      placeholder="Sire Tag / ID"
+                    />
+                  </View>
+
+                  <View style={styles.formGroup}>
+                    <Text variant="body2" style={styles.label}>Dam</Text>
+                    <TextInput
+                      style={styles.input}
+                      value={editingAnimal?.dam || ''}
+                      onChangeText={(text) => editingAnimal && setEditingAnimal({...editingAnimal, dam: text})}
+                      placeholder="Dam Tag / ID"
+                    />
+                  </View>
+
+                  <View style={styles.formGroup}>
+                    <Text variant="body2" style={styles.label}>Birth Weight (kg)</Text>
+                    <TextInput
+                      style={styles.input}
+                      value={editingAnimal?.birthWeight || ''}
+                      onChangeText={(text) => editingAnimal && setEditingAnimal({...editingAnimal, birthWeight: text})}
+                      placeholder="e.g., 35"
+                      keyboardType="numeric"
+                    />
+                  </View>
+
+                  <View style={styles.formGroup}>
+                    <Text variant="body2" style={styles.label}>Date of Weaning</Text>
+                    <TouchableOpacity 
+                      style={styles.input}
+                      onPress={() => setShowWeaningDatePicker(true)}
+                    >
+                      <Text style={editingAnimal?.dateOfWeaning ? {} : {color: '#999'}}>
+                        {editingAnimal?.dateOfWeaning || 'Select weaning date'}
+                      </Text>
+                    </TouchableOpacity>
+                    
+                    {renderAdaptiveDatePicker(
+                      showWeaningDatePicker,
+                      editingAnimal?.dateOfWeaning,
+                      () => setShowWeaningDatePicker(false),
+                      (formattedDate) => {
+                        if (editingAnimal) {
+                          setEditingAnimal({ ...editingAnimal, dateOfWeaning: formattedDate });
+                        }
+                      },
+                      "Weaning Date",
+                      new Date()
+                    )}
+                  </View>
+
+                  <View style={styles.formGroup}>
+                    <Text variant="body2" style={styles.label}>Weaning Weight (kg)</Text>
+                    <TextInput
+                      style={styles.input}
+                      value={editingAnimal?.weaningWeight ? editingAnimal.weaningWeight.toString() : ''}
+                      onChangeText={(text) => editingAnimal && setEditingAnimal({...editingAnimal, weaningWeight: text})}
+                      placeholder="e.g., 180"
+                      keyboardType="numeric"
+                    />
+                  </View>
+
+                  <View style={styles.formGroup}>
+                    <Text variant="body2" style={styles.label}>Description</Text>
+                    <TextInput
+                      style={[styles.input, { height: 80, textAlignVertical: 'top' }]}
+                      value={editingAnimal?.description || ''}
+                      onChangeText={(text) => editingAnimal && setEditingAnimal({...editingAnimal, description: text})}
+                      placeholder="Additional description/markings..."
+                      multiline={true}
+                      numberOfLines={3}
+                    />
+                  </View>
+                </ScrollView>
+                
+                <View style={[styles.modalButtons, { paddingHorizontal: 24 }]}>
+                  <Button 
+                    variant="outline" 
+                    onPress={() => {
+                      setIsEditAnimalModalVisible(false);
+                      setEditingAnimal(null);
+                    }}
+                    style={styles.cancelButton}
                   >
-                    Save
+                    Cancel
+                  </Button>
+                  <Button 
+                    onPress={handleSaveAnimal}
+                    disabled={isSubmitting}
+                  >
+                    {isSubmitting ? 'Saving...' : 'Save Changes'}
                   </Button>
                 </View>
-              )}
-              
-              <View style={styles.formGroup}>
-                <Text variant="body2" style={styles.label}>Sex</Text>
-                <View style={styles.radioGroup}>
-                  <TouchableOpacity 
-                    style={[styles.radioButton, editingAnimal?.sex === 'Male' && styles.radioButtonSelected]}
-                    onPress={() => editingAnimal && setEditingAnimal({...editingAnimal, sex: 'Male'})}
-                  >
-                    <Text>Male</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity 
-                    style={[styles.radioButton, editingAnimal?.sex === 'Female' && styles.radioButtonSelected]}
-                    onPress={() => editingAnimal && setEditingAnimal({...editingAnimal, sex: 'Female'})}
-                  >
-                    <Text>Female</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-              
-              <Picker
-                label="Stock Type"
-                value={editingAnimal?.stockType || ''}
-                onValueChange={(value) => editingAnimal && setEditingAnimal({...editingAnimal, stockType: value})}
-                items={[
-                  { label: 'Select Stock Type', value: '' },
-                  { label: 'Bull', value: 'Bull' },
-                  { label: 'Cow', value: 'Cow' },
-                  { label: 'Heifer', value: 'Heifer' },
-                  { label: 'Bullying Heifer', value: 'Bullying Heifer' },
-                  { label: 'Steer', value: 'Steer' },
-                  { label: 'Calf', value: 'Calve' }
-                ]}
-              />
-              
-              <Picker
-                label="Source"
-                value={editingAnimal?.source || ''}
-                onValueChange={(value) => editingAnimal && setEditingAnimal({...editingAnimal, source: value})}
-                items={[
-                  { label: 'Select Source', value: '' },
-                  { label: 'Born on Farm', value: 'Born' },
-                  { label: 'Purchased', value: 'Purchased' },
-                ]}
-              />
+              </>
+            )}
 
-              <View style={styles.formGroup}>
-                <Text variant="body2" style={styles.label}>Sire</Text>
-                <TextInput
-                  style={styles.input}
-                  value={editingAnimal?.sire || ''}
-                  onChangeText={(text) => editingAnimal && setEditingAnimal({...editingAnimal, sire: text})}
-                  placeholder="Sire Tag / ID"
-                />
-              </View>
-
-              <View style={styles.formGroup}>
-                <Text variant="body2" style={styles.label}>Dam</Text>
-                <TextInput
-                  style={styles.input}
-                  value={editingAnimal?.dam || ''}
-                  onChangeText={(text) => editingAnimal && setEditingAnimal({...editingAnimal, dam: text})}
-                  placeholder="Dam Tag / ID"
-                />
-              </View>
-
-              <View style={styles.formGroup}>
-                <Text variant="body2" style={styles.label}>Birth Weight (kg)</Text>
-                <TextInput
-                  style={styles.input}
-                  value={editingAnimal?.birthWeight || ''}
-                  onChangeText={(text) => editingAnimal && setEditingAnimal({...editingAnimal, birthWeight: text})}
-                  placeholder="e.g., 35"
-                  keyboardType="numeric"
-                />
-              </View>
-
-              <View style={styles.formGroup}>
-                <Text variant="body2" style={styles.label}>Date of Weaning</Text>
-                <TouchableOpacity 
-                  style={styles.input}
-                  onPress={() => setShowWeaningDatePicker(true)}
-                >
-                  <Text style={editingAnimal?.dateOfWeaning ? {} : {color: '#999'}}>
-                    {editingAnimal?.dateOfWeaning || 'Select weaning date'}
-                  </Text>
-                </TouchableOpacity>
-                
-                {renderAdaptiveDatePicker(
-                  showWeaningDatePicker,
-                  editingAnimal?.dateOfWeaning,
-                  () => setShowWeaningDatePicker(false),
-                  (formattedDate) => {
-                    if (editingAnimal) {
-                      setEditingAnimal({ ...editingAnimal, dateOfWeaning: formattedDate });
-                    }
-                  },
-                  "Weaning Date",
-                  new Date()
-                )}
-              </View>
-
-              <View style={styles.formGroup}>
-                <Text variant="body2" style={styles.label}>Weaning Weight (kg)</Text>
-                <TextInput
-                  style={styles.input}
-                  value={editingAnimal?.weaningWeight ? editingAnimal.weaningWeight.toString() : ''}
-                  onChangeText={(text) => editingAnimal && setEditingAnimal({...editingAnimal, weaningWeight: text})}
-                  placeholder="e.g., 180"
-                  keyboardType="numeric"
-                />
-              </View>
-
-              <View style={styles.formGroup}>
-                <Text variant="body2" style={styles.label}>Description</Text>
-                <TextInput
-                  style={[styles.input, { height: 80, textAlignVertical: 'top' }]}
-                  value={editingAnimal?.description || ''}
-                  onChangeText={(text) => editingAnimal && setEditingAnimal({...editingAnimal, description: text})}
-                  placeholder="Additional description/markings..."
-                  multiline={true}
-                  numberOfLines={3}
-                />
-              </View>
-            </ScrollView>
-            
-            <View style={styles.modalButtons}>
-              <Button 
-                variant="outline" 
-                onPress={() => {
-                  setIsEditAnimalModalVisible(false);
-                  setEditingAnimal(null);
-                }}
-                style={styles.cancelButton}
-              >
-                Cancel
-              </Button>
-              <Button 
-                onPress={handleSaveAnimal}
-                disabled={isSubmitting}
-              >
-                {isSubmitting ? 'Saving...' : 'Save Changes'}
-              </Button>
-            </View>
+            {modalActiveTab === 'timeline' && editingAnimal && renderTimeline(editingAnimal.tag)}
+            {modalActiveTab === 'pedigree' && editingAnimal && renderPedigree(editingAnimal.tag)}
           </View>
         </View>
       </KeyboardAvoidingView>
@@ -5682,7 +6194,7 @@ function RegisterContent() {
             headerRight={
               <View style={{ flexDirection: 'row', alignItems: 'center' }}>
                 <Text variant="body2" style={{ marginRight: 8, color: Colors.neutral[600] }}>
-                  {herdRegisterData.length} animals
+                  {displayedHerdData.length} of {herdRegisterData.length} animals
                 </Text>
                 <Button size="sm" onPress={() => setIsAddModalVisible(true)} style={styles.addButton}>
                   + Add Animal
@@ -5690,6 +6202,70 @@ function RegisterContent() {
               </View>
             }
           >
+            {/* Filter selectors */}
+            <View style={{ marginBottom: 16, borderBottomWidth: 1, borderBottomColor: Colors.neutral[200], paddingBottom: 16 }}>
+              <Text variant="caption" color="neutral.500" style={{ marginBottom: 8, fontWeight: 'bold', textTransform: 'uppercase' }}>
+                Filter Table By
+              </Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ flexDirection: 'row', gap: 12, alignItems: 'center' }}>
+                <TouchableOpacity
+                  style={{
+                    backgroundColor: (tableFilterStockType !== 'All' || tableFilterBreed !== 'All' || tableFilterSource !== 'All') ? Colors.primary[500] : Colors.neutral[200],
+                    paddingHorizontal: 16,
+                    paddingVertical: 12,
+                    borderRadius: 8,
+                    height: 48,
+                    justifyContent: 'center',
+                    alignItems: 'center',
+                  }}
+                  onPress={() => {
+                    setTableFilterStockType('All');
+                    setTableFilterBreed('All');
+                    setTableFilterSource('All');
+                  }}
+                >
+                  <Text style={{ color: (tableFilterStockType !== 'All' || tableFilterBreed !== 'All' || tableFilterSource !== 'All') ? '#fff' : Colors.neutral[700], fontSize: 14, fontWeight: 'bold' }}>
+                    View All
+                  </Text>
+                </TouchableOpacity>
+
+                <View style={{ width: 140 }}>
+                  <Picker
+                    value={tableFilterStockType}
+                    onValueChange={setTableFilterStockType}
+                    style={{ marginBottom: 0 }}
+                    items={[
+                      { label: 'All Types', value: 'All' },
+                      { label: 'Cow', value: 'Cow' },
+                      { label: 'Bull', value: 'Bull' },
+                      { label: 'Heifer', value: 'Heifer' },
+                      { label: 'Steer', value: 'Steer' },
+                      { label: 'Calf', value: 'Calve' },
+                      { label: 'Bullying Heifer', value: 'Bullying Heifer' },
+                    ]}
+                  />
+                </View>
+
+                <View style={{ width: 140 }}>
+                  <Picker
+                    value={tableFilterBreed}
+                    onValueChange={setTableFilterBreed}
+                    style={{ marginBottom: 0 }}
+                    items={breedOptions}
+                  />
+                </View>
+
+                <View style={{ width: 140 }}>
+                  <Picker
+                    value={tableFilterSource}
+                    onValueChange={setTableFilterSource}
+                    style={{ marginBottom: 0 }}
+                    items={sourceOptions}
+                  />
+                </View>
+              </ScrollView>
+            </View>
+
             <DataTable
               columns={[
                 { key: 'count', title: 'Count', width: 60 },
@@ -5727,7 +6303,7 @@ function RegisterContent() {
                   )
                 },
               ]}
-              data={herdRegisterData.map((row, index) => ({ ...row, count: index + 1 }))}
+              data={displayedHerdData}
             />
           </Card>
         )}
@@ -5861,7 +6437,7 @@ function RegisterContent() {
         {/* ── BREEDING ── */}
         {activeTab === 'breeding' && (
           <Card
-            title="Heat Detection & Breeding"
+            title={`Heat Detection & Breeding (${new Set(heatBreedingRecords.map(r => r.earTagNumber)).size} Animals)`}
             style={styles.card}
             headerRight={
               <Button size="sm" onPress={() => setIsAddHeatBreedingModalVisible(true)} style={styles.addButton}>
@@ -5920,7 +6496,7 @@ function RegisterContent() {
         {/* ── PREGNANCY ── */}
         {activeTab === 'pregnancy' && (
           <Card
-            title="Pregnancy & Calving"
+            title={`Pregnancy & Calving (${new Set(pregnancyCalvingRecords.map(r => r.cowEarTag)).size} Animals)`}
             style={styles.card}
             headerRight={
               <Button size="sm" onPress={() => setIsAddPregnancyModalVisible(true)} style={styles.addButton}>
@@ -6005,6 +6581,22 @@ function RegisterContent() {
                 { key: 'classification', title: 'Classification', width: 210, render: (value: string) => (
                   <Text color={value === 'SPB' ? 'success.500' : value === 'USPB' ? 'error.500' : 'warning.500'}>{value}</Text>
                 )},
+                {
+                  key: 'actions',
+                  title: 'Actions',
+                  width: 80,
+                  render: (_, row: any) => (
+                    isAdmin ? (
+                      <TouchableOpacity 
+                        onPress={() => handleEditBullBreedingRecord(row)}
+                        hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
+                        style={{ padding: 4 }}
+                      >
+                        <Text style={{ fontSize: 16 }}>✏️</Text>
+                      </TouchableOpacity>
+                    ) : null
+                  )
+                },
               ]}
               data={breedingRecords}
             />
@@ -6344,6 +6936,7 @@ function RegisterContent() {
       {renderEditHealthRecordModal()}
       {renderEditBreedingRecordModal()}
       {renderEditPregnancyRecordModal()}
+      {renderEditBullBreedingRecordModal()}
       {renderEditWeightRecordModal()}
       {renderEditDrugModal()}
       {renderEditMortalityRecordModal()}

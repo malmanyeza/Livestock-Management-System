@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { View, StyleSheet, TouchableOpacity, ScrollView, Dimensions, Platform, Text as RNText, Modal, TextInput } from 'react-native';
 
 import { router } from 'expo-router';
@@ -11,6 +11,7 @@ import { Card } from '../../components/ui/Card';
 import Colors from '../../constants/Colors';
 import { ColorValue } from 'react-native';
 import { useFarmData } from '../../context/FarmDataContext';
+import { supabase } from '../../utils/supabase';
 
 
 interface NavigationCard {
@@ -56,10 +57,10 @@ const dlshiftMonthlyData = {
 };
 
 const dlshiftYearlyData = {
-  labels: ['2020', '2021', '2022', '2023', '2024', '2025'],
+  labels: ['2020', '2021', '2022', '2023', '2024', '2025', '2026'],
   datasets: [
     {
-      data: [58, 65, 70, 72, 78, 82],
+      data: [58, 65, 70, 72, 78, 82, 85],
     },
   ],
 };
@@ -206,7 +207,7 @@ function CustomBarChart({ data, width, height }: { data: any; width: number; hei
 }
 
 export default function HomeScreen() {
-  const { metrics, animals, profile, farmers, selectedFarmer, setSelectedFarmer, todoList, mortalityRecords } = useFarmData();
+  const { metrics, animals, profile, farmers, selectedFarmer, setSelectedFarmer, todoList, mortalityRecords, selectedProductionYear, setSelectedProductionYear } = useFarmData();
   const aliveAnimals = React.useMemo(() => {
     if (!animals) return [];
     const deadTags = new Set(mortalityRecords ? mortalityRecords.map(m => m.animalId).filter(Boolean) : []);
@@ -214,6 +215,34 @@ export default function HomeScreen() {
   }, [animals, mortalityRecords]);
   const currentDLShiftScore = metrics.scoreDLShift;
   const isAdmin = profile?.role === 'admin';
+
+  const [yearlyPerformances, setYearlyPerformances] = useState<any[]>([]);
+  const [compareYear, setCompareYear] = useState<number>(2025);
+
+  const targetUserId = isAdmin ? selectedFarmer?.id : (profile?.role === 'worker' ? profile?.farmer_id : profile?.id);
+
+  useEffect(() => {
+    if (!targetUserId || !supabase) return;
+    supabase.from('yearly_performance').select('*').eq('user_id', targetUserId)
+      .then(({ data }) => {
+        setYearlyPerformances(data ?? []);
+      });
+  }, [targetUserId]);
+
+  const avgWeaningWeight = useMemo(() => {
+    const isCalfLocal = (age: string | null | undefined, stockType?: string | null) => {
+      if (stockType === 'Calve' || (stockType as string) === 'Calf') return true;
+      if (!age) return false;
+      const ageMatch = age.match(/(\d+)([ym])/);
+      if (!ageMatch) return false;
+      const [_, value, unit] = ageMatch;
+      return (unit === 'm' && parseInt(value) < 12) || (unit === 'y' && parseInt(value) === 0);
+    };
+    const calvesWithWeight = aliveAnimals.filter(a => isCalfLocal(a.age, a.stockType) && Number(a.weaningWeight || 0) > 0);
+    return calvesWithWeight.length > 0
+      ? calvesWithWeight.reduce((sum, a) => sum + Number(a.weaningWeight), 0) / calvesWithWeight.length
+      : 0;
+  }, [aliveAnimals]);
 
   const displayCards = React.useMemo(() => {
     let cards = [...navigationCards];
@@ -260,7 +289,6 @@ export default function HomeScreen() {
     ],
   };
 
-  const targetUserId = isAdmin ? selectedFarmer?.id : profile?.id;
   const isDemo = targetUserId === '76408c11-021a-4fdd-a17c-6b90065182b7';
 
   const dynamicMonthlyData = {
@@ -279,8 +307,8 @@ export default function HomeScreen() {
     datasets: [
       {
         data: isDemo
-          ? [58, 65, 70, 72, 78, currentDLShiftScore]
-          : [0, 0, 0, 0, 0, currentDLShiftScore],
+          ? [58, 65, 70, 72, 78, 82, currentDLShiftScore]
+          : [0, 0, 0, 0, 0, 0, currentDLShiftScore],
       },
     ],
   };
@@ -340,10 +368,10 @@ export default function HomeScreen() {
 
   const getFilteredAnimalsCount = () => {
     if (selectedSpecies === 'beef-production') {
-      return aliveAnimals.filter(a => a.stockType === 'Cow' || a.stockType === 'Heifer' || a.stockType === 'Bull' || a.stockType === 'Steer' || a.stockType === 'Calve' || a.stockType === 'Calf').length;
+      return aliveAnimals.filter(a => a.stockType === 'Cow' || a.stockType === 'Heifer' || a.stockType === 'Bull' || a.stockType === 'Steer' || a.stockType === 'Calve' || (a.stockType as string) === 'Calf').length;
     }
     if (selectedSpecies === 'dairy-production') {
-      return aliveAnimals.filter(a => a.stockType === 'Cow' || a.stockType === 'Heifer' || a.stockType === 'Calve' || a.stockType === 'Calf').length;
+      return aliveAnimals.filter(a => a.stockType === 'Cow' || a.stockType === 'Heifer' || a.stockType === 'Calve' || (a.stockType as string) === 'Calf').length;
     }
     if (selectedSpecies === 'goats') {
       return aliveAnimals.filter(a => a.stockType === 'Goat').length;
@@ -467,14 +495,29 @@ export default function HomeScreen() {
           </LinearGradient>
         </View>
 
-        <View style={styles.filterContainer}>
-          <Picker
-            label="Select Species"
-            value={selectedSpecies}
-            onValueChange={setSelectedSpecies}
-            items={species}
-            style={styles.speciesPicker}
-          />
+        <View style={[styles.filterContainer, { flexDirection: 'row', gap: 12 }]}>
+          <View style={{ flex: 1 }}>
+            <Picker
+              label="Select Species"
+              value={selectedSpecies}
+              onValueChange={setSelectedSpecies}
+              items={species}
+              style={styles.speciesPicker}
+            />
+          </View>
+          <View style={{ width: 130 }}>
+            <Picker
+              label="Cycle Year"
+              value={selectedProductionYear.toString()}
+              onValueChange={(val) => setSelectedProductionYear(parseInt(val))}
+              items={[
+                { label: '2025 Cycle', value: '2025' },
+                { label: '2026 Cycle', value: '2026' },
+                { label: '2027 Cycle', value: '2027' },
+                { label: '2028 Cycle', value: '2028' },
+              ]}
+            />
+          </View>
         </View>
 
         <Card style={styles.dlshiftCard}>
@@ -560,6 +603,97 @@ export default function HomeScreen() {
             </View>
           </View>
         </Card>
+
+        {/* YoY Performance Comparison Section */}
+        {(() => {
+          const comparePerformance = yearlyPerformances.find(p => p.year === compareYear);
+
+          const renderCompareCard = (label: string, curVal: number, compVal: number | undefined, unit: string = '', isLowerBetter: boolean = false) => {
+            const formattedCur = curVal ? curVal.toFixed(1) : '0.0';
+            const formattedComp = compVal !== undefined ? compVal.toFixed(1) : '—';
+
+            let trend = 'same';
+            let diff = 0;
+            if (compVal !== undefined && compVal > 0) {
+              diff = curVal - compVal;
+              if (diff > 0.05) trend = isLowerBetter ? 'bad' : 'good';
+              else if (diff < -0.05) trend = isLowerBetter ? 'good' : 'bad';
+            }
+
+            return (
+              <View style={styles.compareItem}>
+                <View style={{ flex: 1 }}>
+                  <Text variant="caption" color="neutral.500" weight="bold">
+                    {label}
+                  </Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'baseline', marginTop: 4, gap: 6 }}>
+                    <Text variant="body" weight="bold" color="neutral.900" style={{ fontSize: 14 }}>
+                      {formattedCur}{unit}
+                    </Text>
+                    <Text variant="caption" color="neutral.400" style={{ fontSize: 10 }}>
+                      vs {formattedComp}{unit}
+                    </Text>
+                  </View>
+                </View>
+                {trend !== 'same' && (
+                  <View style={[
+                    styles.trendBadge,
+                    trend === 'good' ? styles.trendBadgeGood : styles.trendBadgeBad
+                  ]}>
+                    <Text variant="caption" weight="bold" color={trend === 'good' ? 'success.600' : 'error.600'} style={{ fontSize: 9 }}>
+                      {trend === 'good' ? '▲' : '▼'} {Math.abs(diff).toFixed(1)}{unit}
+                    </Text>
+                  </View>
+                )}
+              </View>
+            );
+          };
+
+          return (
+            <Card style={styles.yoyCard}>
+              <View style={styles.yoyHeader}>
+                <View style={{ flex: 1, paddingRight: 8 }}>
+                  <Text variant="h6" weight="bold">
+                    YoY Performance
+                  </Text>
+                  <Text variant="caption" color="neutral.500" style={{ fontSize: 11 }}>
+                    Compare active cycle metrics with historical years
+                  </Text>
+                </View>
+                <View style={{ width: 110 }}>
+                  <Picker
+                    label="Compare"
+                    value={compareYear.toString()}
+                    onValueChange={(val) => setCompareYear(parseInt(val))}
+                    items={[
+                      { label: 'vs 2025', value: '2025' },
+                      { label: 'vs 2026', value: '2026' },
+                      { label: 'vs 2027', value: '2027' },
+                      { label: 'vs 2028', value: '2028' },
+                    ]}
+                  />
+                </View>
+              </View>
+
+              {comparePerformance ? (
+                <View style={styles.compareGrid}>
+                  {renderCompareCard('Conception Rate', metrics.conceptionRate || 0, comparePerformance.conception_rate, '%')}
+                  {renderCompareCard('Calving Rate', metrics.calvingPercentage || 0, comparePerformance.calving_rate, '%')}
+                  {renderCompareCard('Mortality Rate', metrics.mortalityRates?.herd || 0, comparePerformance.mortality_rate, '%', true)}
+                  {renderCompareCard('Avg Weaning Weight', avgWeaningWeight, comparePerformance.avg_weaning_weight, ' kg')}
+                  {renderCompareCard('Feed Conv (FCR)', metrics.fcr?.cattle || 0, comparePerformance.fcr, '', true)}
+                  {renderCompareCard('Weaning Percentage', metrics.weaningPercentage || 0, comparePerformance.weaning_percentage, '%')}
+                </View>
+              ) : (
+                <View style={styles.emptyCompare}>
+                  <Text variant="body" color="neutral.500" align="center">
+                    No historical data available for comparison year {compareYear}.
+                  </Text>
+                </View>
+              )}
+            </Card>
+          );
+        })()}
 
         <Text variant="h5" weight="bold" style={styles.sectionTitle}>
           Quick Access
@@ -999,5 +1133,49 @@ const styles = StyleSheet.create({
   cardDescription: {
     fontSize: Platform.OS === 'android' ? 10.5 : 12,
     lineHeight: Platform.OS === 'android' ? 14 : 16,
+  },
+  yoyCard: {
+    marginHorizontal: 16,
+    marginBottom: 24,
+    padding: 16,
+  },
+  yoyHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  compareGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+  },
+  compareItem: {
+    width: '48.5%',
+    padding: 12,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: '#F9FAFB',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#F3F4F6',
+    marginBottom: 8,
+  },
+  trendBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  trendBadgeGood: {
+    backgroundColor: '#E8F8F5',
+  },
+  trendBadgeBad: {
+    backgroundColor: '#FDEDEC',
+  },
+  emptyCompare: {
+    paddingVertical: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
 });
