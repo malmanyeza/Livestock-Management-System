@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { View, StyleSheet, TouchableOpacity, ScrollView, Dimensions, Platform, Text as RNText, Modal, TextInput } from 'react-native';
 
 import { router } from 'expo-router';
-import { Heart, Dna, Wheat, BarChart3, ClipboardList, FileEdit, ShoppingCart, User, TrendingUp, ShieldCheck, ChevronDown, Search, X, Check, Settings } from 'lucide-react-native';
+import { Heart, Dna, Wheat, BarChart3, ClipboardList, FileEdit, ShoppingCart, User, TrendingUp, ShieldCheck, ChevronDown, Search, X, Check, Settings, Users } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Text } from '../../components/typography/Text';
 import { ScreenContainer } from '../../components/layout/ScreenContainer';
@@ -133,6 +133,24 @@ const navigationCards: NavigationCard[] = [
     route: '/screens/register',
     color: Colors.neutral[500],
     gradient: [Colors.neutral[400], Colors.neutral[600]],
+  },
+  {
+    id: 'workers',
+    title: 'Workers',
+    icon: <Users size={24} color={Colors.white} />,
+    description: 'Manage farm workers and access',
+    route: '/profile',
+    color: '#8E44AD',
+    gradient: ['#9B59B6', '#8E44AD'],
+  },
+  {
+    id: 'tasks',
+    title: 'Tasks',
+    icon: <ClipboardList size={24} color={Colors.white} />,
+    description: 'View and manage farm events/tasks',
+    route: '/tasks',
+    color: Colors.secondary[600],
+    gradient: [Colors.secondary[500], Colors.secondary[700]],
   },
   {
     id: 'marketplace',

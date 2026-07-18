@@ -525,33 +525,39 @@ export default function LivestockProScreen() {
       <ScreenContainer style={styles.container} scrollable={false}>
         {/* Tab switch header segment */}
         <View style={styles.tabContainer}>
-          <TouchableOpacity 
-            style={[styles.tabButton, activeTab === 'missions' && styles.tabButtonActive]} 
-            onPress={() => setActiveTab('missions')}
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.tabScrollContent}
           >
-            <Layers size={16} color={activeTab === 'missions' ? Colors.primary[600] : Colors.neutral[500]} style={{ marginRight: 6 }} />
-            <Text variant="body2" weight="bold" color={activeTab === 'missions' ? 'primary.600' : 'neutral.500'}>
-              Missions Register
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity 
-            style={[styles.tabButton, activeTab === 'coverage' && styles.tabButtonActive]} 
-            onPress={() => setActiveTab('coverage')}
-          >
-            <BarChart3 size={16} color={activeTab === 'coverage' ? Colors.primary[600] : Colors.neutral[500]} style={{ marginRight: 6 }} />
-            <Text variant="body2" weight="bold" color={activeTab === 'coverage' ? 'primary.600' : 'neutral.500'}>
-              Coverage Analysis
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity 
-            style={[styles.tabButton, activeTab === 'reminders' && styles.tabButtonActive]} 
-            onPress={() => setActiveTab('reminders')}
-          >
-            <Bell size={16} color={activeTab === 'reminders' ? Colors.primary[600] : Colors.neutral[500]} style={{ marginRight: 6 }} />
-            <Text variant="body2" weight="bold" color={activeTab === 'reminders' ? 'primary.600' : 'neutral.500'}>
-              Disease & Reminders
-            </Text>
-          </TouchableOpacity>
+            <TouchableOpacity 
+              style={[styles.tabButton, activeTab === 'missions' && styles.tabButtonActive]} 
+              onPress={() => setActiveTab('missions')}
+            >
+              <Layers size={16} color={activeTab === 'missions' ? Colors.primary[600] : Colors.neutral[500]} style={{ marginRight: 6 }} />
+              <Text variant="body2" weight="bold" color={activeTab === 'missions' ? 'primary.600' : 'neutral.500'} numberOfLines={1}>
+                Missions Register
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity 
+              style={[styles.tabButton, activeTab === 'coverage' && styles.tabButtonActive]} 
+              onPress={() => setActiveTab('coverage')}
+            >
+              <BarChart3 size={16} color={activeTab === 'coverage' ? Colors.primary[600] : Colors.neutral[500]} style={{ marginRight: 6 }} />
+              <Text variant="body2" weight="bold" color={activeTab === 'coverage' ? 'primary.600' : 'neutral.500'} numberOfLines={1}>
+                Coverage Analysis
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity 
+              style={[styles.tabButton, activeTab === 'reminders' && styles.tabButtonActive]} 
+              onPress={() => setActiveTab('reminders')}
+            >
+              <Bell size={16} color={activeTab === 'reminders' ? Colors.primary[600] : Colors.neutral[500]} style={{ marginRight: 6 }} />
+              <Text variant="body2" weight="bold" color={activeTab === 'reminders' ? 'primary.600' : 'neutral.500'} numberOfLines={1}>
+                Disease & Reminders
+              </Text>
+            </TouchableOpacity>
+          </ScrollView>
         </View>
 
         {loading && !refreshing ? (
@@ -664,18 +670,18 @@ export default function LivestockProScreen() {
           <ScrollView contentContainerStyle={styles.listContent}>
             {/* Quick Metrics Grid */}
             <View style={styles.metricsGrid}>
-              <Card style={styles.metricItem}>
-                <Text variant="caption" color="neutral.500" weight="bold" style={{ textTransform: 'uppercase' }}>Total Missions</Text>
+              <View style={styles.metricCard}>
+                <Text variant="caption" color="neutral.500" weight="bold" align="center" style={{ textTransform: 'uppercase', fontSize: 10 }} numberOfLines={1}>Total Missions</Text>
                 <Text variant="h4" weight="bold" color="neutral.900" style={{ marginTop: 4 }}>{missions.length}</Text>
-              </Card>
-              <Card style={styles.metricItem}>
-                <Text variant="caption" color="neutral.500" weight="bold" style={{ textTransform: 'uppercase' }}>Farms Visited</Text>
+              </View>
+              <View style={styles.metricCard}>
+                <Text variant="caption" color="neutral.500" weight="bold" align="center" style={{ textTransform: 'uppercase', fontSize: 10 }} numberOfLines={1}>Farms Visited</Text>
                 <Text variant="h4" weight="bold" color="primary.600" style={{ marginTop: 4 }}>{totalFarms}</Text>
-              </Card>
-              <Card style={styles.metricItem}>
-                <Text variant="caption" color="neutral.500" weight="bold" style={{ textTransform: 'uppercase' }}>Animals Covered</Text>
+              </View>
+              <View style={styles.metricCard}>
+                <Text variant="caption" color="neutral.500" weight="bold" align="center" style={{ textTransform: 'uppercase', fontSize: 10 }} numberOfLines={1}>Animals Covered</Text>
                 <Text variant="h4" weight="bold" color="secondary.600" style={{ marginTop: 4 }}>{animalsCount}</Text>
-              </Card>
+              </View>
             </View>
 
             {/* Visit Category Distribution */}
@@ -686,7 +692,7 @@ export default function LivestockProScreen() {
               {categoryDistribution.map((item) => (
                 <View key={item.name} style={styles.distRow}>
                   <View style={styles.distRowHeader}>
-                    <Text variant="body2" color="neutral.800">{item.name}</Text>
+                    <Text variant="body2" color="neutral.800" style={{ flex: 1, marginRight: 8 }} numberOfLines={1} ellipsizeMode="tail">{item.name}</Text>
                     <Text variant="body2" weight="bold" color="neutral.900">{item.count} ({item.pct}%)</Text>
                   </View>
                   <View style={styles.progressTrack}>
@@ -704,7 +710,7 @@ export default function LivestockProScreen() {
               {provinceDistribution.map((item) => (
                 <View key={item.name} style={styles.distRow}>
                   <View style={styles.distRowHeader}>
-                    <Text variant="body2" color="neutral.800">{item.name}</Text>
+                    <Text variant="body2" color="neutral.800" style={{ flex: 1, marginRight: 8 }} numberOfLines={1} ellipsizeMode="tail">{item.name}</Text>
                     <Text variant="body2" weight="bold" color="neutral.900">{item.count} ({item.pct}%)</Text>
                   </View>
                   <View style={styles.progressTrack}>
@@ -721,12 +727,12 @@ export default function LivestockProScreen() {
               </Text>
               {hotTopics.map((item) => (
                 <View key={item.province} style={styles.hotTopicRow}>
-                  <View style={{ flex: 1 }}>
-                    <Text variant="body2" weight="bold" color="neutral.800">{item.province}</Text>
-                    <Text variant="caption" color="neutral.500">Most frequent visit reason</Text>
+                  <View style={{ flex: 1, marginRight: 8 }}>
+                    <Text variant="body2" weight="bold" color="neutral.800" numberOfLines={1} ellipsizeMode="tail">{item.province}</Text>
+                    <Text variant="caption" color="neutral.500" numberOfLines={1}>Most frequent visit reason</Text>
                   </View>
-                  <View style={{ alignItems: 'flex-end' }}>
-                    <Text variant="body2" weight="bold" color="primary.600">{item.issue}</Text>
+                  <View style={{ alignItems: 'flex-end', flexShrink: 1 }}>
+                    <Text variant="body2" weight="bold" color="primary.600" style={{ textAlign: 'right' }} numberOfLines={1} ellipsizeMode="tail">{item.issue}</Text>
                     <Text variant="caption" color="neutral.400">{item.count} missions</Text>
                   </View>
                 </View>
@@ -893,19 +899,22 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
   },
   tabContainer: {
-    flexDirection: 'row',
     backgroundColor: Colors.white,
     borderBottomWidth: 1,
     borderBottomColor: Colors.neutral[200],
-    paddingHorizontal: 16,
+  },
+  tabScrollContent: {
+    flexDirection: 'row',
+    paddingHorizontal: 12,
     paddingVertical: 6,
+    gap: 16,
   },
   tabButton: {
-    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: 10,
+    paddingHorizontal: 8,
     borderBottomWidth: 2,
     borderBottomColor: 'transparent',
   },
@@ -1013,13 +1022,24 @@ const styles = StyleSheet.create({
   },
   metricsGrid: {
     flexDirection: 'row',
-    gap: 12,
+    gap: 10,
     marginBottom: 16,
   },
-  metricItem: {
+  metricCard: {
     flex: 1,
-    padding: 14,
+    backgroundColor: Colors.white,
+    borderRadius: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 6,
     alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: Colors.neutral[200],
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 3,
+    elevation: 2,
   },
   sectionCard: {
     padding: 16,

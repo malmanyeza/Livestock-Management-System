@@ -12,6 +12,7 @@ import { PieChart } from '../../components/charts/PieChart';
 import Colors from '../../constants/Colors';
 import { Stack, useRouter, useLocalSearchParams } from 'expo-router';
 import { useFarmData } from '../../context/FarmDataContext';
+import { Eye, Pencil, Trash2, X, ChevronLeft, CheckSquare, Square, Scale, Activity, Flame, Heart, Baby, Sparkles, DollarSign } from 'lucide-react-native';
 
 
 
@@ -556,6 +557,15 @@ function RegisterContent() {
   const [editingAnimal, setEditingAnimal] = useState<AnimalData | null>(null);
   const [originalAnimalTag, setOriginalAnimalTag] = useState('');
   const [modalActiveTab, setModalActiveTab] = useState<'details' | 'timeline' | 'pedigree'>('details');
+  const [isPedigreeEditModalVisible, setIsPedigreeEditModalVisible] = useState(false);
+  const [pedigreeForm, setPedigreeForm] = useState({
+    sire: '',
+    dam: '',
+    sireSire: '',
+    sireDam: '',
+    damSire: '',
+    damDam: '',
+  });
   const [isAddHealthRecordModalVisible, setIsAddHealthRecordModalVisible] = useState(false);
   const [isAddBreedingRecordModalVisible, setIsAddBreedingRecordModalVisible] = useState(false);
   const [showBreedingDatePicker, setShowBreedingDatePicker] = useState(false);
@@ -1568,6 +1578,63 @@ function RegisterContent() {
     } catch (error: any) {
       alert('Failed to update animal: ' + error.message);
       console.error(error);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleSavePedigreeMobile = async () => {
+    if (!editingAnimal) return;
+    setIsSubmitting(true);
+    try {
+      await updateAnimal(editingAnimal.tag, {
+        sire: pedigreeForm.sire || undefined,
+        dam: pedigreeForm.dam || undefined,
+      });
+
+      const upsertParent = async (parentTag: string, sex: 'Male' | 'Female', parentSire: string, parentDam: string) => {
+        if (!parentTag) return;
+        const parentTagLower = parentTag.trim().toLowerCase();
+        
+        const existing = animals.find(a => a.tag.toLowerCase() === parentTagLower);
+        if (existing) {
+          await updateAnimal(existing.tag, {
+            sire: parentSire || undefined,
+            dam: parentDam || undefined,
+          });
+        } else {
+          await addAnimal({
+            tag: parentTag,
+            sex,
+            stockType: sex === 'Male' ? 'Bull' : 'Cow',
+            breed: editingAnimal.breed || 'Unknown',
+            sire: parentSire || undefined,
+            dam: parentDam || undefined,
+            source: 'Purchased',
+            age: '—',
+            dateOfBirth: new Date().toISOString().split('T')[0],
+          });
+        }
+      };
+
+      if (pedigreeForm.sire) {
+        await upsertParent(pedigreeForm.sire, 'Male', pedigreeForm.sireSire, pedigreeForm.sireDam);
+      }
+      if (pedigreeForm.dam) {
+        await upsertParent(pedigreeForm.dam, 'Female', pedigreeForm.damSire, pedigreeForm.damDam);
+      }
+
+      setEditingAnimal(prev => prev ? {
+        ...prev,
+        sire: pedigreeForm.sire,
+        dam: pedigreeForm.dam
+      } : null);
+
+      setIsPedigreeEditModalVisible(false);
+      alert('Pedigree tree updated successfully');
+    } catch (e: any) {
+      console.error(e);
+      alert('Failed to update pedigree tree');
     } finally {
       setIsSubmitting(false);
     }
@@ -3604,7 +3671,13 @@ function RegisterContent() {
                               }
                             }}
                           >
-                            <Text style={{ marginRight: 8, fontSize: 16 }}>{isSelected ? '✅' : '⬜'}</Text>
+                            <View style={{ marginRight: 8 }}>
+                              {isSelected ? (
+                                <CheckSquare size={18} color={Colors.primary[500]} />
+                              ) : (
+                                <Square size={18} color={Colors.neutral[400]} />
+                              )}
+                            </View>
                             <Text variant="body2" style={{ flex: 1, color: Colors.neutral[800] }}>
                               {animal.tag} <Text variant="caption" style={{ color: Colors.neutral[500] }}>({animal.breed || 'Unknown'} - {animal.stockType})</Text>
                             </Text>
@@ -4812,7 +4885,7 @@ function RegisterContent() {
   );
 
   const renderTimeline = (animalTag: string) => {
-    const events: { date: string; title: string; desc: string; icon: string }[] = [];
+    const events: { date: string; title: string; desc: string; icon: any }[] = [];
 
     // Find animal details
     const anim = herdRegisterData.find(a => a.tag === animalTag);
@@ -4822,7 +4895,7 @@ function RegisterContent() {
           date: anim.dateOfBirth,
           title: 'Birth',
           desc: `Born on farm. Breed: ${anim.breed || 'Unknown'}. Sex: ${anim.sex}.`,
-          icon: '👶'
+          icon: <Baby size={16} color={Colors.primary[600]} />
         });
       }
       if (anim.source === 'Purchased') {
@@ -4830,7 +4903,7 @@ function RegisterContent() {
           date: anim.dateOfBirth || '',
           title: 'Purchase',
           desc: `Purchased and added to herd.`,
-          icon: '💰'
+          icon: <DollarSign size={16} color={Colors.primary[600]} />
         });
       }
     }
@@ -4847,7 +4920,7 @@ function RegisterContent() {
               date: `${w.year}-${(idx + 1).toString().padStart(2, '0')}-15`,
               title: 'Weight Log',
               desc: `Weight: ${val} kg.`,
-              icon: '⚖️'
+              icon: <Scale size={16} color={Colors.primary[600]} />
             });
           }
         });
@@ -4862,7 +4935,7 @@ function RegisterContent() {
           date: h.date,
           title: 'Health Treatment',
           desc: `Treatment: ${h.treatment}. Status: ${h.status}. Done by: ${h.doneBy || 'N/A'}. Notes: ${h.specialNotes || 'None'}.`,
-          icon: '🏥'
+          icon: <Activity size={16} color={Colors.primary[600]} />
         });
       });
     }
@@ -4876,7 +4949,7 @@ function RegisterContent() {
             date: b.heatDetectionDate,
             title: 'Heat Detected',
             desc: `Observed by: ${b.observer}. BCS: ${b.bodyConditionScore}.`,
-            icon: '🔥'
+            icon: <Flame size={16} color={Colors.primary[600]} />
           });
         }
         if (b.servicedDate) {
@@ -4884,7 +4957,7 @@ function RegisterContent() {
             date: b.servicedDate,
             title: 'Serviced (Breeding)',
             desc: `Method: ${b.breedingMethod || 'N/A'}. Sire: ${b.sireId || 'N/A'}. Straw: ${b.strawId || 'N/A'}. Status: ${b.breedingStatus}.`,
-            icon: '❤️'
+            icon: <Heart size={16} color={Colors.primary[600]} />
           });
         }
       });
@@ -4899,7 +4972,7 @@ function RegisterContent() {
             date: p.lastServiceDate,
             title: 'Pregnancy Diagnosis',
             desc: `PD1: ${p.firstTrimesterPD || 'N/A'}, PD2: ${p.secondTrimesterPD || 'N/A'}, PD3: ${p.thirdTrimesterPD || 'N/A'}. Gestation: ${p.gestationPeriod} days. Expected Calving: ${p.expectedCalvingDate || 'N/A'}.`,
-            icon: '🤰'
+            icon: <Baby size={16} color={Colors.primary[600]} />
           });
         }
         if (p.actualCalvingDate) {
@@ -4907,7 +4980,7 @@ function RegisterContent() {
             date: p.actualCalvingDate,
             title: 'Calving (Birth Event)',
             desc: `Calf Tag: ${p.calfId || 'N/A'}. Calf Sex: ${p.calfSex || 'N/A'}. Delivery: ${p.deliveryType || 'Natural'}.`,
-            icon: '🎉'
+            icon: <Sparkles size={16} color={Colors.primary[600]} />
           });
         }
       });
@@ -4924,7 +4997,7 @@ function RegisterContent() {
             <View key={idx} style={{ flexDirection: 'row', marginBottom: 20 }}>
               <View style={{ alignItems: 'center', marginRight: 12 }}>
                 <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: '#E8F8F5', justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: '#A2D9CE' }}>
-                  <Text style={{ fontSize: 16 }}>{evt.icon}</Text>
+                  {evt.icon}
                 </View>
                 {idx < events.length - 1 && (
                   <View style={{ width: 2, flex: 1, backgroundColor: '#BDC3C7', marginTop: 4 }} />
@@ -4947,7 +5020,7 @@ function RegisterContent() {
   const renderPedigree = (animalTag: string) => {
     const findAnimal = (tag: string): any => {
       if (!tag) return null;
-      return herdRegisterData.find(a => a.tag.toLowerCase() === tag.trim().toLowerCase()) || { tag, breed: 'Unknown', stockType: '', sire: '', dam: '' };
+      return animals.find(a => a.tag.toLowerCase() === tag.trim().toLowerCase()) || { tag, breed: 'Unknown', stockType: '', sire: '', dam: '' };
     };
 
     const root = findAnimal(animalTag);
@@ -4983,11 +5056,31 @@ function RegisterContent() {
       );
     };
 
+    const handleEditPedigreePress = () => {
+      setPedigreeForm({
+        sire: root.sire || '',
+        dam: root.dam || '',
+        sireSire: sire1?.sire || '',
+        sireDam: sire1?.dam || '',
+        damSire: dam1?.sire || '',
+        damDam: dam1?.dam || '',
+      });
+      setIsPedigreeEditModalVisible(true);
+    };
+
     return (
       <ScrollView contentContainerStyle={{ padding: 16, alignItems: 'center' }}>
-        <Text variant="caption" color="neutral.500" style={{ marginBottom: 16, textAlign: 'center' }}>
-          3-Generation Pedigree Tree. Boxes show active registered ancestors.
-        </Text>
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', width: '100%', alignItems: 'center', marginBottom: 16 }}>
+          <Text variant="caption" color="neutral.500" style={{ flex: 1, paddingRight: 8 }}>
+            3-Generation Pedigree Tree. Boxes show active registered ancestors.
+          </Text>
+          <TouchableOpacity 
+            onPress={handleEditPedigreePress} 
+            style={{ paddingHorizontal: 12, paddingVertical: 8, backgroundColor: Colors.primary[50], borderRadius: 8, borderWidth: 1, borderColor: Colors.primary[200] }}
+          >
+            <Text style={{ fontSize: 12, color: Colors.primary[600], fontWeight: 'bold' }}>Modify Pedigree</Text>
+          </TouchableOpacity>
+        </View>
         <View style={{ width: '100%', flexDirection: 'row', alignItems: 'center' }}>
           <View style={{ flex: 1, gap: 4 }}>
             {renderNode('Grandsire (Sire)', gSire1, 'Paternal Grandsire')}
@@ -4997,10 +5090,10 @@ function RegisterContent() {
             {renderNode('Granddam (Dam)', gDam2, 'Maternal Granddam')}
           </View>
 
-          <View style={{ width: 12, alignItems: 'center', justifyContent: 'center' }}>
-            <Text style={{ color: '#BDC3C7', fontSize: 18 }}>{'<'}</Text>
+          <View style={{ width: 16, alignItems: 'center', justifyContent: 'center' }}>
+            <ChevronLeft size={16} color="#BDC3C7" />
             <View style={{ height: 80 }} />
-            <Text style={{ color: '#BDC3C7', fontSize: 18 }}>{'<'}</Text>
+            <ChevronLeft size={16} color="#BDC3C7" />
           </View>
 
           <View style={{ flex: 1, gap: 20 }}>
@@ -5009,8 +5102,8 @@ function RegisterContent() {
             {renderNode('Dam', dam1, 'Dam (Mother)')}
           </View>
 
-          <View style={{ width: 12, alignItems: 'center', justifyContent: 'center' }}>
-            <Text style={{ color: '#BDC3C7', fontSize: 24 }}>{'<'}</Text>
+          <View style={{ width: 16, alignItems: 'center', justifyContent: 'center' }}>
+            <ChevronLeft size={20} color="#BDC3C7" />
           </View>
 
           <View style={{ flex: 1 }}>
@@ -5320,6 +5413,7 @@ function RegisterContent() {
           </View>
         </View>
       </KeyboardAvoidingView>
+      {renderPedigreeEditModal()}
     </Modal>
   );
 
@@ -6054,6 +6148,121 @@ function RegisterContent() {
     );
   };
 
+  const renderPedigreeEditModal = () => (
+    <Modal
+      visible={isPedigreeEditModalVisible}
+      animationType="slide"
+      transparent={true}
+      onRequestClose={() => setIsPedigreeEditModalVisible(false)}
+    >
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        style={{ flex: 1 }}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text variant="h3" weight="bold" color={Colors.neutral[800]}>
+                Modify Pedigree Tree
+              </Text>
+              <TouchableOpacity onPress={() => setIsPedigreeEditModalVisible(false)}>
+                <X size={24} color={Colors.neutral[500]} />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView style={styles.modalScrollView} showsVerticalScrollIndicator={false}>
+              <View style={styles.formGroup}>
+                <Text variant="body2" style={styles.label}>Father / Sire Tag</Text>
+                <TextInput
+                  style={styles.input}
+                  value={pedigreeForm.sire}
+                  onChangeText={(val) => setPedigreeForm(prev => ({ ...prev, sire: val }))}
+                  placeholder="e.g. Sire Tag"
+                />
+              </View>
+
+              <View style={styles.formGroup}>
+                <Text variant="body2" style={styles.label}>Mother / Dam Tag</Text>
+                <TextInput
+                  style={styles.input}
+                  value={pedigreeForm.dam}
+                  onChangeText={(val) => setPedigreeForm(prev => ({ ...prev, dam: val }))}
+                  placeholder="e.g. Dam Tag"
+                />
+              </View>
+
+              <View style={{ borderTopWidth: 1, borderTopColor: '#E5E8E8', marginVertical: 12, paddingTop: 12 }}>
+                <Text variant="body" weight="bold" color={Colors.neutral[700]} style={{ marginBottom: 12 }}>
+                  Paternal Grandparents (Father's side)
+                </Text>
+                <View style={styles.formGroup}>
+                  <Text variant="body2" style={styles.label}>Paternal Grandsire</Text>
+                  <TextInput
+                    style={styles.input}
+                    value={pedigreeForm.sireSire}
+                    onChangeText={(val) => setPedigreeForm(prev => ({ ...prev, sireSire: val }))}
+                    placeholder="e.g. Sire's Sire"
+                  />
+                </View>
+                <View style={styles.formGroup}>
+                  <Text variant="body2" style={styles.label}>Paternal Granddam</Text>
+                  <TextInput
+                    style={styles.input}
+                    value={pedigreeForm.sireDam}
+                    onChangeText={(val) => setPedigreeForm(prev => ({ ...prev, sireDam: val }))}
+                    placeholder="e.g. Sire's Dam"
+                  />
+                </View>
+              </View>
+
+              <View style={{ borderTopWidth: 1, borderTopColor: '#E5E8E8', marginVertical: 12, paddingTop: 12 }}>
+                <Text variant="body" weight="bold" color={Colors.neutral[700]} style={{ marginBottom: 12 }}>
+                  Maternal Grandparents (Mother's side)
+                </Text>
+                <View style={styles.formGroup}>
+                  <Text variant="body2" style={styles.label}>Maternal Grandsire</Text>
+                  <TextInput
+                    style={styles.input}
+                    value={pedigreeForm.damSire}
+                    onChangeText={(val) => setPedigreeForm(prev => ({ ...prev, damSire: val }))}
+                    placeholder="e.g. Dam's Sire"
+                  />
+                </View>
+                <View style={styles.formGroup}>
+                  <Text variant="body2" style={styles.label}>Maternal Granddam</Text>
+                  <TextInput
+                    style={styles.input}
+                    value={pedigreeForm.damDam}
+                    onChangeText={(val) => setPedigreeForm(prev => ({ ...prev, damDam: val }))}
+                    placeholder="e.g. Dam's Dam"
+                  />
+                </View>
+              </View>
+            </ScrollView>
+
+            <View style={styles.modalActions}>
+              <Button
+                variant="outline"
+                style={styles.actionButton}
+                onPress={() => setIsPedigreeEditModalVisible(false)}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="primary"
+                style={{ ...styles.actionButton, marginLeft: 12 }}
+                onPress={handleSavePedigreeMobile}
+                disabled={isSubmitting}
+              >
+                {isSubmitting ? 'Saving...' : 'Save Pedigree'}
+              </Button>
+            </View>
+          </View>
+        </View>
+      </KeyboardAvoidingView>
+    </Modal>
+  );
+
   // Tab definitions
   const TABS = [
     { key: 'overview',   label: 'Overview'   },
@@ -6291,15 +6500,29 @@ function RegisterContent() {
                 {
                   key: 'actions',
                   title: 'Actions',
-                  width: 80,
+                  width: 110,
                   render: (_, row: any) => (
-                    <TouchableOpacity 
-                      onPress={() => handleEditAnimal(row)}
-                      hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
-                      style={{ padding: 4 }}
-                    >
-                      <Text style={{ fontSize: 16 }}>✏️</Text>
-                    </TouchableOpacity>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 16 }}>
+                      <TouchableOpacity 
+                        onPress={() => {
+                          setEditingAnimal({ ...row });
+                          setOriginalAnimalTag(row.tag);
+                          setModalActiveTab('pedigree');
+                          setIsEditAnimalModalVisible(true);
+                        }}
+                        hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
+                        style={{ padding: 4 }}
+                      >
+                        <Eye size={18} color={Colors.primary[500]} />
+                      </TouchableOpacity>
+                      <TouchableOpacity 
+                        onPress={() => handleEditAnimal(row)}
+                        hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
+                        style={{ padding: 4 }}
+                      >
+                        <Pencil size={18} color={Colors.primary[500]} />
+                      </TouchableOpacity>
+                    </View>
                   )
                 },
               ]}
@@ -6350,7 +6573,7 @@ function RegisterContent() {
                       hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
                       style={{ padding: 4 }}
                     >
-                      <Text style={{ fontSize: 16 }}>✏️</Text>
+                      <Pencil size={18} color={Colors.primary[500]} />
                     </TouchableOpacity>
                   )
                 },
@@ -6423,7 +6646,7 @@ function RegisterContent() {
                         hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
                         style={{ padding: 4 }}
                       >
-                        <Text style={{ fontSize: 16 }}>✏️</Text>
+                        <Pencil size={18} color={Colors.primary[500]} />
                       </TouchableOpacity>
                     )
                   },
@@ -6482,7 +6705,7 @@ function RegisterContent() {
                         hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
                         style={{ padding: 4 }}
                       >
-                        <Text style={{ fontSize: 16 }}>✏️</Text>
+                        <Pencil size={18} color={Colors.primary[500]} />
                       </TouchableOpacity>
                     )
                   },
@@ -6539,7 +6762,7 @@ function RegisterContent() {
                         hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
                         style={{ padding: 4 }}
                       >
-                        <Text style={{ fontSize: 16 }}>✏️</Text>
+                        <Pencil size={18} color={Colors.primary[500]} />
                       </TouchableOpacity>
                     )
                   },
@@ -6592,7 +6815,7 @@ function RegisterContent() {
                         hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
                         style={{ padding: 4 }}
                       >
-                        <Text style={{ fontSize: 16 }}>✏️</Text>
+                        <Pencil size={18} color={Colors.primary[500]} />
                       </TouchableOpacity>
                     ) : null
                   )
@@ -6642,7 +6865,7 @@ function RegisterContent() {
                         hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
                         style={{ padding: 4 }}
                       >
-                        <Text style={{ fontSize: 16 }}>✏️</Text>
+                        <Pencil size={18} color={Colors.primary[500]} />
                       </TouchableOpacity>
                     )
                   },
@@ -6694,7 +6917,7 @@ function RegisterContent() {
                       hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
                       style={{ padding: 4 }}
                     >
-                      <Text style={{ fontSize: 16 }}>✏️</Text>
+                      <Pencil size={18} color={Colors.primary[500]} />
                     </TouchableOpacity>
                     <Picker
                       value=""
@@ -6753,7 +6976,7 @@ function RegisterContent() {
                       hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
                       style={{ padding: 4 }}
                     >
-                      <Text style={{ fontSize: 16 }}>✏️</Text>
+                      <Pencil size={18} color={Colors.primary[500]} />
                     </TouchableOpacity>
                   )
                 },
@@ -6823,7 +7046,7 @@ function RegisterContent() {
                           hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
                           style={{ padding: 4 }}
                         >
-                          <Text style={{ fontSize: 16 }}>✏️</Text>
+                          <Pencil size={18} color={Colors.primary[500]} />
                         </TouchableOpacity>
                         <TouchableOpacity 
                           onPress={() => {
@@ -6852,7 +7075,7 @@ function RegisterContent() {
                           hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
                           style={{ padding: 4 }}
                         >
-                          <Text style={{ fontSize: 16 }}>🗑️</Text>
+                          <Trash2 size={18} color="#E74C3C" />
                         </TouchableOpacity>
                       </View>
                     )
@@ -6903,7 +7126,7 @@ function RegisterContent() {
                       hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
                       style={{ padding: 4 }}
                     >
-                      <Text style={{ fontSize: 16 }}>✏️</Text>
+                      <Pencil size={18} color={Colors.primary[500]} />
                     </TouchableOpacity>
                     <Picker
                       value=""
