@@ -252,7 +252,7 @@ function AddMortalityModal({ animals, onClose, onSave }: { animals: any[]; onClo
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ backgroundColor: 'rgba(0,0,0,0.45)' }}>
       <div className="w-full max-w-md rounded-2xl overflow-hidden flex flex-col shadow-2xl transition-all" style={{ backgroundColor: C.white, maxHeight: '90vh' }}>
         <div className="flex items-center justify-between px-6 py-5 border-b" style={{ borderColor: C.neutral100 }}>
-          <h3 className="text-lg font-bold" style={{ color: C.neutral900 }}>Add Mortality Record</h3>
+          <h3 className="text-lg font-bold" style={{ color: C.neutral900 }}>{editingMortality ? 'Edit Mortality Record' : 'Add Mortality Record'}</h3>
           <button onClick={onClose} className="p-1 hover:bg-neutral-100 rounded-lg"><X size={18} style={{ color: C.neutral500 }} /></button>
         </div>
         <div className="overflow-y-auto flex-1 px-6 py-4 space-y-4">
@@ -335,6 +335,13 @@ function AddAnimalModal({ editingAnimal, onClose, onSave }: { editingAnimal?: an
     if (!form.breed.trim()) { setError('Please enter the Breed.'); return }
     if (!form.stock_type) { setError('Please select a Stock Type.'); return }
     if (!form.source) { setError('Please select the Source.'); return }
+
+    if (form.sex === 'Male' && ['Cow', 'Heifer', 'Bullying Heifer'].includes(form.stock_type)) {
+      setError(`A ${form.stock_type} must be Female.`); return
+    }
+    if (form.sex === 'Female' && ['Bull', 'Steer'].includes(form.stock_type)) {
+      setError(`A ${form.stock_type} must be Male.`); return
+    }
 
     setError(''); setSaving(true)
     try {
@@ -1129,28 +1136,39 @@ function AddBreedingModal({ animals, editingBreeding, onClose, onSave }: { anima
 }
 
 // ─── Add Pregnancy Modal ────────────────────────────────────────────────────
-function AddPregnancyModal({ animals, onClose, onSave }: { animals: any[]; onClose: () => void; onSave: (d: any) => Promise<void> }) {
+function AddPregnancyModal({ animals, editingPregnancy, onClose, onSave }: { animals: any[]; editingPregnancy?: any; onClose: () => void; onSave: (d: any) => Promise<void> }) {
   const [form, setForm] = useState({
-    cowEarTag: '',
-    bodyConditionScore: '3.0',
-    lastServiceDate: new Date().toISOString().split('T')[0],
-    firstTrimesterPD: 'Not Tested',
-    secondTrimesterPD: 'Not Tested',
-    thirdTrimesterPD: 'Not Tested',
-    gestationPeriod: '',
-    expectedCalvingDate: '',
-    actualCalvingDate: '',
-    calfId: '',
-    calfSex: '',
-    deliveryType: '',
-    averageBCS: '3.0',
-    expectedReturnToHeatDate: '',
-    actualFirstHeatDate: '',
-    expectedSecondHeatDate: '',
-    actualSecondHeatDate: ''
+    cowEarTag: editingPregnancy?.cow_ear_tag || '',
+    bodyConditionScore: editingPregnancy?.body_condition_score !== undefined && editingPregnancy?.body_condition_score !== null ? String(editingPregnancy.body_condition_score) : '3.0',
+    lastServiceDate: editingPregnancy?.last_service_date || new Date().toISOString().split('T')[0],
+    firstTrimesterPD: editingPregnancy?.first_trimester_pd || 'Not Tested',
+    secondTrimesterPD: editingPregnancy?.second_trimester_pd || 'Not Tested',
+    thirdTrimesterPD: editingPregnancy?.third_trimester_pd || 'Not Tested',
+    gestationPeriod: editingPregnancy?.gestation_period ? String(editingPregnancy.gestation_period) : '',
+    expectedCalvingDate: editingPregnancy?.expected_calving_date || '',
+    actualCalvingDate: editingPregnancy?.actual_calving_date || '',
+    calfId: editingPregnancy?.calf_id || '',
+    calfSex: editingPregnancy?.calf_sex || '',
+    deliveryType: editingPregnancy?.delivery_type || '',
+    averageBCS: editingPregnancy?.average_bcs !== undefined && editingPregnancy?.average_bcs !== null ? String(editingPregnancy.average_bcs) : '3.0',
+    expectedReturnToHeatDate: editingPregnancy?.expected_return_to_heat_date || '',
+    actualFirstHeatDate: editingPregnancy?.actual_first_heat_date || '',
+    expectedSecondHeatDate: editingPregnancy?.expected_second_heat_date || '',
+    actualSecondHeatDate: editingPregnancy?.actual_second_heat_date || ''
   })
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+
+  useEffect(() => {
+    if (form.lastServiceDate && form.gestationPeriod) {
+      const serviceDate = new Date(form.lastServiceDate)
+      const gestationNum = Number(form.gestationPeriod)
+      if (!isNaN(serviceDate.getTime()) && gestationNum > 0) {
+        const expected = new Date(serviceDate.getTime() + gestationNum * 24 * 60 * 60 * 1000)
+        setForm(p => ({ ...p, expectedCalvingDate: expected.toISOString().split('T')[0] }))
+      }
+    }
+  }, [form.lastServiceDate, form.gestationPeriod])
 
   const handleSave = async () => {
     if (!form.cowEarTag) { setError('Please select a cow.'); return }
@@ -1172,7 +1190,7 @@ function AddPregnancyModal({ animals, onClose, onSave }: { animals: any[]; onClo
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/55" style={{ backgroundColor: 'rgba(0,0,0,0.45)' }}>
       <div className="w-full max-w-xl rounded-2xl overflow-hidden flex flex-col shadow-2xl transition-all" style={{ backgroundColor: C.white, maxHeight: '90vh' }}>
         <div className="flex items-center justify-between px-6 py-5 border-b" style={{ borderColor: C.neutral100 }}>
-          <h3 className="text-lg font-bold" style={{ color: C.neutral900 }}>Add Pregnancy Record</h3>
+          <h3 className="text-lg font-bold" style={{ color: C.neutral900 }}>{editingPregnancy ? 'Edit Pregnancy Record' : 'Add Pregnancy Record'}</h3>
           <button onClick={onClose} className="p-1 hover:bg-neutral-100 rounded-lg"><X size={18} style={{ color: C.neutral500 }} /></button>
         </div>
         <div className="overflow-y-auto flex-1 px-6 py-4 space-y-4">
@@ -1816,6 +1834,7 @@ export default function Register() {
   const tabParam = searchParams.get('tab') as Tab
   const [activeTab, setActiveTab]   = useState<Tab>(tabParam || 'herd')
   const [search, setSearch]         = useState('')
+  const [herdFilter, setHerdFilter] = useState<string | null>(null)
   const [loading, setLoading]       = useState(true)
 
   // Data state
@@ -1897,6 +1916,10 @@ export default function Register() {
   const [editingHealth, setEditingHealth]       = useState<any | null>(null)
   const [editingBreeding, setEditingBreeding]   = useState<any | null>(null)
   const [editingBull, setEditingBull]           = useState<any | null>(null)
+  const [editingPregnancy, setEditingPregnancy] = useState<any | null>(null)
+  const [editingMortality, setEditingMortality] = useState<any | null>(null)
+  const [editingWeight, setEditingWeight]       = useState<any | null>(null)
+  const [editingFeed, setEditingFeed]           = useState<any | null>(null)
 
   useEffect(() => {
     if (!targetUserId) return
@@ -1932,7 +1955,11 @@ export default function Register() {
 
   // Filtered search
   const q = search.toLowerCase()
-  const filteredAnimals  = animals.filter(a => !q || a.tag?.toLowerCase().includes(q) || a.breed?.toLowerCase().includes(q) || a.stock_type?.toLowerCase().includes(q))
+  const filteredAnimals  = animals.filter(a => {
+    const searchMatch = !q || a.tag?.toLowerCase().includes(q) || a.breed?.toLowerCase().includes(q) || a.stock_type?.toLowerCase().includes(q)
+    const filterMatch = !herdFilter || a.stock_type === herdFilter || (herdFilter === 'Calves' && a.stock_type === 'Calve')
+    return searchMatch && filterMatch
+  })
   const filteredHerd     = filteredAnimals.filter(a => !isCalf(a.age, a.stock_type))
   const filteredCalves   = filteredAnimals.filter(a => isCalf(a.age, a.stock_type))
   const filteredDrugs    = drugs.filter(d   => !q || d.name?.toLowerCase().includes(q) || d.drug_class?.toLowerCase().includes(q))
@@ -2165,10 +2192,14 @@ export default function Register() {
       actual_second_heat_date: d.actualSecondHeatDate || null,
       production_year: selectedProductionYear
     }
-    const { data, error } = await supabase.from('pregnancy_records').insert(dbPayload).select().single()
-    if (error) throw error
-    setPregnancyRecords(prev => [...prev, data])
-    setShowAddPregnancy(false)
+    try {
+      const { data, error } = await supabase.from('pregnancy_records').insert(dbPayload).select().single()
+      if (error) throw error
+      setPregnancyRecords(prev => [...prev, data])
+      setShowAddPregnancy(false)
+    } catch (e: any) {
+      throw new Error(`${e.message} | Payload: ${JSON.stringify(dbPayload)}`)
+    }
   }
 
   const addBullRecord = async (d: any) => {
@@ -2212,6 +2243,106 @@ export default function Register() {
     setEditingBull(null)
   }
 
+  const saveEditedPregnancy = async (d: any) => {
+    if (!session || !targetUserId || !editingPregnancy) return
+    const dbPayload = {
+      user_id: targetUserId,
+      cow_ear_tag: d.cowEarTag,
+      body_condition_score: d.bodyConditionScore ? Number(d.bodyConditionScore) : null,
+      last_service_date: d.lastServiceDate,
+      first_trimester_pd: d.firstTrimesterPD,
+      second_trimester_pd: d.secondTrimesterPD,
+      third_trimester_pd: d.thirdTrimesterPD,
+      gestation_period: d.gestationPeriod ? Number(d.gestationPeriod) : 0,
+      expected_calving_date: d.expectedCalvingDate || null,
+      actual_calving_date: d.actualCalvingDate || null,
+      calf_id: d.calfId || null,
+      calf_sex: d.calfSex || null,
+      delivery_type: d.deliveryType || null,
+      average_bcs: d.averageBCS ? Number(d.averageBCS) : (d.bodyConditionScore ? Number(d.bodyConditionScore) : null),
+      expected_return_to_heat_date: d.expectedReturnToHeatDate || null,
+      actual_first_heat_date: d.actualFirstHeatDate || null,
+      expected_second_heat_date: d.expectedSecondHeatDate || null,
+      actual_second_heat_date: d.actualSecondHeatDate || null,
+      production_year: selectedProductionYear
+    }
+    const { data, error } = await supabase.from('pregnancy_records').update(dbPayload).eq('id', editingPregnancy.id).select().single()
+    if (error) throw error
+    setPregnancyRecords(prev => prev.map(item => item.id === editingPregnancy.id ? data : item))
+    setEditingPregnancy(null)
+  }
+
+  const saveEditedMortality = async (d: any) => {
+    if (!session || !targetUserId || !editingMortality) return
+    const dbPayload = {
+      user_id: targetUserId,
+      animal_tag: d.animalTag,
+      date_of_death: d.dateOfDeath,
+      cause_of_death: d.causeOfDeath,
+      carcass_disposal_method: d.carcassDisposalMethod,
+      necropsy_results: d.necropsyResults,
+      veterinarian_notes: d.veterinarianNotes,
+      production_year: selectedProductionYear
+    }
+    const { data, error } = await supabase.from('mortality_records').update(dbPayload).eq('id', editingMortality.id).select().single()
+    if (error) throw error
+    setMortalityRecords(prev => prev.map(item => item.id === editingMortality.id ? data : item))
+    setEditingMortality(null)
+  }
+
+  const saveEditedWeight = async (d: any) => {
+    if (!session || !targetUserId || !editingWeight) return
+    const dbPayload = {
+      user_id: targetUserId,
+      animal_tag: d.animalTag,
+      year: Number(d.year),
+      jan: d.jan ? Number(d.jan) : null,
+      feb: d.feb ? Number(d.feb) : null,
+      mar: d.mar ? Number(d.mar) : null,
+      apr: d.apr ? Number(d.apr) : null,
+      may: d.may ? Number(d.may) : null,
+      jun: d.jun ? Number(d.jun) : null,
+      jul: d.jul ? Number(d.jul) : null,
+      aug: d.aug ? Number(d.aug) : null,
+      sep: d.sep ? Number(d.sep) : null,
+      oct: d.oct ? Number(d.oct) : null,
+      nov: d.nov ? Number(d.nov) : null,
+      dec: d.dec ? Number(d.dec) : null,
+      production_year: selectedProductionYear
+    }
+    const { data, error } = await supabase.from('animal_weights').update(dbPayload).eq('id', editingWeight.id).select().single()
+    if (error) throw error
+    setAnimalWeights(prev => prev.map(item => item.id === editingWeight.id ? data : item))
+    setEditingWeight(null)
+  }
+
+  const saveEditedFeed = async (d: any) => {
+    if (!session || !targetUserId || !editingFeed) return
+    const dbPayload = {
+      user_id: targetUserId,
+      stock_type: d.stockType,
+      date: d.date,
+      pasture_grazing_time: d.pastureGrazingTime,
+      pasture_quality: d.pastureQuality,
+      hay_type: d.hayType,
+      hay_amount: d.hayAmount ? Number(d.hayAmount) : null,
+      silage_type: d.silageType,
+      silage_amount: d.silageAmount ? Number(d.silageAmount) : null,
+      grain_concentrate_type: d.grainConcentrateType,
+      grain_concentrate_amount: d.grainConcentrateAmount ? Number(d.grainConcentrateAmount) : null,
+      protein_supplement: d.proteinSupplement,
+      protein_amount: d.proteinAmount ? Number(d.proteinAmount) : null,
+      minerals_vitamins: d.mineralsVitamins,
+      water_intake_estimate: d.waterIntakeEstimate,
+      notes_issues: d.notesIssues,
+      production_year: selectedProductionYear
+    }
+    const { data, error } = await supabase.from('feed_records').update(dbPayload).eq('id', editingFeed.id).select().single()
+    if (error) throw error
+    setFeedRecords(prev => prev.map(item => item.id === editingFeed.id ? data : item))
+    setEditingFeed(null)
+  }
+
   const deleteBullRecord = async (id: string) => {
     if (!window.confirm('Are you sure you want to delete this bull evaluation record?')) return
     const { error } = await supabase.from('bull_breeding_records').delete().eq('id', id)
@@ -2240,7 +2371,7 @@ export default function Register() {
       dec: d.dec ? Number(d.dec) : null,
       production_year: selectedProductionYear
     }
-    const { data, error } = await supabase.from('animal_weights').upsert(dbPayload, { onConflict: 'user_id,animal_tag,year,production_year' }).select().single()
+    const { data, error } = await supabase.from('animal_weights').upsert(dbPayload, { onConflict: 'user_id,animal_tag,year' }).select().single()
     if (error) throw error
     setWeights(prev => {
       const idx = prev.findIndex(w => w.animal_tag === d.animalTag && w.year === Number(d.year))
@@ -2439,20 +2570,22 @@ export default function Register() {
               {/* Herd at a glance stats */}
               <div className="px-6 py-4 border-b flex gap-6 flex-wrap bg-neutral-50/50" style={{ borderColor: C.neutral100 }}>
                 {[
-                  ['Cows', herdTotals.cows, '#639A34'],
-                  ['Bulls', herdTotals.bulls, '#E74C3C'],
-                  ['Heifers', herdTotals.heifers, '#FF9E2C'],
-                  ['Steers', herdTotals.steers, '#2980B9'],
-                  ['Calves', herdTotals.calves, '#359563'],
-                ].map(([label, count, color]) => (
-                  <div key={label as string} className="text-center px-4 py-2 border rounded-xl bg-white shadow-sm" style={{ borderColor: C.neutral100, minWidth: '90px' }}>
+                  ['Cows', herdTotals.cows, '#639A34', 'Cow'],
+                  ['Bulls', herdTotals.bulls, '#E74C3C', 'Bull'],
+                  ['Heifers', herdTotals.heifers, '#FF9E2C', 'Heifer'],
+                  ['Steers', herdTotals.steers, '#2980B9', 'Steer'],
+                  ['Calves', herdTotals.calves, '#359563', 'Calves'],
+                ].map(([label, count, color, filterKey]) => {
+                  const isSelected = herdFilter === filterKey;
+                  return (
+                  <div key={label as string} onClick={() => setHerdFilter(isSelected ? null : (filterKey as string))} className="text-center px-4 py-2 border rounded-xl bg-white shadow-sm cursor-pointer hover:shadow-md transition-all" style={{ borderColor: isSelected ? (color as string) : C.neutral100, backgroundColor: isSelected ? `${color}1A` : 'white', transform: isSelected ? 'scale(1.05)' : 'scale(1)', minWidth: '90px' }}>
                     <p className="text-xl font-bold" style={{ color: color as string }}>{count}</p>
                     <p className="text-xs font-semibold" style={{ color: C.neutral500 }}>{label}</p>
                   </div>
-                ))}
-                <div className="text-center px-5 py-2 border rounded-xl bg-white shadow-sm ml-auto" style={{ borderColor: C.primary100, backgroundColor: C.primary50, minWidth: '90px' }}>
-                  <p className="text-xl font-extrabold" style={{ color: C.primary600 }}>{filteredAnimals.length}</p>
-                  <p className="text-xs font-bold" style={{ color: C.primary600 }}>Total</p>
+                )})}
+                <div onClick={() => setHerdFilter(null)} className="text-center px-5 py-2 border rounded-xl bg-white shadow-sm ml-auto cursor-pointer hover:shadow-md transition-all" style={{ borderColor: !herdFilter ? C.primary400 : C.primary100, backgroundColor: !herdFilter ? C.primary50 : 'white', transform: !herdFilter ? 'scale(1.05)' : 'scale(1)', minWidth: '90px' }}>
+                  <p className="text-xl font-extrabold" style={{ color: !herdFilter ? C.primary600 : C.primary400 }}>{animals.length}</p>
+                  <p className="text-xs font-bold" style={{ color: !herdFilter ? C.primary600 : C.primary400 }}>Total Herd</p>
                 </div>
               </div>
               <Table data={filteredAnimals.map((row, index) => ({ ...row, count: index + 1 }))} cols={[
@@ -2646,6 +2779,18 @@ export default function Register() {
                 { key: 'delivery_type',              label: 'Delivery' },
                 { key: 'average_bcs',                label: 'Avg BCS', align: 'center' },
                 { key: 'expected_return_to_heat_date', label: 'Expected Return to Heat' },
+                {
+                  key: 'actions',
+                  label: 'Actions',
+                  align: 'center',
+                  render: (_, row) => (
+                    <div className="flex items-center justify-center gap-2">
+                      <button onClick={() => setEditingPregnancy(row)} className="p-1.5 text-neutral-500 hover:text-neutral-900 hover:bg-neutral-100 rounded-lg transition-colors">
+                        <Edit size={14} />
+                      </button>
+                    </div>
+                  )
+                }
               ]} />
             </>
           )}
@@ -2803,6 +2948,10 @@ export default function Register() {
       {editingHealth   && <AddHealthModal   animals={animals} editingHealth={editingHealth} onClose={() => setEditingHealth(null)} onSave={saveEditedHealth} />}
       {editingBreeding && <AddBreedingModal animals={animals} editingBreeding={editingBreeding} onClose={() => setEditingBreeding(null)} onSave={saveEditedBreeding} />}
       {editingBull     && <AddBullModal     animals={animals} editingBull={editingBull} onClose={() => setEditingBull(null)} onSave={saveEditedBull} />}
+      {editingPregnancy && <AddPregnancyModal animals={animals} editingPregnancy={editingPregnancy} onClose={() => setEditingPregnancy(null)} onSave={saveEditedPregnancy} />}
+      {editingMortality && <AddMortalityModal animals={animals} editingMortality={editingMortality} onClose={() => setEditingMortality(null)} onSave={saveEditedMortality} />}
+      {editingWeight    && <AddWeightModal    animals={animals} editingWeight={editingWeight} onClose={() => setEditingWeight(null)} onSave={saveEditedWeight} />}
+      {editingFeed      && <AddFeedModal      editingFeed={editingFeed} onClose={() => setEditingFeed(null)} onSave={saveEditedFeed} />}
 
       {selectedAnimalProfile && (
         <AnimalProfileModal

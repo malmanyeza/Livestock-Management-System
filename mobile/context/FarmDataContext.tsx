@@ -2100,7 +2100,7 @@ export const FarmDataProvider: React.FC<{ children: ReactNode }> = ({ children }
 
     const { data, error } = await supabase
       .from('animal_weights')
-      .upsert(dbData, { onConflict: 'user_id,animal_tag,year,production_year' })
+      .upsert(dbData, { onConflict: 'user_id,animal_tag,year' })
       .select()
       .single();
 

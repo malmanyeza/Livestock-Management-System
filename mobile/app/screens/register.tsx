@@ -1542,6 +1542,15 @@ function RegisterContent() {
       return;
     }
 
+    if (editingAnimal.sex === 'Male' && ['Cow', 'Heifer', 'Bullying Heifer'].includes(editingAnimal.stockType)) {
+      alert(`A ${editingAnimal.stockType} must be Female.`);
+      return;
+    }
+    if (editingAnimal.sex === 'Female' && ['Bull', 'Steer'].includes(editingAnimal.stockType)) {
+      alert(`A ${editingAnimal.stockType} must be Male.`);
+      return;
+    }
+
     setIsSubmitting(true);
     try {
       // Calculate age
@@ -2036,6 +2045,15 @@ function RegisterContent() {
     }
     if (!newAnimal.source) {
       alert('Please select the Source — Born on Farm or Purchased.');
+      return;
+    }
+
+    if (newAnimal.sex === 'Male' && ['Cow', 'Heifer', 'Bullying Heifer'].includes(newAnimal.stockType)) {
+      alert(`A ${newAnimal.stockType} must be Female.`);
+      return;
+    }
+    if (newAnimal.sex === 'Female' && ['Bull', 'Steer'].includes(newAnimal.stockType)) {
+      alert(`A ${newAnimal.stockType} must be Male.`);
       return;
     }
     // --- Validation: duplicate tag ---
