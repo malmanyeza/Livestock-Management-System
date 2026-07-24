@@ -236,7 +236,7 @@ function AddDrugModal({ editingDrug, onClose, onSave }: { editingDrug?: any; onC
 }
 
 // ─── Add Mortality Modal ──────────────────────────────────────────────────────
-function AddMortalityModal({ animals, onClose, onSave }: { animals: any[]; onClose: () => void; onSave: (d: any) => Promise<void> }) {
+function AddMortalityModal({ animals, onClose, onSave, editingMortality }: { animals: any[]; onClose: () => void; onSave: (d: any) => Promise<void>; editingMortality?: any }) {
   const [form, setForm] = useState({ date: new Date().toISOString().split('T')[0], animalId: '', cause: '', description: '', observer: '' })
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
@@ -1507,7 +1507,7 @@ function AddBullModal({ animals, editingBull, onClose, onSave }: { animals: any[
 }
 
 // ─── Add Weight Modal ────────────────────────────────────────────────────────
-function AddWeightModal({ animals, onClose, onSave }: { animals: any[]; onClose: () => void; onSave: (d: any) => Promise<void> }) {
+function AddWeightModal({ animals, onClose, onSave, editingWeight }: { animals: any[]; onClose: () => void; onSave: (d: any) => Promise<void>; editingWeight?: any }) {
   const [form, setForm] = useState({
     animalTag: '',
     year: new Date().getFullYear().toString(),
@@ -1593,7 +1593,7 @@ function AddWeightModal({ animals, onClose, onSave }: { animals: any[]; onClose:
 }
 
 // ─── Add Feed Modal ──────────────────────────────────────────────────────────
-function AddFeedModal({ onClose, onSave }: { onClose: () => void; onSave: (d: any) => Promise<void> }) {
+function AddFeedModal({ onClose, onSave, editingFeed }: { onClose: () => void; onSave: (d: any) => Promise<void>; editingFeed?: any }) {
   const [form, setForm] = useState({
     name: '',
     type: '',
@@ -2286,7 +2286,7 @@ export default function Register() {
     }
     const { data, error } = await supabase.from('mortality_records').update(dbPayload).eq('id', editingMortality.id).select().single()
     if (error) throw error
-    setMortalityRecords(prev => prev.map(item => item.id === editingMortality.id ? data : item))
+    setMortality(prev => prev.map((item: any) => item.id === editingMortality.id ? data : item))
     setEditingMortality(null)
   }
 
@@ -2312,7 +2312,7 @@ export default function Register() {
     }
     const { data, error } = await supabase.from('animal_weights').update(dbPayload).eq('id', editingWeight.id).select().single()
     if (error) throw error
-    setAnimalWeights(prev => prev.map(item => item.id === editingWeight.id ? data : item))
+    setWeights(prev => prev.map((item: any) => item.id === editingWeight.id ? data : item))
     setEditingWeight(null)
   }
 
@@ -2339,7 +2339,7 @@ export default function Register() {
     }
     const { data, error } = await supabase.from('feed_records').update(dbPayload).eq('id', editingFeed.id).select().single()
     if (error) throw error
-    setFeedRecords(prev => prev.map(item => item.id === editingFeed.id ? data : item))
+    setFeedInventory(prev => prev.map((item: any) => item.id === editingFeed.id ? data : item))
     setEditingFeed(null)
   }
 

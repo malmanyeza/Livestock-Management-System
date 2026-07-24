@@ -149,7 +149,11 @@ export default function Dashboard() {
         daysBetweenWeights: row.days_between_weights != null ? Number(row.days_between_weights) : undefined,
         bcs: row.bcs != null ? Number(row.bcs) : undefined,
         stockType: row.stock_type,
-        isBreedingCow: row.is_breeding_cow ?? false
+        isBreedingCow: row.is_breeding_cow ?? false,
+        calfStatus: row.calf_status,
+        weaningWeight: row.weaning_weight,
+        tag: row.tag,
+        earTagNumber: row.ear_tag_number
       }))
 
       const mappedBreeding = (breedingData || []).map((row: any) => ({
