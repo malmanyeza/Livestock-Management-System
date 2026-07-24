@@ -367,13 +367,6 @@ export default function Genetics() {
         <p className="text-sm mt-0.5" style={{ color: C.neutral500 }}>Herd composition, breeding, and pregnancy statistics</p>
       </div>
 
-      <div className="flex items-center gap-3 p-4 rounded-xl text-sm border" style={{ backgroundColor: '#F4F9ED', borderColor: '#E2EED8', color: C.neutral700 }}>
-        <div>
-          <span className="font-bold block mb-0.5" style={{ color: C.primary600 }}>💡 Genetics &amp; Reproduction Score Source</span>
-          <span className="text-xs">The overall Genetics category score is calculated as the average of Conception Rate achieved vs target, Calving Rate performance, and subjective Veterinary Inspection scores.</span>
-        </div>
-      </div>
-
       {/* Tab bar — underline style matching mobile */}
       <div className="flex border-b" style={{ borderColor: C.neutral200 }}>
         {TABS.map(({ key, label }) => (

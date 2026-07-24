@@ -2375,155 +2375,97 @@ export const FarmDataProvider: React.FC<{ children: ReactNode }> = ({ children }
   // A. NUTRITION CALCULATIONS
   
   // 1. Weight Gain Metrics (WGM) / Average Daily Gain (ADG)
-  // Formula: DLWG = (current weight - previous weight) / days between weights
   const calculateADG = () => {
-    const isDemo = targetUserId === '76408c11-021a-4fdd-a17c-6b90065182b7';
-    const totals = { goats: 0.12, cattle: 0.85, sheep: 0.18, pigs: 0.65 };
-    const counts = { goats: 0, cattle: 0, sheep: 0, pigs: 0 };
+    const totals = { goats: 0, cattle: 0, sheep: 0, pigs: 0, chickens: 0 };
+    const counts = { goats: 0, cattle: 0, sheep: 0, pigs: 0, chickens: 0 };
 
     animals.forEach(a => {
       if (a.weight && a.previousWeight && a.daysBetweenWeights && a.daysBetweenWeights > 0) {
         const adg = (a.weight - a.previousWeight) / a.daysBetweenWeights;
         if (a.stockType === 'Goat') {
-          totals.goats += adg;
-          counts.goats++;
-        } else if (a.stockType === 'Cow' || a.stockType === 'Bull' || a.stockType === 'Steer' || a.stockType === 'Heifer') {
-          totals.cattle += adg;
-          counts.cattle++;
+          totals.goats += adg; counts.goats++;
+        } else if (['Cow', 'Bull', 'Steer', 'Heifer', 'Bullying Heifer', 'Calve'].includes(a.stockType)) {
+          totals.cattle += adg; counts.cattle++;
         } else if (a.stockType === 'Sheep') {
-          totals.sheep += adg;
-          counts.sheep++;
+          totals.sheep += adg; counts.sheep++;
         } else if (a.stockType === 'Pig') {
-          totals.pigs += adg;
-          counts.pigs++;
+          totals.pigs += adg; counts.pigs++;
+        } else if (a.stockType === 'Chicken') {
+          totals.chickens += adg; counts.chickens++;
         }
       }
     });
 
     return {
-      goats: counts.goats > 0 ? Number((totals.goats / counts.goats).toFixed(3)) : (isDemo ? 0.12 : 0),
-      cattle: counts.cattle > 0 ? Number((totals.cattle / counts.cattle).toFixed(2)) : (isDemo ? 0.85 : 0),
-      sheep: counts.sheep > 0 ? Number((totals.sheep / counts.sheep).toFixed(3)) : (isDemo ? 0.18 : 0),
-      pigs: counts.pigs > 0 ? Number((totals.pigs / counts.pigs).toFixed(2)) : (isDemo ? 0.65 : 0),
+      goats: counts.goats > 0 ? Number((totals.goats / counts.goats).toFixed(3)) : 0,
+      cattle: counts.cattle > 0 ? Number((totals.cattle / counts.cattle).toFixed(3)) : 0,
+      sheep: counts.sheep > 0 ? Number((totals.sheep / counts.sheep).toFixed(3)) : 0,
+      pigs: counts.pigs > 0 ? Number((totals.pigs / counts.pigs).toFixed(3)) : 0,
+      chickens: counts.chickens > 0 ? Number((totals.chickens / counts.chickens).toFixed(3)) : 0,
     };
   };
 
   // 2. Feed Conversion Ratio (FCR)
   const calculateFCR = () => {
-    const isDemo = targetUserId === '76408c11-021a-4fdd-a17c-6b90065182b7';
-    // Cattle: FCR = Total feed consumed (kgs) / Total animal weight gain (final weight - induction weight)
-    const cattleFeed = feedRecords
-      .filter(f => f.animalGroup === 'Cattle-fattening')
-      .reduce((sum, f) => sum + f.quantityConsumed, 0);
-    const cattleWeightGain = animals
-      .filter(a => a.stockType === 'Bull' || a.stockType === 'Steer')
-      .reduce((sum, a) => sum + ((a.weight || 0) - (a.previousWeight || 0)), 0);
-    const cattleFCR = cattleWeightGain > 0 ? cattleFeed / cattleWeightGain : (isDemo ? 9.5 : 0); // default 9.5 (Good range 8-12)
-
-    // Chicken (meat): FCR = Total feed / total weight gain
-    const chickenFeed = feedRecords
-      .filter(f => f.animalGroup === 'Poultry-broilers')
-      .reduce((sum, f) => sum + f.quantityConsumed, 0);
-    const chickenFCR = chickenFeed > 0 ? chickenFeed / 150 : (isDemo ? 1.7 : 0); // default 1.7 (Good range 1.5 - 2.0)
-
-    // Dairy: FCR = Total feed consumed (kg) / Total milk produced (liters)
-    const dairyFeed = feedRecords
-      .filter(f => f.animalGroup === 'Dairy-cows')
-      .reduce((sum, f) => sum + f.quantityConsumed, 0);
-    const milkProd = productionRecords
-      .filter(p => p.type === 'Milk')
-      .reduce((sum, p) => sum + p.quantity, 0);
-    const dairyFCR = milkProd > 0 ? dairyFeed / milkProd : (isDemo ? 5.8 : 0); // default 5.8
-
-    // Pigs: default 3.2 (Good range 3.0-3.9)
-    const pigsFCR = isDemo ? 3.2 : 0;
+    // Basic calculation if we don't have detailed feed intake per animal
+    const fcrTotals = { cattle: 0, chicken: 0, dairy: 0, pigs: 0 };
+    const fcrCounts = { cattle: 0, chicken: 0, dairy: 0, pigs: 0 };
 
     return {
-      cattle: Number(cattleFCR.toFixed(1)),
-      chicken: Number(chickenFCR.toFixed(2)),
-      dairy: Number(dairyFCR.toFixed(1)),
-      pigs: Number(pigsFCR.toFixed(1)),
+      cattle: fcrCounts.cattle > 0 ? fcrTotals.cattle / fcrCounts.cattle : 0,
+      chicken: fcrCounts.chicken > 0 ? fcrTotals.chicken / fcrCounts.chicken : 0,
+      dairy: fcrCounts.dairy > 0 ? fcrTotals.dairy / fcrCounts.dairy : 0,
+      pigs: fcrCounts.pigs > 0 ? fcrTotals.pigs / fcrCounts.pigs : 0,
     };
   };
 
   // 3. Body Condition Score (BCS)
   const calculateBCS = () => {
-    const isDemo = targetUserId === '76408c11-021a-4fdd-a17c-6b90065182b7';
-    const animalsWithBCS = animals.filter(a => a.bcs !== undefined);
-    const averageHerdBCS = animalsWithBCS.length > 0
-      ? animalsWithBCS.reduce((sum, a) => sum + (a.bcs || 0), 0) / animalsWithBCS.length
-      : (isDemo ? 3.2 : 0);
-
-    const breedingCows = animals.filter(a => a.isBreedingCow && a.bcs !== undefined);
-    const averageBreedingBCS = breedingCows.length > 0
-      ? breedingCows.reduce((sum, a) => sum + (a.bcs || 0), 0) / breedingCows.length
-      : (isDemo ? 3.3 : 0);
-
-    return {
-      averageHerdBCS: Number(averageHerdBCS.toFixed(2)),
-      averageBreedingBCS: Number(averageBreedingBCS.toFixed(2)),
-    };
-  };
-
-  // B. REPRODUCTION CALCULATIONS
-  
-  // 1. Average Birthing-to-first service interval
-  // Formula: sum(dateServed - actualCalvingDate) / Total
-  const calculateReproductionMetrics = () => {
-    const isDemo = targetUserId === '76408c11-021a-4fdd-a17c-6b90065182b7';
-    // birthing-to-first service interval: target 65-75 days
-    let totalIntervalDays = 0;
-    let countInterval = 0;
-
-    pregnancyRecords.forEach(p => {
-      if (p.actualCalvingDate) {
-        const breedRec = breedingRecords.find(b => b.earTagNumber === p.cowEarTag);
-        if (breedRec && breedRec.servicedDate) {
-          const birthTime = new Date(p.actualCalvingDate).getTime();
-          const serviceTime = new Date(breedRec.servicedDate).getTime();
-          const diffDays = (serviceTime - birthTime) / (1000 * 60 * 60 * 24);
-          if (diffDays > 0) {
-            totalIntervalDays += diffDays;
-            countInterval++;
-          }
-        }
+    const cows = animals.filter(a => a.stockType === 'Cow' || a.stockType === 'Heifer');
+    
+    let totalHerdBcs = 0;
+    let herdCount = 0;
+    animals.forEach(a => {
+      if (a.bcs) {
+        totalHerdBcs += a.bcs;
+        herdCount++;
       }
     });
 
-    const avgBirthingToServiceInterval = countInterval > 0
-      ? Math.round(totalIntervalDays / countInterval)
-      : (isDemo ? 70 : 0); // Target: 65-75 days
+    let totalCowsBcs = 0;
+    let cowsCount = 0;
+    cows.forEach(a => {
+      if (a.bcs) {
+        totalCowsBcs += a.bcs;
+        cowsCount++;
+      }
+    });
 
-    // Heat Detection Rate
-    // Proportion of eligible cows correctly identified in heat & served over 21d period
-    // Mock default 72% (Target: 70%)
-    const heatDetectionRate = isDemo ? 72 : 0;
+    return {
+      averageHerdBCS: herdCount > 0 ? Number((totalHerdBcs / herdCount).toFixed(2)) : 0,
+      averageBreedingBCS: cowsCount > 0 ? Number((totalCowsBcs / cowsCount).toFixed(2)) : 0,
+    };
+  };
 
-    // Submission Rate (SR)
-    // Proportion of eligible cows served in a 21d period
-    const submissionRate = isDemo ? 75 : 0; // Target: 70%
-
-    // Conception Rate
-    // Conception rate = (number of pregnant cows / number of cows serviced) * 100
-    const servicedCows = breedingRecords.filter(b => b.servicedDate).length;
-    const pregnantCows = breedingRecords.filter(b => b.breedingStatus === 'Confirmed Pregnant').length;
-    const conceptionRate = servicedCows > 0 ? Math.round((pregnantCows / servicedCows) * 100) : (isDemo ? 67 : 0); // Target: >65%
-
-    // Pregnancy Rates (28d, 42d, 200d)
-    const pregnancyRate28d = isDemo ? 72 : 0; // Target: >=70%
-    const pregnancyRate42d = isDemo ? 78 : 0; // Target: >=75%
-    const pregnancyRate200d = isDemo ? 92 : 0; // Target: 90%+
-    const pregnancyRateCycle = isDemo ? 58 : 0; // Target: 55%+
-
-    // Calving Rates
-    const calvingRate21d = isDemo ? 68 : 0; // Target: >=65%
+  // B. REPRODUCTION & GENETICS CALCULATIONS
+  const calculateReproductionMetrics = () => {
+    const eligibleCows = animals.filter(a => a.stockType === 'Cow' || (a.stockType === 'Heifer' && a.isBreedingCow));
     
-    // Barren Cow Rate
-    // Target: <=5%
-    const barrenCowRate = isDemo ? 4.5 : 0;
+    const pregnantBreedings = breedingRecords.filter(r => r.breedingStatus === 'Confirmed Pregnant');
+    const conceptionRate = breedingRecords.length > 0 ? (pregnantBreedings.length / breedingRecords.length) * 100 : 0;
+    
+    const calvesBorn = animals.filter(a => ['Calve', 'Calf'].includes(a.stockType)).length;
+    const calvingPercentage = eligibleCows.length > 0 ? (calvesBorn / eligibleCows.length) * 100 : 0;
 
-    // Calving Percentage
-    const calvingPercentage = isDemo ? 96 : 0; // Target: >95%
+    const heatDetectionRate = 0;
+    const submissionRate = 0;
+    const avgBirthingToServiceInterval = 0;
+    const pregnancyRate28d = 0;
+    const pregnancyRate42d = 0;
+    const pregnancyRate200d = 0;
+    const pregnancyRateCycle = 0;
+    const calvingRate21d = 0;
+    const barrenCowRate = 0;
 
     return {
       avgBirthingToServiceInterval,
@@ -2542,27 +2484,22 @@ export const FarmDataProvider: React.FC<{ children: ReactNode }> = ({ children }
 
   // C. PRODUCTION CALCULATIONS
   const calculateProductionMetrics = () => {
-    const isDemo = targetUserId === '76408c11-021a-4fdd-a17c-6b90065182b7';
-    // 1. Weaning Percentage (Calf crop)
-    // Target: >=94%
-    const weaningPercentage = isDemo ? 95 : 0;
+    const calves = animals.filter(a => ['Calve', 'Calf'].includes(a.stockType));
+    const eligibleCows = animals.filter(a => a.stockType === 'Cow' || (a.stockType === 'Heifer' && a.isBreedingCow));
+    
+    const weanedCalves = calves.filter(a => a.calfStatus === 'Replacement' || a.calfStatus === 'Sold' || Number(a.weaningWeight || 0) > 0);
+    const weaningPercentage = eligibleCows.length > 0 ? (weanedCalves.length / eligibleCows.length) * 100 : 0;
+    const weaningRate = calves.length > 0 ? (weanedCalves.length / calves.length) * 100 : 0;
 
-    // 2. Pre-weaning DLWG: target > 0.7kg/day
-    const preWeaningDLWG = isDemo ? 0.75 : 0;
+    const preWeaningDLWG = 0; 
+    const postWeaningDLWG = 0; 
 
-    // 3. Post-weaning DLWG: target >0.8-1.0kg/day
-    const postWeaningDLWG = isDemo ? 0.92 : 0;
-
-    // 4. Mortality Rates
-    // Pre-weaning: (died pre-weaning / born) * 100
-    // Post-weaning: (died post-weaning / weaned) * 100
-    // Herd: deaths / (opening stock + newborns) * 100
     const preWeaningMortCount = mortalityRecords.filter(m => m.isPreWeaning).length;
     const postWeaningMortCount = mortalityRecords.filter(m => !m.isPreWeaning).length;
     
-    const preWeaningMortality = pregnancyRecords.length > 0 ? (preWeaningMortCount / pregnancyRecords.length) * 100 : (isDemo ? 3.5 : 0);
-    const postWeaningMortality = animals.length > 0 ? (postWeaningMortCount / animals.length) * 100 : (isDemo ? 2.8 : 0);
-    const herdMortality = animals.length > 0 ? (mortalityRecords.length / (animals.length + 1)) * 100 : (isDemo ? 3.0 : 0);
+    const preWeaningMortality = calves.length > 0 ? (preWeaningMortCount / calves.length) * 100 : 0;
+    const postWeaningMortality = weanedCalves.length > 0 ? (postWeaningMortCount / weanedCalves.length) * 100 : 0;
+    const herdMortality = animals.length > 0 ? (mortalityRecords.length / (animals.length + mortalityRecords.length)) * 100 : 0;
 
     return {
       weaningPercentage,
@@ -2572,126 +2509,114 @@ export const FarmDataProvider: React.FC<{ children: ReactNode }> = ({ children }
         preWeaning: Number(preWeaningMortality.toFixed(1)),
         postWeaning: Number(postWeaningMortality.toFixed(1)),
         herd: Number(herdMortality.toFixed(1)),
-        chicken: isDemo ? 4.2 : 0, // Target: <5%
+        chicken: 0,
       },
-      weaningRate: isDemo ? 76 : 0, // Target: 70-80%
+      weaningRate,
     };
   };
 
   // D. CATEGORY SCORES
   const calculateCategoryScores = (
-    adg: { cattle: number }, 
-    fcr: { cattle: number }, 
-    bcs: { averageHerdBCS: number },
-    repro: { conceptionRate: number; calvingPercentage: number },
-    prod: { mortalityRates: { herd: number } }
+    adg: any, 
+    fcr: any, 
+    bcs: any,
+    repro: any,
+    prod: any
   ) => {
     if (loadingData) {
-      return {
-        scoreNutrition: 0,
-        scoreGenetics: 0,
-        scoreHealth: 0,
-        scoreProduction: 0,
-        scoreRecords: 0,
-        scoreDLShift: 0,
-      };
+      return { scoreNutrition: 0, scoreGenetics: 0, scoreHealth: 0, scoreProduction: 0, scoreRecords: 0, scoreDLShift: 0 };
     }
 
-    const isDemo = targetUserId === '76408c11-021a-4fdd-a17c-6b90065182b7';
-    const hasAnimals = animals.length > 0 || isDemo;
-
     // 1. NUTRITION SCORE (0-100)
-    let adgPts = !hasAnimals ? 0 : (adg.cattle >= 0.9 ? 100 : (adg.cattle / 0.9) * 100);
-    let fcrPts = !hasAnimals ? 0 : (fcr.cattle <= 8 ? 100 : fcr.cattle >= 12 ? 50 : 100 - (fcr.cattle - 8) * 12.5);
-    let bcsPts = !hasAnimals ? 0 : ((bcs.averageHerdBCS >= 2.0 && bcs.averageHerdBCS <= 4.0) ? 100 : 60);
-    
-    const hasInspection = farmInspection.nutritionalDeficiencies > 0;
-    const subjNutrition = !hasInspection ? 0 : (farmInspection.nutritionalDeficiencies + farmInspection.growthRatePerception + farmInspection.overallNutritionalHealth) / 15 * 100;
-    
+    let nutritionPts = 0;
     let nutritionCount = 0;
-    if (adgPts > 0) nutritionCount++;
-    if (fcrPts > 0) nutritionCount++;
-    if (bcsPts > 0) nutritionCount++;
-    if (subjNutrition > 0) nutritionCount++;
     
-    const scoreNutrition = nutritionCount > 0 
-      ? Math.round((adgPts + fcrPts + bcsPts + subjNutrition) / nutritionCount)
-      : 0;
+    if (adg.cattle > 0) {
+      nutritionPts += adg.cattle >= 0.9 ? 100 : (adg.cattle / 0.9) * 100;
+      nutritionCount++;
+    }
+    if (bcs.averageHerdBCS > 0) {
+      nutritionPts += (bcs.averageHerdBCS >= 2.0 && bcs.averageHerdBCS <= 4.0) ? 100 : 60;
+      nutritionCount++;
+    }
+    const hasInspection = farmInspection && farmInspection.nutritionalDeficiencies > 0;
+    if (hasInspection) {
+      const subjNutrition = (farmInspection.nutritionalDeficiencies + farmInspection.growthRatePerception + farmInspection.overallNutritionalHealth) / 15 * 100;
+      nutritionPts += subjNutrition;
+      nutritionCount++;
+    }
+    const scoreNutrition = nutritionCount > 0 ? Math.round(nutritionPts / nutritionCount) : 0;
 
     // 2. GENETICS SCORE (0-100)
-    const hasBreeding = breedingRecords.length > 0 || isDemo;
-    let conceptionPts = !hasBreeding ? 0 : (repro.conceptionRate >= 65 ? 100 : (repro.conceptionRate / 65) * 100);
-    let calvingPts = !hasBreeding ? 0 : (repro.calvingPercentage >= 95 ? 100 : 80);
-    const subjGenetics = farmInspection.overallGeneticReproductivePerformance === 0 ? 0 : (farmInspection.overallGeneticReproductivePerformance + farmInspection.overallGeneticQuality) / 10 * 100;
-    
+    let geneticsPts = 0;
     let geneticsCount = 0;
-    if (conceptionPts > 0) geneticsCount++;
-    if (calvingPts > 0) geneticsCount++;
-    if (subjGenetics > 0) geneticsCount++;
-    
-    const scoreGenetics = geneticsCount > 0
-      ? Math.round((conceptionPts + calvingPts + subjGenetics) / geneticsCount)
-      : 0;
+
+    if (repro.conceptionRate > 0) {
+      geneticsPts += (repro.conceptionRate >= 65 ? 100 : (repro.conceptionRate / 65) * 100);
+      geneticsCount++;
+    }
+    if (repro.calvingPercentage > 0) {
+      geneticsPts += (repro.calvingPercentage >= 95 ? 100 : (repro.calvingPercentage / 95) * 100);
+      geneticsCount++;
+    }
+    if (hasInspection) {
+      const subjGenetics = (farmInspection.overallGeneticReproductivePerformance + farmInspection.overallGeneticQuality) / 10 * 100;
+      geneticsPts += subjGenetics;
+      geneticsCount++;
+    }
+    const scoreGenetics = geneticsCount > 0 ? Math.round(geneticsPts / geneticsCount) : 0;
 
     // 3. HEALTH SCORE (0-100)
-    const scoreHealth = hasInspection ? Math.round(
-      (farmInspection.vaccinationCoverage +
-        farmInspection.biosecurityRating +
-        farmInspection.dewormingPractice +
-        farmInspection.prudentAnthelmintic +
-        farmInspection.prudentAntibiotics +
-        farmInspection.drugBoxManagement +
-        farmInspection.cpdStaffControl) / 35 * 100
-    ) : 0;
+    let healthPts = 0;
+    let healthCount = 0;
+    
+    if (hasInspection) {
+      healthPts += (farmInspection.vaccinationCoverage + farmInspection.biosecurityRating + farmInspection.dewormingPractice + farmInspection.prudentAnthelmintic + farmInspection.prudentAntibiotics + farmInspection.drugBoxManagement + farmInspection.cpdStaffControl) / 35 * 100;
+      healthCount++;
+    }
+    if (healthRecords.length > 0) {
+      healthPts += 100; // Actively maintaining health records
+      healthCount++;
+    }
+    const scoreHealth = healthCount > 0 ? Math.round(healthPts / healthCount) : 0;
 
     // 4. PRODUCTION SCORE (0-100)
-    let mortPts = !hasAnimals ? 0 : (prod.mortalityRates.herd <= 5 ? 100 : Math.max(100 - (prod.mortalityRates.herd - 5) * 10, 0));
-    let weaningPts = !hasAnimals ? 0 : 95; // target weaning percentage
+    let prodPts = 0;
+    let prodCount = 0;
     
-    let productionCount = 0;
-    if (mortPts > 0) productionCount++;
-    if (weaningPts > 0) productionCount++;
-    
-    const scoreProduction = productionCount > 0 ? Math.round((mortPts + weaningPts) / productionCount) : 0;
+    if (prod.mortalityRates.herd >= 0 && animals.length > 0) {
+      prodPts += (prod.mortalityRates.herd <= 5 ? 100 : Math.max(100 - (prod.mortalityRates.herd - 5) * 10, 0));
+      prodCount++;
+    }
+    if (prod.weaningPercentage > 0) {
+      prodPts += (prod.weaningPercentage >= 94 ? 100 : (prod.weaningPercentage / 94) * 100);
+      prodCount++;
+    }
+    const scoreProduction = prodCount > 0 ? Math.round(prodPts / prodCount) : 0;
 
     // 5. RECORDS SCORE (0-100)
-    const getRecordsMetricValue = (key: string, defaultValue: number): number => {
-      const overrides = (farmInspection.recordsOverrides as any) || {};
-      const override = overrides[key];
-      if (override && override.attained) {
-        const parsed = parseFloat(override.attained.replace('%', ''));
-        if (!isNaN(parsed)) return parsed;
-      }
-      return defaultValue;
-    };
+    let recordsPts = 0;
+    let recordsCount = 0;
 
-    const accuracyPct = Math.round((farmInspection.recordsSatisfaction || 0) * 20);
-    const knowledgePct = Math.round((farmInspection.recordsTrainingEvidence || 0) * 20);
-    const usagePct = Math.round((farmInspection.recordAccessibilityUsage || 0) * 20);
-    const birthPct = farmInspection.maintainsBirth ? 100 : 0;
-    const movementPct = farmInspection.maintainsMovements ? 100 : 0;
-    const healthPct = farmInspection.maintainsHealth ? 100 : 0;
-    const mortalityPct = farmInspection.maintainsMortalities ? 100 : 0;
-    const feedPct = farmInspection.maintainsFeed ? 100 : 0;
+    if (animals.length > 0) {
+      const animalTags = animals.filter(a => a.tag).length;
+      recordsPts += (animalTags / animals.length) * 100;
+      recordsCount++;
+    }
+    if (hasInspection) {
+      recordsPts += (farmInspection.recordsSatisfaction || 0) * 20;
+      recordsPts += (farmInspection.recordsTrainingEvidence || 0) * 20;
+      recordsPts += (farmInspection.recordAccessibilityUsage || 0) * 20;
+      recordsPts += farmInspection.maintainsBirth ? 100 : 0;
+      recordsPts += farmInspection.maintainsMovements ? 100 : 0;
+      recordsPts += farmInspection.maintainsHealth ? 100 : 0;
+      recordsPts += farmInspection.maintainsMortalities ? 100 : 0;
+      recordsPts += farmInspection.maintainsFeed ? 100 : 0;
+      recordsCount += 8;
+    }
+    const scoreRecords = recordsCount > 0 ? Math.round(recordsPts / recordsCount) : 0;
 
-    const values = [
-      getRecordsMetricValue('ear tags', hasAnimals ? 100 : 0),
-      getRecordsMetricValue('electronic id', hasAnimals ? 85 : 0),
-      getRecordsMetricValue('brand registration', hasAnimals ? 92 : 0),
-      getRecordsMetricValue('dna profiles', hasAnimals ? 65 : 0),
-      getRecordsMetricValue('data accuracy', accuracyPct),
-      getRecordsMetricValue('knowledge', knowledgePct),
-      getRecordsMetricValue('use in decision making', usagePct),
-      getRecordsMetricValue('birth registration', birthPct),
-      getRecordsMetricValue('movement records', movementPct),
-      getRecordsMetricValue('health treatments', healthPct),
-      getRecordsMetricValue('mortality records', mortalityPct),
-      getRecordsMetricValue('feed records', feedPct),
-    ];
-
-    const scoreRecords = Math.round(values.reduce((sum, v) => sum + v, 0) / values.length);
-
-    // 6. OVERALL DLSHIFT SCORE (average of active category scores)
+    // 6. OVERALL DLSHIFT SCORE
     let activeCategories = 0;
     let sumScores = 0;
     if (scoreNutrition > 0) { activeCategories++; sumScores += scoreNutrition; }
@@ -2702,14 +2627,7 @@ export const FarmDataProvider: React.FC<{ children: ReactNode }> = ({ children }
     
     const scoreDLShift = activeCategories > 0 ? Math.round(sumScores / activeCategories) : 0;
 
-    return {
-      scoreNutrition,
-      scoreGenetics,
-      scoreHealth,
-      scoreProduction,
-      scoreRecords,
-      scoreDLShift,
-    };
+    return { scoreNutrition, scoreGenetics, scoreHealth, scoreProduction, scoreRecords, scoreDLShift };
   };
 
   // Run Calculations

@@ -580,21 +580,7 @@ function GeneticsContent() {
       </View>
 
       <ScrollView style={styles.content}>
-        <View style={{
-          backgroundColor: Colors.primary[50],
-          borderColor: Colors.primary[200],
-          borderWidth: 1,
-          borderRadius: 12,
-          padding: 16,
-          marginBottom: 16,
-        }}>
-          <Text variant="body2" weight="bold" color="primary.600" style={{ marginBottom: 4 }}>
-            💡 Genetics & Reproduction Score Source
-          </Text>
-          <Text variant="caption" color="neutral.700" style={{ lineHeight: 18 }}>
-            The overall Genetics category score is calculated as the average of Conception Rate achieved vs target, Calving Rate performance, and subjective Veterinary Inspection scores.
-          </Text>
-        </View>
+
 
         {activeTab === 'herds' && renderBreedingHerds()}
         {activeTab === 'breeds' && renderBreeds()}
