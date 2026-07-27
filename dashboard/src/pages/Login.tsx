@@ -7,10 +7,16 @@ import { useAuth } from '../context/AuthContext'
 export default function Login() {
   const { session } = useAuth()
   const navigate = useNavigate()
+  
+  const [isSignUp, setIsSignUp] = useState(false)
+  const [name, setName] = useState('')
+  const [farmName, setFarmName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [successMsg, setSuccessMsg] = useState('')
 
   useEffect(() => {
     if (session) {
@@ -18,26 +24,58 @@ export default function Login() {
     }
   }, [session, navigate])
 
-  const handleLogin = async (e: React.FormEvent) => {
+  const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
+    setSuccessMsg('')
     setLoading(true)
     
     let loginEmail = email.trim()
-    try {
-      const { data: resolvedEmail, error: rpcError } = await supabase.rpc('get_worker_auth_email', { 
-        f_email: loginEmail, 
-        w_pass: password 
-      })
-      if (!rpcError && resolvedEmail) {
-        loginEmail = resolvedEmail
+    
+    if (isSignUp) {
+      if (!name.trim() || !farmName.trim() || !loginEmail || !password) {
+        setError('Please fill in all required fields.')
+        setLoading(false)
+        return
       }
-    } catch (err) {
-      console.warn('Worker resolution bypassed:', err)
-    }
+      if (password.length < 6) {
+        setError('Password must be at least 6 characters long.')
+        setLoading(false)
+        return
+      }
+      const { error: signUpError } = await supabase.auth.signUp({
+        email: loginEmail,
+        password,
+        options: {
+          data: {
+            full_name: name.trim(),
+            farm_name: farmName.trim()
+          }
+        }
+      })
+      if (signUpError) {
+        setError(signUpError.message)
+      } else {
+        setSuccessMsg('Account created successfully! You can now sign in.')
+        setIsSignUp(false)
+        setPassword('')
+      }
+    } else {
+      try {
+        const { data: resolvedEmail, error: rpcError } = await supabase.rpc('get_worker_auth_email', { 
+          f_email: loginEmail, 
+          w_pass: password 
+        })
+        if (!rpcError && resolvedEmail) {
+          loginEmail = resolvedEmail
+        }
+      } catch (err) {
+        console.warn('Worker resolution bypassed:', err)
+      }
 
-    const { error } = await supabase.auth.signInWithPassword({ email: loginEmail, password })
-    if (error) setError(error.message)
+      const { error: signInError } = await supabase.auth.signInWithPassword({ email: loginEmail, password })
+      if (signInError) setError(signInError.message)
+    }
     setLoading(false)
   }
 
@@ -53,15 +91,50 @@ export default function Login() {
             alt="Zvipfuwo Logo"
           />
           <h1 className="text-2xl font-bold" style={{ color: '#121416' }}>Zvipfuwo</h1>
-          <p className="text-sm mt-1" style={{ color: '#6C757D' }}>Sign in to your admin dashboard</p>
+          <p className="text-sm mt-1" style={{ color: '#6C757D' }}>
+            {isSignUp ? 'Create your farm account' : 'Sign in to your admin dashboard'}
+          </p>
         </div>
 
-        <form onSubmit={handleLogin} className="card space-y-4">
+        <form onSubmit={handleAuth} className="card space-y-4">
           {error && (
             <div className="rounded-xl px-4 py-3 text-sm" style={{ backgroundColor: '#FDEDEC', color: '#B03A2E', border: '1px solid #F5B7B1' }}>
               {error}
             </div>
           )}
+          {successMsg && (
+            <div className="rounded-xl px-4 py-3 text-sm" style={{ backgroundColor: '#E6F9F1', color: '#27714B', border: '1px solid #9FE4C1' }}>
+              {successMsg}
+            </div>
+          )}
+          
+          {isSignUp && (
+            <>
+              <div>
+                <label className="field-label block">Full Name</label>
+                <input
+                  type="text"
+                  required
+                  value={name}
+                  onChange={e => setName(e.target.value)}
+                  className="field-input"
+                  placeholder="John Doe"
+                />
+              </div>
+              <div>
+                <label className="field-label block">Farm Name</label>
+                <input
+                  type="text"
+                  required
+                  value={farmName}
+                  onChange={e => setFarmName(e.target.value)}
+                  className="field-input"
+                  placeholder="Green Valley Farm"
+                />
+              </div>
+            </>
+          )}
+
           <div>
             <label className="field-label block">Email address</label>
             <input
@@ -85,8 +158,23 @@ export default function Login() {
             />
           </div>
           <button type="submit" disabled={loading} className="btn-primary w-full justify-center py-3">
-            {loading ? 'Signing in…' : 'Sign in'}
+            {loading ? (isSignUp ? 'Creating account…' : 'Signing in…') : (isSignUp ? 'Create Account' : 'Sign in')}
           </button>
+          
+          <div className="text-center mt-4 pt-4 border-t border-neutral-100">
+            <button
+              type="button"
+              onClick={() => {
+                setIsSignUp(!isSignUp)
+                setError('')
+                setSuccessMsg('')
+              }}
+              className="text-sm font-semibold"
+              style={{ color: '#7AC142' }}
+            >
+              {isSignUp ? 'Already have an account? Sign in' : "Don't have an account? Sign up"}
+            </button>
+          </div>
         </form>
       </div>
     </div>

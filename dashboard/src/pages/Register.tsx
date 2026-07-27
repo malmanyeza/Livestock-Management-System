@@ -237,7 +237,13 @@ function AddDrugModal({ editingDrug, onClose, onSave }: { editingDrug?: any; onC
 
 // ─── Add Mortality Modal ──────────────────────────────────────────────────────
 function AddMortalityModal({ animals, onClose, onSave, editingMortality }: { animals: any[]; onClose: () => void; onSave: (d: any) => Promise<void>; editingMortality?: any }) {
-  const [form, setForm] = useState({ date: new Date().toISOString().split('T')[0], animalId: '', cause: '', description: '', observer: '' })
+  const [form, setForm] = useState({
+    date: editingMortality?.date || new Date().toISOString().split('T')[0],
+    animalId: editingMortality?.animal_tag || '',
+    cause: editingMortality?.cause || '',
+    description: editingMortality?.description || '',
+    observer: editingMortality?.observer || ''
+  })
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
@@ -2843,6 +2849,16 @@ export default function Register() {
                 { key: 'cause',       label: 'Cause',       render: (v) => <span className="font-semibold" style={{ color: C.error500 }}>{v}</span> },
                 { key: 'observer',    label: 'Observer',    render: (v) => <span className="font-medium" style={{ color: C.neutral700 }}>{v || '—'}</span> },
                 { key: 'description', label: 'Description', render: (v) => <span className="font-medium" style={{ color: C.neutral500 }}>{v}</span> },
+                {
+                  key: 'actions',
+                  label: 'Actions',
+                  align: 'center',
+                  render: (_, row) => (
+                    <button onClick={() => setEditingMortality(row)} className="p-1.5 text-neutral-500 hover:text-neutral-900 hover:bg-neutral-100 rounded-lg transition-colors">
+                      <Edit size={14} />
+                    </button>
+                  )
+                }
               ]} />
             </>
           )}
