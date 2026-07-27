@@ -1897,7 +1897,7 @@ export const FarmDataProvider: React.FC<{ children: ReactNode }> = ({ children }
       event: event.event,
       tag: event.tag,
       diagnosis: event.diagnosis,
-      notes: event.notes,
+      notes: event.notes ?? '',
       done_by: event.doneBy,
       status: event.status,
       user_id: targetUserId,
@@ -1996,7 +1996,7 @@ export const FarmDataProvider: React.FC<{ children: ReactNode }> = ({ children }
     if (updates.event !== undefined) dbUpdates.event = updates.event;
     if (updates.tag !== undefined) dbUpdates.tag = updates.tag;
     if (updates.diagnosis !== undefined) dbUpdates.diagnosis = updates.diagnosis;
-    if (updates.notes !== undefined) dbUpdates.notes = updates.notes;
+    if (updates.notes !== undefined) dbUpdates.notes = updates.notes ?? '';
     if (updates.doneBy !== undefined) dbUpdates.done_by = updates.doneBy;
     if (updates.status !== undefined) dbUpdates.status = updates.status;
 

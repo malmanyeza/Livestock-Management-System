@@ -128,7 +128,7 @@ export default function Tasks() {
       event: form.event,
       tag: form.tag,
       diagnosis: form.diagnosis || null,
-      notes: form.notes || null,
+      notes: form.notes || '',
       done_by: form.doneBy || null,
       status: form.status,
       date: form.date
