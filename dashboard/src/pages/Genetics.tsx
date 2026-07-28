@@ -5,6 +5,7 @@ import { X } from 'lucide-react'
 
 // ─── Color tokens ─────────────────────────────────────────────────────────────
 const C = {
+  primary50:  '#F2FAE8', primary200: '#C3E39D',
   primary300: '#C3E39D', primary500: '#7AC142', primary600: '#639A34',
   secondary500: '#8B7429',
   accent500: '#FF9E2C',
@@ -21,7 +22,7 @@ const C = {
 // Chart colours for breed distribution
 const CHART_COLORS = [C.primary500, C.secondary500, C.accent500, C.success500, C.neutral500, '#6C3483', '#1A5276']
 
-type Tab = 'herds' | 'breeds' | 'pregnancy' | 'calving' | 'bulls'
+type Tab = 'herds' | 'breeds' | 'pregnancy' | 'calving' | 'bulls' | 'targets'
 
 const TABS: { key: Tab; label: string }[] = [
   { key: 'herds',     label: 'Breeding' },
@@ -29,6 +30,7 @@ const TABS: { key: Tab; label: string }[] = [
   { key: 'pregnancy', label: 'Pregnancy' },
   { key: 'calving',   label: 'Calving' },
   { key: 'bulls',     label: 'Bulls' },
+  { key: 'targets',   label: 'Targets' },
 ]
 
 // ─── Donut chart (pure CSS/SVG) ───────────────────────────────────────────────
@@ -132,7 +134,26 @@ export default function Genetics() {
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [formOverrides, setFormOverrides] = useState<Record<string, { attained: string; target: string }>>({})
   const [saving, setSaving]           = useState(false)
+  const [isCalvingModalOpen, setIsCalvingModalOpen] = useState(false)
+  const [calvingIntervalInput, setCalvingIntervalInput] = useState('')
+  const [calvingSaving, setCalvingSaving] = useState(false)
+  const [isTargetsModalOpen, setIsTargetsModalOpen] = useState(false)
+  const [targetsForm, setTargetsForm] = useState<Record<string, number>>({})
+  const [targetsSaving, setTargetsSaving] = useState(false)
   const [loading, setLoading]         = useState(true)
+
+  const GENETICS_TARGETS_KEYS = [
+    { key: 'breedingBCS',      label: 'Breeding BCS' },
+    { key: 'inCalf',           label: 'In Calf' },
+    { key: 'conceptionRate',   label: 'Conception Rate' },
+    { key: 'firstTrimesterPD', label: '1st Trimester PD' },
+    { key: 'secondTrimesterPD',label: '2nd Trimester PD' },
+    { key: 'thirdTrimesterPD', label: '3rd Trimester PD' },
+    { key: 'calvingInterval',  label: 'Calving Interval' },
+    { key: 'calfMortality',    label: 'Calf Mortality' },
+    { key: 'calfCropPercent',  label: 'Calf Crop %' },
+    { key: 'vigour',           label: 'Vigour' },
+  ]
 
   useEffect(() => {
     if (!targetUserId) return
@@ -253,6 +274,77 @@ export default function Genetics() {
       },
     })
     setIsModalOpen(true)
+  }
+
+  const handleOpenCalvingModal = () => {
+    const currentVal = fi.calvingOverrides?.interval || '365 days'
+    setCalvingIntervalInput(currentVal.replace(/ days?/i, '').trim())
+    setIsCalvingModalOpen(true)
+  }
+
+  const handleSaveCalvingInterval = async () => {
+    if (!session || !calvingIntervalInput.trim()) return
+    setCalvingSaving(true)
+    try {
+      const now = new Date().toLocaleString('en-ZA', { dateStyle: 'medium', timeStyle: 'short' })
+      const val = calvingIntervalInput.trim()
+      const finalInterval = val.toLowerCase().includes('day') ? val : `${val} days`
+      const updated = {
+        ...fi,
+        calvingOverrides: {
+          interval: finalInterval,
+          lastUpdated: now,
+        }
+      }
+      setFi(updated)
+      const { data: ex } = await supabase.from('farm_inspections').select('id').eq('user_id', targetUserId).maybeSingle()
+      if (ex) {
+        await supabase.from('farm_inspections').update({ data: updated, updated_at: new Date().toISOString() }).eq('id', ex.id)
+      } else {
+        await supabase.from('farm_inspections').insert({ user_id: targetUserId, data: updated, updated_at: new Date().toISOString() })
+      }
+      setIsCalvingModalOpen(false)
+    } catch (err) {
+      console.error('Error saving calving interval:', err)
+    } finally {
+      setCalvingSaving(false)
+    }
+  }
+
+  const handleOpenTargetsModal = () => {
+    const existing = fi.geneticsTargets || {}
+    const form: Record<string, number> = {}
+    GENETICS_TARGETS_KEYS.forEach(({ key }) => {
+      form[key] = (existing as any)[key]?.attained ?? 0
+    })
+    setTargetsForm(form)
+    setIsTargetsModalOpen(true)
+  }
+
+  const handleSaveTargets = async () => {
+    if (!session) return
+    setTargetsSaving(true)
+    try {
+      const targets: Record<string, any> = {
+        lastUpdated: new Date().toLocaleString('en-ZA', { dateStyle: 'medium', timeStyle: 'short' })
+      }
+      GENETICS_TARGETS_KEYS.forEach(({ key }) => {
+        targets[key] = { attained: targetsForm[key] || 0, target: 5 }
+      })
+      const updated = { ...fi, geneticsTargets: targets }
+      setFi(updated)
+      const { data: ex } = await supabase.from('farm_inspections').select('id').eq('user_id', targetUserId).maybeSingle()
+      if (ex) {
+        await supabase.from('farm_inspections').update({ data: updated, updated_at: new Date().toISOString() }).eq('id', ex.id)
+      } else {
+        await supabase.from('farm_inspections').insert({ user_id: targetUserId, data: updated, updated_at: new Date().toISOString() })
+      }
+      setIsTargetsModalOpen(false)
+    } catch (err) {
+      console.error('Error saving genetics targets:', err)
+    } finally {
+      setTargetsSaving(false)
+    }
   }
 
   const handleSave = async () => {
@@ -523,8 +615,31 @@ export default function Genetics() {
       {/* ── CALVING tab ────────────────────────────────────────────────────── */}
       {activeTab === 'calving' && (
         <div className="card">
-          <p className="font-semibold text-base mb-4" style={{ color: C.neutral900 }}>Calving Performance</p>
-          <StatRow label="Calving Interval"        value="365 days" />
+          <div className="flex items-center justify-between mb-4">
+            <p className="font-semibold text-base" style={{ color: C.neutral900 }}>Calving Performance</p>
+            {isAdmin && (
+              <button
+                onClick={handleOpenCalvingModal}
+                className="text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors"
+                style={{ backgroundColor: C.primary50, color: C.primary600, border: `1px solid ${C.primary200}` }}
+              >
+                Edit Interval
+              </button>
+            )}
+          </div>
+          <div className="flex items-start justify-between py-3 border-b" style={{ borderColor: C.neutral100 }}>
+            <span className="text-sm font-medium" style={{ color: C.neutral700 }}>Calving Interval</span>
+            <div className="text-right">
+              <span className="text-sm font-semibold" style={{ color: C.neutral900 }}>
+                {fi.calvingOverrides?.interval || '365 days'}
+              </span>
+              {fi.calvingOverrides?.lastUpdated && (
+                <p className="text-xs mt-0.5 italic" style={{ color: C.neutral400 }}>
+                  Updated: {fi.calvingOverrides.lastUpdated}
+                </p>
+              )}
+            </div>
+          </div>
           <StatRow label="Calving Rate (3-week)"   value={`${calvingRate}%`}   valueColor={C.success500} />
           <StatRow label="Calf Mortality"          value={`${animals.length > 0 ? Math.round((preWeanMortality / animals.length) * 100) : 0}%`} valueColor={C.error500} />
           <StatRow label="Total Calves"            value={calves.length} />
@@ -590,6 +705,80 @@ export default function Genetics() {
               <p className="text-xs" style={{ color: C.neutral500 }}>Satisfactory</p>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* ── TARGETS tab ───────────────────────────────────────────────────── */}
+      {activeTab === 'targets' && (
+        <div className="card">
+          <div className="flex items-center justify-between mb-4">
+            <p className="font-semibold text-base" style={{ color: C.neutral900 }}>Genetics &amp; Production Targets</p>
+            {isAdmin && (
+              <button onClick={handleOpenTargetsModal}
+                className="px-3 py-1.5 rounded-lg text-xs font-bold text-white transition-all hover:brightness-95"
+                style={{ backgroundColor: C.primary600 }}>
+                Modify
+              </button>
+            )}
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full text-left" style={{ minWidth: '100%' }}>
+              <thead>
+                <tr className="border-b" style={{ borderColor: C.neutral200 }}>
+                  <th className="py-2 text-xs font-bold uppercase" style={{ color: C.neutral500 }}>Target</th>
+                  <th className="py-2 text-xs font-bold uppercase text-center" style={{ color: C.neutral500 }}>Attained</th>
+                  <th className="py-2 text-xs font-bold uppercase text-center" style={{ color: C.neutral500 }}>Target</th>
+                </tr>
+              </thead>
+              <tbody>
+                {GENETICS_TARGETS_KEYS.map(({ key, label }) => {
+                  const item = (fi.geneticsTargets as any)?.[key]
+                  const attained = item?.attained ?? 0
+                  const target = item?.target ?? 5
+                  return (
+                    <tr key={key} className="border-b" style={{ borderColor: C.neutral100 }}>
+                      <td className="py-3 text-sm font-medium" style={{ color: C.neutral700 }}>{label}</td>
+                      <td className="py-3 text-center">
+                        <span className="inline-flex items-center justify-center w-7 h-7 rounded-full text-xs font-bold"
+                          style={{
+                            backgroundColor: attained === 5 ? C.success500 : C.neutral200,
+                            color: attained === 5 ? C.white : C.neutral600
+                          }}>
+                          {attained}
+                        </span>
+                      </td>
+                      <td className="py-3 text-center">
+                        <span className="text-sm font-medium" style={{ color: C.neutral500 }}>{target}</span>
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Total score */}
+          {(() => {
+            const total = GENETICS_TARGETS_KEYS.reduce((sum, { key }) => {
+              return sum + ((fi.geneticsTargets as any)?.[key]?.attained ?? 0)
+            }, 0)
+            const max = GENETICS_TARGETS_KEYS.length * 5
+            return (
+              <div className="flex items-center justify-between mt-4 pt-3 border-t" style={{ borderColor: C.neutral200 }}>
+                <span className="text-sm font-bold" style={{ color: C.neutral700 }}>Total Score</span>
+                <span className="text-lg font-bold" style={{ color: total >= max * 0.7 ? C.success500 : total >= max * 0.4 ? C.warning500 : C.error500 }}>
+                  {total} / {max}
+                </span>
+              </div>
+            )
+          })()}
+
+          {fi.geneticsTargets?.lastUpdated && (
+            <p className="text-right text-xs mt-3 italic" style={{ color: C.neutral400 }}>
+              Last updated: {fi.geneticsTargets.lastUpdated}
+            </p>
+          )}
         </div>
       )}
 
@@ -813,6 +1002,109 @@ export default function Genetics() {
                 className="flex-1 py-3 rounded-xl text-sm font-semibold text-white"
                 style={{ backgroundColor: C.primary600, opacity: saving ? 0.7 : 1 }}>
                 {saving ? 'Saving…' : 'Save Changes'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Calving Interval Modal */}
+      {isCalvingModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ backgroundColor: 'rgba(0,0,0,0.45)' }}>
+          <div className="w-full max-w-sm rounded-2xl overflow-hidden flex flex-col shadow-2xl" style={{ backgroundColor: C.white }}>
+            <div className="flex items-center justify-between px-6 py-5 border-b" style={{ borderColor: C.neutral100 }}>
+              <h3 className="text-lg font-bold" style={{ color: C.neutral900 }}>Edit Calving Interval</h3>
+              <button onClick={() => setIsCalvingModalOpen(false)} className="p-1 hover:bg-neutral-100 rounded-lg">
+                <X size={18} style={{ color: C.neutral500 }} />
+              </button>
+            </div>
+            <div className="px-6 py-5 space-y-4">
+              <p className="text-sm" style={{ color: C.neutral500 }}>
+                Enter the calving interval for this farm in days. This figure will be visible to the farmer on the mobile app along with today's date.
+              </p>
+              <div>
+                <label className="block text-xs font-semibold mb-1 uppercase tracking-wider" style={{ color: C.neutral500 }}>
+                  Calving Interval (Days)
+                </label>
+                <div className="relative">
+                  <input
+                    type="number"
+                    value={calvingIntervalInput}
+                    onChange={e => setCalvingIntervalInput(e.target.value)}
+                    placeholder="365"
+                    className="w-full rounded-xl pl-4 pr-12 py-2.5 text-sm outline-none border transition-colors focus:border-[#7AC142]"
+                    style={{ borderColor: C.neutral200, color: C.neutral900, backgroundColor: C.neutral50 }}
+                  />
+                  <span className="absolute right-4 top-1/2 -translate-y-1/2 text-sm" style={{ color: C.neutral500 }}>
+                    days
+                  </span>
+                </div>
+              </div>
+            </div>
+            <div className="flex gap-3 px-6 py-4 border-t" style={{ borderColor: C.neutral100 }}>
+              <button onClick={() => setIsCalvingModalOpen(false)}
+                className="flex-1 py-3 rounded-xl text-sm font-semibold"
+                style={{ backgroundColor: C.neutral100, color: C.neutral700 }}>
+                Cancel
+              </button>
+              <button onClick={handleSaveCalvingInterval} disabled={calvingSaving}
+                className="flex-1 py-3 rounded-xl text-sm font-semibold text-white"
+                style={{ backgroundColor: C.primary600, opacity: calvingSaving ? 0.7 : 1 }}>
+                {calvingSaving ? 'Saving…' : 'Save'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Genetics Targets Modal */}
+      {isTargetsModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ backgroundColor: 'rgba(0,0,0,0.45)' }}>
+          <div className="w-full max-w-md rounded-2xl overflow-hidden flex flex-col shadow-2xl" style={{ backgroundColor: C.white, maxHeight: '85vh' }}>
+            <div className="flex items-center justify-between px-6 py-5 border-b" style={{ borderColor: C.neutral100 }}>
+              <h3 className="text-lg font-bold" style={{ color: C.neutral900 }}>Modify Genetics Targets</h3>
+              <button onClick={() => setIsTargetsModalOpen(false)} className="p-1 hover:bg-neutral-100 rounded-lg">
+                <X size={18} style={{ color: C.neutral500 }} />
+              </button>
+            </div>
+
+            <div className="overflow-y-auto flex-1 px-6 py-4">
+              <p className="text-sm mb-4" style={{ color: C.neutral500 }}>
+                Toggle each metric to mark it as attained (5) or not attained (0).
+              </p>
+              <div className="space-y-2">
+                {GENETICS_TARGETS_KEYS.map(({ key, label }) => {
+                  const val = targetsForm[key] ?? 0
+                  const isOn = val === 0  // 0 means not yet attained, toggle is OFF
+                  return (
+                    <div key={key} className="flex items-center justify-between py-2.5 border-b" style={{ borderColor: C.neutral100 }}>
+                      <span className="text-sm font-medium" style={{ color: C.neutral700 }}>{label}</span>
+                      <button
+                        onClick={() => setTargetsForm(prev => ({ ...prev, [key]: val === 0 ? 5 : 0 }))}
+                        className="flex items-center w-12 h-7 rounded-full p-0.5 transition-colors duration-200 cursor-pointer focus:outline-none"
+                        style={{ backgroundColor: val === 5 ? C.success500 : C.neutral300 }}
+                      >
+                        <div
+                          className="w-6 h-6 rounded-full bg-white shadow transition-transform duration-200"
+                          style={{ transform: val === 5 ? 'translateX(20px)' : 'translateX(0px)' }}
+                        />
+                      </button>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+
+            <div className="flex gap-3 px-6 py-4 border-t" style={{ borderColor: C.neutral100 }}>
+              <button onClick={() => setIsTargetsModalOpen(false)}
+                className="flex-1 py-3 rounded-xl text-sm font-semibold"
+                style={{ backgroundColor: C.neutral100, color: C.neutral700 }}>
+                Cancel
+              </button>
+              <button onClick={handleSaveTargets} disabled={targetsSaving}
+                className="flex-1 py-3 rounded-xl text-sm font-semibold text-white"
+                style={{ backgroundColor: C.primary600, opacity: targetsSaving ? 0.7 : 1 }}>
+                {targetsSaving ? 'Saving…' : 'Save'}
               </button>
             </div>
           </div>

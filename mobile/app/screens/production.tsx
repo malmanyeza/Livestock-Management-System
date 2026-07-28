@@ -278,7 +278,7 @@ function ProductionMetricCard({ metric, isAdmin, onEditTarget }: ProductionMetri
         color={color}
       />
 
-      {/* Admin: Set Target button — styled like health screen's Assess buttons */}
+      {/* Admin: Modify button — styled like health screen's Assess buttons */}
       {isAdmin && (
         <TouchableOpacity
           style={styles.setTargetBtn}
@@ -286,7 +286,7 @@ function ProductionMetricCard({ metric, isAdmin, onEditTarget }: ProductionMetri
           activeOpacity={0.7}
         >
           <Text variant="button" color="primary.500">
-            Set Target
+            Modify
           </Text>
         </TouchableOpacity>
       )}

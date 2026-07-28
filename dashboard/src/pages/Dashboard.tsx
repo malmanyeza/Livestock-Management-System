@@ -4,7 +4,8 @@ import { useAuth, Profile } from '../context/AuthContext'
 import {
   Heart, Dna, Wheat, BarChart3, ClipboardList,
   FileEdit, ShoppingCart, Settings, TrendingUp,
-  ShieldCheck, User, ChevronDown, Search, X, Check
+  ShieldCheck, User, ChevronDown, Search, X, Check,
+  ChevronLeft, ChevronRight
 } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import {
@@ -311,37 +312,50 @@ export default function Dashboard() {
       // 1. NUTRITION
       let nutritionPts = 0
       let nutritionCount = 0
+
       if (adg.cattle > 0) {
-        nutritionPts += adg.cattle >= 0.9 ? 100 : (adg.cattle / 0.9) * 100
+        nutritionPts += Math.min((adg.cattle / 1.13) * 100, 100)
         nutritionCount++
       }
       if (bcs.averageHerdBCS > 0) {
-        nutritionPts += (bcs.averageHerdBCS >= 2.0 && bcs.averageHerdBCS <= 4.0) ? 100 : 60
+        nutritionPts += Math.min((bcs.averageHerdBCS / 4.0) * 100, 100)
         nutritionCount++
       }
-      if (hasInspection) {
-        const subjNutrition = ((farmInspection.nutritionalDeficiencies || 0) + (farmInspection.growthRatePerception || 0) + (farmInspection.overallNutritionalHealth || 0)) / 15 * 100
-        nutritionPts += subjNutrition
+      if (farmInspection?.nutritionalDeficiencies > 0) {
+        nutritionPts += Math.min((farmInspection.nutritionalDeficiencies / 5) * 100, 100)
         nutritionCount++
       }
+      if (farmInspection?.growthRatePerception > 0) {
+        nutritionPts += Math.min((farmInspection.growthRatePerception / 5) * 100, 100)
+        nutritionCount++
+      }
+      if (farmInspection?.overallNutritionalHealth > 0) {
+        nutritionPts += Math.min((farmInspection.overallNutritionalHealth / 5) * 100, 100)
+        nutritionCount++
+      }
+
       const scoreNutrition = nutritionCount > 0 ? Math.round(nutritionPts / nutritionCount) : 0
 
       // 2. GENETICS
       let geneticsPts = 0
       let geneticsCount = 0
-      if (repro.conceptionRate > 0) {
-        geneticsPts += (repro.conceptionRate >= 65 ? 100 : (repro.conceptionRate / 65) * 100)
-        geneticsCount++
+
+      if (farmInspection?.geneticsTargets) {
+        const keys = [
+          'breedingBCS', 'inCalf', 'conceptionRate', 'firstTrimesterPD', 'secondTrimesterPD',
+          'thirdTrimesterPD', 'calvingInterval', 'calfMortality', 'calfCropPercent', 'vigour'
+        ]
+        for (const k of keys) {
+          const item = farmInspection.geneticsTargets[k as keyof typeof farmInspection.geneticsTargets]
+          // @ts-ignore
+          if (item && item.target > 0) {
+            // @ts-ignore
+            geneticsPts += Math.min((item.attained / item.target) * 100, 100)
+            geneticsCount++
+          }
+        }
       }
-      if (repro.calvingPercentage > 0) {
-        geneticsPts += (repro.calvingPercentage >= 95 ? 100 : (repro.calvingPercentage / 95) * 100)
-        geneticsCount++
-      }
-      if (hasInspection) {
-        const subjGenetics = ((farmInspection.overallGeneticReproductivePerformance || 0) + (farmInspection.overallGeneticQuality || 0)) / 10 * 100
-        geneticsPts += subjGenetics
-        geneticsCount++
-      }
+
       const scoreGenetics = geneticsCount > 0 ? Math.round(geneticsPts / geneticsCount) : 0
 
       // 3. HEALTH
@@ -351,44 +365,70 @@ export default function Dashboard() {
         healthPts += ((farmInspection.vaccinationCoverage || 0) + (farmInspection.biosecurityRating || 0) + (farmInspection.dewormingPractice || 0) + (farmInspection.prudentAnthelmintic || 0) + (farmInspection.prudentAntibiotics || 0) + (farmInspection.drugBoxManagement || 0) + (farmInspection.cpdStaffControl || 0)) / 35 * 100
         healthCount++
       }
-      if (mappedAnimals.length > 0) { // we use mappedAnimals since mappedHealth isn't here
-        healthPts += 100 // placeholder for actively maintaining health records if they have animals
-        healthCount++
-      }
       const scoreHealth = healthCount > 0 ? Math.round(healthPts / healthCount) : 0
 
       // 4. PRODUCTION
       let prodPts = 0
       let prodCount = 0
-      if (prod.mortalityRates.herd >= 0 && mappedAnimals.length > 0) {
-        prodPts += (prod.mortalityRates.herd <= 5 ? 100 : Math.max(100 - (prod.mortalityRates.herd - 5) * 10, 0))
-        prodCount++
-      }
-      if (prod.weaningPercentage > 0) {
-        prodPts += (prod.weaningPercentage >= 94 ? 100 : (prod.weaningPercentage / 94) * 100)
-        prodCount++
+      if (mappedAnimals.length > 0) {
+        const p_weaning = (prod.weaningPercentage / 94) * 100
+        const p_adg = (adg.cattle / 0.9) * 100
+        const p_preWeaningDLWG = ((adg.cattle * 0.85) / 0.7) * 100
+        const p_postWeaningDLWG = (adg.cattle / 0.9) * 100
+        const p_preMort = Math.max(0, 100 - (prod.mortalityRates.preWeaning / 5.0) * 100)
+        const p_herdMort = Math.max(0, 100 - (prod.mortalityRates.herd / 5.0) * 100)
+        const p_weaningRate = (prod.weaningPercentage / 75) * 100
+        
+        const p_scores = [p_weaning, p_adg, p_preWeaningDLWG, p_postWeaningDLWG, p_preMort, p_herdMort, p_weaningRate]
+        for (const s of p_scores) {
+          prodPts += Math.min(s, 100)
+          prodCount++
+        }
       }
       const scoreProduction = prodCount > 0 ? Math.round(prodPts / prodCount) : 0
 
       // 5. RECORDS
       let recordsPts = 0
       let recordsCount = 0
-      if (mappedAnimals.length > 0) {
-        const animalTags = mappedAnimals.filter(a => a.tag || a.earTagNumber).length
-        recordsPts += (animalTags / mappedAnimals.length) * 100
+
+      const hasAnimals = mappedAnimals.length > 0
+      const overrides = farmInspection?.recordsOverrides || {}
+
+      const getVal = (key: string, defaultAttained: number, defaultTarget: number) => {
+        const o = overrides[key] || {}
+        let a = parseFloat(o.attained ?? defaultAttained) || 0
+        let t = parseFloat(o.target ?? defaultTarget) || 1
+        return Math.min((a / t) * 100, 100)
+      }
+
+      if (hasInspection) {
+        // 1. Accessibility and Usage
+        const accuracy = getVal('data accuracy', (farmInspection.recordsSatisfaction || 0) * 20, 95)
+        const knowledge = getVal('knowledge', (farmInspection.recordsTrainingEvidence || 0) * 20, 85)
+        const decision = getVal('use in decision making', (farmInspection.recordAccessibilityUsage || 0) * 20, 90)
+        recordsPts += (accuracy + knowledge + decision) / 3
+        recordsCount++
+
+        // 2. Record System Traceability
+        const birth = getVal('birth registration', farmInspection.maintainsBirth ? 100 : 0, 100)
+        const movement = getVal('movement records', farmInspection.maintainsMovements ? 100 : 0, 95)
+        const health = getVal('health treatments', farmInspection.maintainsHealth ? 100 : 0, 100)
+        const mortality = getVal('mortality records', farmInspection.maintainsMortalities ? 100 : 0, 100)
+        const feed = getVal('feed records', farmInspection.maintainsFeed ? 100 : 0, 90)
+        recordsPts += (birth + movement + health + mortality + feed) / 5
         recordsCount++
       }
-      if (hasInspection) {
-        recordsPts += (farmInspection?.recordsSatisfaction || 0) * 20
-        recordsPts += (farmInspection?.recordsTrainingEvidence || 0) * 20
-        recordsPts += (farmInspection?.recordAccessibilityUsage || 0) * 20
-        recordsPts += farmInspection?.maintainsBirth ? 100 : 0
-        recordsPts += farmInspection?.maintainsMovements ? 100 : 0
-        recordsPts += farmInspection?.maintainsHealth ? 100 : 0
-        recordsPts += farmInspection?.maintainsMortalities ? 100 : 0
-        recordsPts += farmInspection?.maintainsFeed ? 100 : 0
-        recordsCount += 8
+
+      // 3. Identification
+      if (hasAnimals) {
+        const earTags = getVal('ear tags', 100, 100)
+        const eid = getVal('electronic id', 85, 90)
+        const brand = getVal('brand registration', 92, 95)
+        const dna = getVal('dna profiles', 65, 70)
+        recordsPts += (earTags + eid + brand + dna) / 4
+        recordsCount++
       }
+
       const scoreRecords = recordsCount > 0 ? Math.round(recordsPts / recordsCount) : 0
 
       // 6. DLSHIFT SCORE
@@ -603,7 +643,7 @@ export default function Dashboard() {
         </div>
 
         {/* Chart carousel — two charts with pagination dots */}
-        <div>
+        <div className="relative">
           {/* Charts */}
           <div className="overflow-hidden rounded-xl" style={{ backgroundColor: C.neutral50 }}>
             {activeChart === 0 ? (
@@ -638,16 +678,27 @@ export default function Dashboard() {
                     contentStyle={{ backgroundColor: C.white, border: `1px solid ${C.neutral200}`, borderRadius: 10, fontSize: 12 }}
                     formatter={(v) => [`${v}%`, 'Score']}
                   />
-                  <Bar dataKey="score" radius={[4, 4, 0, 0]}>
-                    {categoryData.map((_, i) => (
-                      <rect key={i} />
-                    ))}
-                    {/* Use fill on Bar directly */}
-                  </Bar>
+                  <Bar dataKey="score" radius={[4, 4, 0, 0]} fill={C.primary500} />
                 </BarChart>
               </ResponsiveContainer>
             )}
           </div>
+
+          {/* Left Arrow Button */}
+          <button
+            onClick={() => setActiveChart(prev => (prev === 0 ? 1 : 0))}
+            className="absolute left-2 top-1/2 -translate-y-1/2 w-8 h-8 flex items-center justify-center rounded-full bg-white shadow-md text-gray-400 hover:text-gray-800 hover:bg-gray-50 transition-all z-10 border border-gray-100"
+          >
+            <ChevronLeft size={18} />
+          </button>
+          
+          {/* Right Arrow Button */}
+          <button
+            onClick={() => setActiveChart(prev => (prev === 0 ? 1 : 0))}
+            className="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 flex items-center justify-center rounded-full bg-white shadow-md text-gray-400 hover:text-gray-800 hover:bg-gray-50 transition-all z-10 border border-gray-100"
+          >
+            <ChevronRight size={18} />
+          </button>
 
           {/* Pagination dots — same as mobile */}
           <div className="flex justify-center gap-2 mt-4">
@@ -666,28 +717,42 @@ export default function Dashboard() {
       </div>
 
       {/* ── YoY COMPARISON WIDGET ── */}
-      <div className="card">
-        <div className="flex items-center justify-between mb-4">
-          <div>
-            <h3 className="text-lg font-bold text-gray-900">Year-by-Year Comparison</h3>
-            <p className="text-xs text-gray-500 mt-0.5">Compare herd stats and performance KPIs between cycles</p>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-semibold text-gray-500">Compare {selectedProductionYear} vs:</span>
-            <select
-              value={compareYear}
-              onChange={e => setCompareYear(Number(e.target.value))}
-              className="bg-neutral-50 border border-neutral-200 rounded-xl px-3 py-1.5 text-xs font-bold text-neutral-800 outline-none focus:border-[#7AC142]"
-            >
-              {[2024, 2025, 2026, 2027, 2028, 2029, 2030].filter(y => y !== selectedProductionYear).map(y => (
-                <option key={y} value={y}>{y}</option>
-              ))}
-            </select>
-          </div>
-        </div>
+      {(() => {
+        const availableComparisonYears = yearlyPerformances
+          .filter(p => p.year !== selectedProductionYear)
+          .map(p => p.year)
+          .sort((a, b) => b - a)
 
-        {(() => {
-          const comparePerformance = yearlyPerformances.find(p => p.year === compareYear)
+        if (availableComparisonYears.length === 0) return null
+
+        // Ensure compareYear is a valid one, otherwise fallback to the first available
+        const currentCompareYear = availableComparisonYears.includes(compareYear) 
+          ? compareYear 
+          : availableComparisonYears[0]
+
+        return (
+          <div className="card">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h3 className="text-lg font-bold text-gray-900">Year-by-Year Comparison</h3>
+                <p className="text-xs text-gray-500 mt-0.5">Compare herd stats and performance KPIs between cycles</p>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-semibold text-gray-500">Compare {selectedProductionYear} vs:</span>
+                <select
+                  value={currentCompareYear}
+                  onChange={e => setCompareYear(Number(e.target.value))}
+                  className="bg-neutral-50 border border-neutral-200 rounded-xl px-3 py-1.5 text-xs font-bold text-neutral-800 outline-none focus:border-[#7AC142]"
+                >
+                  {availableComparisonYears.map(y => (
+                    <option key={y} value={y}>{y}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            {(() => {
+              const comparePerformance = yearlyPerformances.find(p => p.year === currentCompareYear)
 
           const renderCompareMetric = (label: string, curVal: number, compVal: number | undefined, unit: string = '', isLowerBetter: boolean = false) => {
             const formattedCur = curVal ? curVal.toFixed(1) : '0.0'
@@ -740,6 +805,8 @@ export default function Dashboard() {
           }
         })()}
       </div>
+    )
+  })()}
 
       {/* ── 6. QUICK ACCESS GRID ── 2-column, same as mobile */}
       <div>

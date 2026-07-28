@@ -150,6 +150,41 @@ function Table({ data, cols }: { data: any[]; cols: ColDef[] }) {
   )
 }
 
+// ─── Custom Combobox ──────────────────────────────────────────────────────────
+function CustomCombobox({ value, onChange, options, placeholder }: { value: string, onChange: (v: string) => void, options: string[], placeholder: string }) {
+  const [open, setOpen] = useState(false)
+  const filtered = options.filter(o => o.toLowerCase().includes(value.toLowerCase()) && o !== value)
+  return (
+    <div className="relative">
+      <input
+        value={value}
+        onChange={e => { onChange(e.target.value); setOpen(true) }}
+        onFocus={() => setOpen(true)}
+        onBlur={() => setTimeout(() => setOpen(false), 150)}
+        placeholder={placeholder}
+        className="w-full rounded-xl px-4 py-2.5 text-sm outline-none border transition-colors focus:border-[#7AC142]"
+        style={{ borderColor: C.neutral200, color: C.neutral900, backgroundColor: C.neutral50 }}
+      />
+      {open && filtered.length > 0 && (
+        <div className="absolute z-10 w-full mt-1 bg-white border rounded-xl shadow-lg max-h-48 overflow-y-auto" style={{ borderColor: C.neutral200 }}>
+          {filtered.map(opt => (
+            <div
+              key={opt}
+              className="px-4 py-2 text-sm cursor-pointer transition-colors"
+              style={{ color: C.neutral700, backgroundColor: C.white }}
+              onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = C.neutral50)}
+              onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = C.white)}
+              onClick={() => { onChange(opt); setOpen(false) }}
+            >
+              {opt}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ─── Add Drug Modal ───────────────────────────────────────────────────────────
 function AddDrugModal({ editingDrug, onClose, onSave }: { editingDrug?: any; onClose: () => void; onSave: (d: any) => Promise<void> }) {
   const [form, setForm] = useState({
@@ -181,17 +216,26 @@ function AddDrugModal({ editingDrug, onClose, onSave }: { editingDrug?: any; onC
         <div className="overflow-y-auto flex-1 px-6 py-4 space-y-4">
           {error && <p className="text-sm px-3 py-2 rounded-xl" style={{ backgroundColor: C.error50, color: C.error500 }}>{error}</p>}
           {[
-            { label: 'Drug Class', key: 'drugClass', placeholder: 'e.g., Antibiotic, Vitamin' },
-            { label: 'Type', key: 'type', placeholder: 'e.g., Injectable, Oral' },
+            { label: 'Drug Class', key: 'drugClass', placeholder: 'e.g., Antibiotics, Anthelminitics', options: ['Anthelminitics', 'Antibiotics', 'NSAIDS', 'Electrolytes', 'Vitamins and Minerals', 'Pour ons', 'Ectoparasitides', 'Synchronisation drugs'] },
+            { label: 'Type', key: 'type', placeholder: 'e.g., Oral, Intramuscular', options: ['Oral', 'Drench', 'Intramuscular', 'Subcutaneous', 'Topical', 'Pour-on'] },
             { label: 'Drug Name', key: 'name', placeholder: 'e.g., Oxytetracycline' },
             { label: 'Withdrawal Period', key: 'withdrawalPeriod', placeholder: 'e.g., 21 days' },
           ].map(f => (
             <div key={f.key}>
               <label className="block text-xs font-semibold mb-1 uppercase tracking-wider" style={{ color: C.neutral500 }}>{f.label}</label>
-              <input value={(form as any)[f.key]} onChange={e => setForm(p => ({ ...p, [f.key]: e.target.value }))}
-                placeholder={f.placeholder}
-                className="w-full rounded-xl px-4 py-2.5 text-sm outline-none border transition-colors focus:border-[#7AC142]"
-                style={{ borderColor: C.neutral200, color: C.neutral900, backgroundColor: C.neutral50 }} />
+              {f.options ? (
+                <CustomCombobox
+                  value={(form as any)[f.key]}
+                  onChange={(val) => setForm(p => ({ ...p, [f.key]: val }))}
+                  options={f.options}
+                  placeholder={f.placeholder}
+                />
+              ) : (
+                <input value={(form as any)[f.key]} onChange={e => setForm(p => ({ ...p, [f.key]: e.target.value }))}
+                  placeholder={f.placeholder}
+                  className="w-full rounded-xl px-4 py-2.5 text-sm outline-none border transition-colors focus:border-[#7AC142]"
+                  style={{ borderColor: C.neutral200, color: C.neutral900, backgroundColor: C.neutral50 }} />
+              )}
             </div>
           ))}
           <div>

@@ -1,8 +1,8 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { View, StyleSheet, TouchableOpacity, ScrollView, Dimensions, Platform, Text as RNText, Modal, TextInput } from 'react-native';
 
 import { router } from 'expo-router';
-import { Heart, Dna, Wheat, BarChart3, ClipboardList, FileEdit, ShoppingCart, User, TrendingUp, ShieldCheck, ChevronDown, Search, X, Check, Settings, Users } from 'lucide-react-native';
+import { Heart, Dna, Wheat, BarChart3, ClipboardList, FileEdit, ShoppingCart, User, TrendingUp, ShieldCheck, ChevronDown, ChevronLeft, ChevronRight, Search, X, Check, Settings, Users } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Text } from '../../components/typography/Text';
 import { ScreenContainer } from '../../components/layout/ScreenContainer';
@@ -353,6 +353,14 @@ export default function HomeScreen() {
 
   const [selectedSpecies, setSelectedSpecies] = useState<string>('beef-production');
   const [activeSlide, setActiveSlide] = useState(0);
+  const scrollViewRef = useRef<ScrollView>(null);
+
+  const goToSlide = (index: number) => {
+    if (scrollViewRef.current) {
+      scrollViewRef.current.scrollTo({ x: index * (Dimensions.get('window').width - 32), animated: true });
+      setActiveSlide(index);
+    }
+  };
   const [timeframe, setTimeframe] = useState<'monthly' | 'yearly'>('monthly');
   const [isFarmerModalVisible, setIsFarmerModalVisible] = useState(false);
   const [farmerSearchQuery, setFarmerSearchQuery] = useState('');
@@ -581,6 +589,7 @@ export default function HomeScreen() {
           
           <View style={styles.carouselContainer}>
             <ScrollView
+              ref={scrollViewRef}
               horizontal
               pagingEnabled
               showsHorizontalScrollIndicator={false}
@@ -608,22 +617,33 @@ export default function HomeScreen() {
             </ScrollView>
 
             
-            <View style={styles.paginationContainer}>
-              {[0, 1].map((_, index) => (
-                <View
-                  key={index}
-                  style={[
-                    styles.paginationDot,
-                    activeSlide === index && styles.paginationDotActive,
-                  ]}
-                />
-              ))}
+            <View style={[styles.paginationContainer, { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 16 }]}>
+              <TouchableOpacity onPress={() => goToSlide(Math.max(0, activeSlide - 1))} activeOpacity={0.7} style={{ padding: 4 }}>
+                <ChevronLeft size={24} color={activeSlide > 0 ? Colors.neutral[600] : Colors.neutral[300]} />
+              </TouchableOpacity>
+              
+              <View style={{ flexDirection: 'row', gap: 8 }}>
+                {[0, 1].map((_, index) => (
+                  <View
+                    key={index}
+                    style={[
+                      styles.paginationDot,
+                      activeSlide === index && styles.paginationDotActive,
+                      { marginHorizontal: 0 }
+                    ]}
+                  />
+                ))}
+              </View>
+
+              <TouchableOpacity onPress={() => goToSlide(Math.min(1, activeSlide + 1))} activeOpacity={0.7} style={{ padding: 4 }}>
+                <ChevronRight size={24} color={activeSlide < 1 ? Colors.neutral[600] : Colors.neutral[300]} />
+              </TouchableOpacity>
             </View>
           </View>
         </Card>
 
         {/* YoY Performance Comparison Section */}
-        {(() => {
+        {yearlyPerformances.length > 0 && (() => {
           const comparePerformance = yearlyPerformances.find(p => p.year === compareYear);
 
           const renderCompareCard = (label: string, curVal: number, compVal: number | undefined, unit: string = '', isLowerBetter: boolean = false) => {

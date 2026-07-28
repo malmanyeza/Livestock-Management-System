@@ -38,6 +38,9 @@ function GeneticsContent() {
   const [activeTab, setActiveTab] = useState('herds');
   const { animals, breedingRecords, pregnancyRecords, metrics, farmInspection, updateFarmInspection, profile } = useFarmData();
 
+  const [isTargetsModalOpen, setIsTargetsModalOpen] = useState(false);
+  const [targetsForm, setTargetsForm] = useState<Record<string, number>>({});
+
   const [isPregnancyModalOpen, setIsPregnancyModalOpen] = useState(false);
   const [pregnancyForm, setPregnancyForm] = useState({
     conceptionRateAttained: '',
@@ -143,6 +146,38 @@ function GeneticsContent() {
     const attained = override?.attained || liveAttained;
     const target = override?.target || defaultTarget;
     return { attained, target };
+  };
+
+  const handleOpenTargetsModal = () => {
+    const existing = (farmInspection as any)?.geneticsTargets || {};
+    const form: Record<string, number> = {};
+    GENETICS_TARGETS_KEYS.forEach(({ key }) => {
+      form[key] = existing[key]?.attained ?? 0;
+    });
+    setTargetsForm(form);
+    setIsTargetsModalOpen(true);
+  };
+
+  const handleSaveTargets = async () => {
+    try {
+      const existing = (farmInspection as any)?.geneticsTargets || {};
+      const newTargets = { ...existing, lastUpdated: new Date().toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' }) };
+      
+      GENETICS_TARGETS_KEYS.forEach(({ key }) => {
+        if (!newTargets[key]) newTargets[key] = { attained: 0, target: 5 };
+        newTargets[key].attained = targetsForm[key] ?? 0;
+      });
+
+      const updated = {
+        ...farmInspection,
+        geneticsTargets: newTargets
+      };
+
+      await updateFarmInspection(updated);
+      setIsTargetsModalOpen(false);
+    } catch (e) {
+      console.error(e);
+    }
   };
 
   // 1. Breeding Herd Composition
@@ -401,7 +436,16 @@ function GeneticsContent() {
           <Text variant="body" weight="medium">
             Calving Interval:
           </Text>
-          <Text variant="body">365 days</Text>
+          <View style={{ alignItems: 'flex-end' }}>
+            <Text variant="body">
+              {farmInspection?.calvingOverrides?.interval || '365 days'}
+            </Text>
+            {farmInspection?.calvingOverrides?.lastUpdated && (
+              <Text variant="caption" color="neutral.400" style={{ fontStyle: 'italic', marginTop: 2 }}>
+                Updated: {farmInspection.calvingOverrides.lastUpdated}
+              </Text>
+            )}
+          </View>
         </View>
         <View style={styles.statRow}>
           <Text variant="body" weight="medium">
@@ -534,49 +578,150 @@ function GeneticsContent() {
     );
   };
 
+  const GENETICS_TARGETS_KEYS = [
+    { key: 'breedingBCS',      label: 'Breeding BCS' },
+    { key: 'inCalf',           label: 'In Calf' },
+    { key: 'conceptionRate',   label: 'Conception Rate' },
+    { key: 'firstTrimesterPD', label: '1st Trimester PD' },
+    { key: 'secondTrimesterPD',label: '2nd Trimester PD' },
+    { key: 'thirdTrimesterPD', label: '3rd Trimester PD' },
+    { key: 'calvingInterval',  label: 'Calving Interval' },
+    { key: 'calfMortality',    label: 'Calf Mortality' },
+    { key: 'calfCropPercent',  label: 'Calf Crop %' },
+    { key: 'vigour',           label: 'Vigour' },
+  ];
+
+  const renderGeneticsTargets = () => {
+    const targets = (farmInspection as any)?.geneticsTargets || {};
+    const total = GENETICS_TARGETS_KEYS.reduce((sum, { key }) => {
+      return sum + (targets[key]?.attained ?? 0);
+    }, 0);
+    const max = GENETICS_TARGETS_KEYS.length * 5;
+
+    return (
+      <Card style={styles.card}>
+        <Text variant="h5" weight="medium" style={styles.cardTitle}>
+          Genetics & Production Targets
+        </Text>
+
+        {/* Table Header */}
+        <View style={[styles.statRow, { borderBottomWidth: 0, marginTop: 4, paddingVertical: 4 }]}>
+          <Text variant="caption" weight="bold" color="neutral.400" style={{ flex: 2 }}>TARGET</Text>
+          <Text variant="caption" weight="bold" color="neutral.400" style={{ flex: 1.2, textAlign: 'center' }}>ATTAINED</Text>
+          <Text variant="caption" weight="bold" color="neutral.400" style={{ flex: 1.2, textAlign: 'center' }}>TARGET</Text>
+        </View>
+
+        {GENETICS_TARGETS_KEYS.map(({ key, label }) => {
+          const item = targets[key];
+          const attained = item?.attained ?? 0;
+          const target = item?.target ?? 5;
+          return (
+            <View key={key} style={styles.tableRowCustom}>
+              <Text variant="body2" weight="medium" color="neutral.800" style={{ flex: 2 }}>{label}</Text>
+              <View style={{ flex: 1.2, alignItems: 'center' }}>
+                <View style={{
+                  width: 28, height: 28, borderRadius: 14,
+                  backgroundColor: attained === 5 ? Colors.success[500] : Colors.neutral[200],
+                  justifyContent: 'center', alignItems: 'center',
+                }}>
+                  <Text variant="caption" weight="bold" style={{ color: attained === 5 ? '#FFFFFF' : Colors.neutral[600] }}>
+                    {attained}
+                  </Text>
+                </View>
+              </View>
+              <Text variant="body" weight="medium" color="neutral.500" style={{ flex: 1.2, textAlign: 'center' }}>{target}</Text>
+            </View>
+          );
+        })}
+
+        {/* Total Score */}
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 12, paddingTop: 10, borderTopWidth: 1, borderTopColor: Colors.neutral[200] }}>
+          <Text variant="body" weight="bold" color="neutral.700">Total Score</Text>
+          <Text variant="h4" weight="bold" style={{ color: total >= max * 0.7 ? Colors.success[500] : total >= max * 0.4 ? Colors.warning[500] : Colors.error[500] }}>
+            {total} / {max}
+          </Text>
+        </View>
+
+        {targets.lastUpdated && (
+          <Text variant="caption" color="neutral.400" style={{ marginTop: 8, textAlign: 'right', fontStyle: 'italic' }}>
+            Last updated: {targets.lastUpdated}
+          </Text>
+        )}
+
+        {/* Admin Modify Button */}
+        {profile?.role === 'admin' && (
+          <TouchableOpacity
+            style={{
+              marginTop: 16,
+              backgroundColor: Colors.primary[50],
+              paddingVertical: 12,
+              borderRadius: 8,
+              alignItems: 'center',
+              borderWidth: 1,
+              borderColor: Colors.primary[200]
+            }}
+            onPress={handleOpenTargetsModal}
+          >
+            <Text variant="button" color="primary.600">Modify</Text>
+          </TouchableOpacity>
+        )}
+      </Card>
+    );
+  };
+
   return (
     <ScreenContainer style={styles.container} scrollable={false}>
-      <View style={styles.tabs}>
-        <TouchableOpacity
-          style={[styles.tab, activeTab === 'herds' && styles.activeTab]}
-          onPress={() => setActiveTab('herds')}
-        >
-          <Text variant="button" color={activeTab === 'herds' ? 'primary.500' : 'neutral.600'}>
-            Breeding
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.tab, activeTab === 'breeds' && styles.activeTab]}
-          onPress={() => setActiveTab('breeds')}
-        >
-          <Text variant="button" color={activeTab === 'breeds' ? 'primary.500' : 'neutral.600'}>
-            Breeds
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.tab, activeTab === 'pregnancy' && styles.activeTab]}
-          onPress={() => setActiveTab('pregnancy')}
-        >
-          <Text variant="button" color={activeTab === 'pregnancy' ? 'primary.500' : 'neutral.600'}>
-            Pregnancy
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.tab, activeTab === 'calving' && styles.activeTab]}
-          onPress={() => setActiveTab('calving')}
-        >
-          <Text variant="button" color={activeTab === 'calving' ? 'primary.500' : 'neutral.600'}>
-            Calving
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.tab, activeTab === 'bulls' && styles.activeTab]}
-          onPress={() => setActiveTab('bulls')}
-        >
-          <Text variant="button" color={activeTab === 'bulls' ? 'primary.500' : 'neutral.600'}>
-            Bulls
-          </Text>
-        </TouchableOpacity>
+      <View>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.tabs} contentContainerStyle={{ paddingRight: 16 }}>
+          <TouchableOpacity
+            style={[styles.tab, activeTab === 'herds' && styles.activeTab]}
+            onPress={() => setActiveTab('herds')}
+          >
+            <Text variant="button" color={activeTab === 'herds' ? 'primary.500' : 'neutral.600'}>
+              Breeding
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.tab, activeTab === 'breeds' && styles.activeTab]}
+            onPress={() => setActiveTab('breeds')}
+          >
+            <Text variant="button" color={activeTab === 'breeds' ? 'primary.500' : 'neutral.600'}>
+              Breeds
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.tab, activeTab === 'pregnancy' && styles.activeTab]}
+            onPress={() => setActiveTab('pregnancy')}
+          >
+            <Text variant="button" color={activeTab === 'pregnancy' ? 'primary.500' : 'neutral.600'}>
+              Pregnancy
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.tab, activeTab === 'calving' && styles.activeTab]}
+            onPress={() => setActiveTab('calving')}
+          >
+            <Text variant="button" color={activeTab === 'calving' ? 'primary.500' : 'neutral.600'}>
+              Calving
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.tab, activeTab === 'bulls' && styles.activeTab]}
+            onPress={() => setActiveTab('bulls')}
+          >
+            <Text variant="button" color={activeTab === 'bulls' ? 'primary.500' : 'neutral.600'}>
+              Bulls
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.tab, activeTab === 'targets' && styles.activeTab]}
+            onPress={() => setActiveTab('targets')}
+          >
+            <Text variant="button" color={activeTab === 'targets' ? 'primary.500' : 'neutral.600'}>
+              Targets
+            </Text>
+          </TouchableOpacity>
+        </ScrollView>
       </View>
 
       <ScrollView style={styles.content}>
@@ -587,6 +732,7 @@ function GeneticsContent() {
         {activeTab === 'pregnancy' && renderPregnancy()}
         {activeTab === 'calving' && renderCalving()}
         {activeTab === 'bulls' && renderBullsAndBreedingSoundness()}
+        {activeTab === 'targets' && renderGeneticsTargets()}
       </ScrollView>
 
       <Modal
@@ -798,6 +944,89 @@ function GeneticsContent() {
                   onPress={handleSavePregnancyOverrides}
                 >
                   <Text style={styles.saveButtonText}>Save Changes</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </KeyboardAvoidingView>
+        </View>
+      </Modal>
+
+      {/* Targets Modal */}
+      <Modal
+        visible={isTargetsModalOpen}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setIsTargetsModalOpen(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <KeyboardAvoidingView
+            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+            style={styles.modalKeyboardAvoiding}
+          >
+            <View style={styles.modalContent}>
+              <View style={styles.modalHeader}>
+                <Text variant="h3" weight="bold" color={Colors.neutral[800]}>
+                  Modify Genetics Targets
+                </Text>
+                <TouchableOpacity onPress={() => setIsTargetsModalOpen(false)}>
+                  <Text variant="body" weight="medium" color={Colors.error[500]}>
+                    Cancel
+                  </Text>
+                </TouchableOpacity>
+              </View>
+
+              <Text variant="caption" color="neutral.500" style={{ marginBottom: 12 }}>
+                Tap a metric to mark it as attained (5) or not attained (0).
+              </Text>
+
+              <ScrollView style={styles.modalScrollView} showsVerticalScrollIndicator={false}>
+                <View style={styles.formGroup}>
+                  {GENETICS_TARGETS_KEYS.map(({ key, label }) => {
+                    const val = targetsForm[key] ?? 0;
+                    return (
+                      <View key={key} style={styles.metricRow}>
+                        <Text variant="body" weight="medium" color="neutral.700" style={styles.metricLabel}>
+                          {label}
+                        </Text>
+                        <TouchableOpacity
+                          style={{
+                            width: 50,
+                            height: 28,
+                            borderRadius: 14,
+                            backgroundColor: val === 5 ? Colors.success[500] : Colors.neutral[300],
+                            padding: 2,
+                            justifyContent: 'center',
+                          }}
+                          onPress={() => setTargetsForm(prev => ({ ...prev, [key]: val === 0 ? 5 : 0 }))}
+                          activeOpacity={0.8}
+                        >
+                          <View
+                            style={{
+                              width: 24,
+                              height: 24,
+                              borderRadius: 12,
+                              backgroundColor: Colors.white,
+                              transform: [{ translateX: val === 5 ? 22 : 0 }],
+                              shadowColor: '#000',
+                              shadowOffset: { width: 0, height: 1 },
+                              shadowOpacity: 0.2,
+                              shadowRadius: 1,
+                              elevation: 2,
+                            }}
+                          />
+                        </TouchableOpacity>
+                      </View>
+                    );
+                  })}
+                </View>
+              </ScrollView>
+
+              <View style={styles.modalActions}>
+                <TouchableOpacity
+                  style={[styles.modalBtn, { backgroundColor: Colors.primary[600] }]}
+                  onPress={handleSaveTargets}
+                >
+                  <Text variant="button" color="white">Save</Text>
                 </TouchableOpacity>
               </View>
             </View>
