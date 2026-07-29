@@ -166,19 +166,21 @@ function CustomCombobox({ value, onChange, options, placeholder }: { value: stri
         style={{ borderColor: C.neutral200, color: C.neutral900, backgroundColor: C.neutral50 }}
       />
       {open && filtered.length > 0 && (
-        <div className="absolute z-10 w-full mt-1 bg-white border rounded-xl shadow-lg max-h-48 overflow-y-auto" style={{ borderColor: C.neutral200 }}>
-          {filtered.map(opt => (
-            <div
-              key={opt}
-              className="px-4 py-2 text-sm cursor-pointer transition-colors"
-              style={{ color: C.neutral700, backgroundColor: C.white }}
-              onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = C.neutral50)}
-              onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = C.white)}
-              onClick={() => { onChange(opt); setOpen(false) }}
-            >
-              {opt}
-            </div>
-          ))}
+        <div className="absolute z-10 w-full mt-1 bg-white border rounded-xl shadow-lg overflow-hidden" style={{ borderColor: C.neutral200 }}>
+          <div className="max-h-48 overflow-y-auto">
+            {filtered.map(opt => (
+              <div
+                key={opt}
+                className="px-4 py-2 text-sm cursor-pointer transition-colors"
+                style={{ color: C.neutral700, backgroundColor: C.white }}
+                onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = C.neutral50)}
+                onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = C.white)}
+                onClick={() => { onChange(opt); setOpen(false) }}
+              >
+                {opt}
+              </div>
+            ))}
+          </div>
         </div>
       )}
     </div>
