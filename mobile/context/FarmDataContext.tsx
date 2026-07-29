@@ -1233,6 +1233,38 @@ export const FarmDataProvider: React.FC<{ children: ReactNode }> = ({ children }
       user_id: targetUserId,
       production_year: selectedProductionYear,
     };
+    const { data: existing } = await supabase
+      .from('animals')
+      .select('id')
+      .eq('user_id', targetUserId)
+      .eq('production_year', selectedProductionYear)
+      .ilike('tag', animal.tag.trim())
+      .limit(1)
+      .maybeSingle();
+
+    if (existing) {
+      // Animal already exists in DB, perform update instead
+      const { data, error } = await supabase
+        .from('animals')
+        .update(dbData)
+        .eq('id', existing.id)
+        .select()
+        .single();
+      
+      if (error) throw error;
+      if (data) {
+        setAnimals(prev => {
+          const existsInLocal = prev.some(a => a.id === data.id);
+          if (existsInLocal) {
+            return prev.map(a => a.id === data.id ? mapAnimalFromDb(data) : a);
+          } else {
+            return [...prev, mapAnimalFromDb(data)];
+          }
+        });
+      }
+      return;
+    }
+
     const { data, error } = await supabase
       .from('animals')
       .insert(dbData)
@@ -2695,7 +2727,8 @@ export const FarmDataProvider: React.FC<{ children: ReactNode }> = ({ children }
   const bcs = calculateBCS(aliveAnimals);
   const repro = calculateReproductionMetrics(aliveAnimals);
   const prod = calculateProductionMetrics(aliveAnimals);
-  const scores = calculateCategoryScores(adg, fcr, bcs, repro, prod);
+  
+  const scores = calculateCategoryScores(adg, fcr, bcs, repro, prod, aliveAnimals);
 
   const updateProfile = async (updates: Partial<Profile>) => {
     if (!profile) return;

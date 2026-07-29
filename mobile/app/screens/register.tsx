@@ -7650,7 +7650,4 @@ const styles = StyleSheet.create({
     flex: 1,
     marginHorizontal: 4,
   },
-  actionButton: {
-    flex: 1,
-  }
 });

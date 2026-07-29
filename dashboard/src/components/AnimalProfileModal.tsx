@@ -304,13 +304,14 @@ export default function AnimalProfileModal({
       if (updateSelfError) throw updateSelfError
 
       const upsertParent = async (parentTag: string, sex: 'Male' | 'Female', parentSire: string, parentDam: string) => {
-        if (!parentTag) return
+        const cleanTag = parentTag.trim();
+        if (!cleanTag) return;
         
         const { data: existing } = await supabase
           .from('animals')
           .select('id')
           .eq('user_id', animal.user_id)
-          .eq('tag', parentTag)
+          .ilike('tag', cleanTag)
           .limit(1)
           .maybeSingle()
 
@@ -328,7 +329,7 @@ export default function AnimalProfileModal({
             .from('animals')
             .insert({
               user_id: animal.user_id,
-              tag: parentTag,
+              tag: cleanTag,
               sex,
               stock_type: sex === 'Male' ? 'Bull' : 'Cow',
               breed: animal.breed || 'Unknown',
