@@ -5201,56 +5201,57 @@ function RegisterContent() {
             <Text style={{ fontSize: 12, color: Colors.primary[600], fontWeight: 'bold' }}>Modify Pedigree</Text>
           </TouchableOpacity>
         </View>
-        
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingRight: 24, paddingBottom: 24 }}>
-          <TreeBranch 
-            gap={16}
-            topNode={
-              <TreeBranch 
-                gap={16}
-                topNode={
-                  <TreeBranch 
-                    gap={8}
-                    topNode={renderNode('GG Sire', ggSire1, "Sire's Sire Sire")} 
-                    bottomNode={renderNode('GG Dam', ggDam1, "Sire's Sire Dam")} 
-                    childNode={renderNode('Grandsire', gSire1, 'Paternal Grandsire')} 
-                  />
-                }
-                bottomNode={
-                  <TreeBranch 
-                    gap={8}
-                    topNode={renderNode('GG Sire', ggSire2, "Sire's Dam Sire")} 
-                    bottomNode={renderNode('GG Dam', ggDam2, "Sire's Dam Dam")} 
-                    childNode={renderNode('Granddam', gDam1, 'Paternal Granddam')} 
-                  />
-                }
-                childNode={renderNode('Sire', sire1, 'Sire (Father)')}
-              />
-            }
-            bottomNode={
-              <TreeBranch 
-                gap={16}
-                topNode={
-                  <TreeBranch 
-                    gap={8}
-                    topNode={renderNode('GG Sire', ggSire3, "Dam's Sire Sire")} 
-                    bottomNode={renderNode('GG Dam', ggDam3, "Dam's Sire Dam")} 
-                    childNode={renderNode('Grandsire', gSire2, 'Maternal Grandsire')} 
-                  />
-                }
-                bottomNode={
-                  <TreeBranch 
-                    gap={8}
-                    topNode={renderNode('GG Sire', ggSire4, "Dam's Dam Sire")} 
-                    bottomNode={renderNode('GG Dam', ggDam4, "Dam's Dam Dam")} 
-                    childNode={renderNode('Granddam', gDam2, 'Maternal Granddam')} 
-                  />
-                }
-                childNode={renderNode('Dam', dam1, 'Dam (Mother)')}
-              />
-            }
-            childNode={renderNode('Self', root, 'Animal')}
-          />
+        <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={true} contentContainerStyle={{ paddingLeft: 16 }}>
+          <ScrollView horizontal showsHorizontalScrollIndicator={true} contentContainerStyle={{ paddingRight: 32, paddingBottom: 40, paddingTop: 16 }}>
+            <TreeBranch 
+              gap={16}
+              topNode={
+                <TreeBranch 
+                  gap={16}
+                  topNode={
+                    <TreeBranch 
+                      gap={8}
+                      topNode={renderNode('GG Sire', ggSire1, "Sire's Sire Sire")} 
+                      bottomNode={renderNode('GG Dam', ggDam1, "Sire's Sire Dam")} 
+                      childNode={renderNode('Grandsire', gSire1, 'Paternal Grandsire')} 
+                    />
+                  }
+                  bottomNode={
+                    <TreeBranch 
+                      gap={8}
+                      topNode={renderNode('GG Sire', ggSire2, "Sire's Dam Sire")} 
+                      bottomNode={renderNode('GG Dam', ggDam2, "Sire's Dam Dam")} 
+                      childNode={renderNode('Granddam', gDam1, 'Paternal Granddam')} 
+                    />
+                  }
+                  childNode={renderNode('Sire', sire1, 'Sire (Father)')}
+                />
+              }
+              bottomNode={
+                <TreeBranch 
+                  gap={16}
+                  topNode={
+                    <TreeBranch 
+                      gap={8}
+                      topNode={renderNode('GG Sire', ggSire3, "Dam's Sire Sire")} 
+                      bottomNode={renderNode('GG Dam', ggDam3, "Dam's Sire Dam")} 
+                      childNode={renderNode('Grandsire', gSire2, 'Maternal Grandsire')} 
+                    />
+                  }
+                  bottomNode={
+                    <TreeBranch 
+                      gap={8}
+                      topNode={renderNode('GG Sire', ggSire4, "Dam's Dam Sire")} 
+                      bottomNode={renderNode('GG Dam', ggDam4, "Dam's Dam Dam")} 
+                      childNode={renderNode('Granddam', gDam2, 'Maternal Granddam')} 
+                    />
+                  }
+                  childNode={renderNode('Dam', dam1, 'Dam (Mother)')}
+                />
+              }
+              childNode={renderNode('Self', root, 'Animal')}
+            />
+          </ScrollView>
         </ScrollView>
       </View>
     );
