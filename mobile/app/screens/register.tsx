@@ -5118,25 +5118,52 @@ function RegisterContent() {
     const ggDam4 = gDam2?.dam ? findAnimal(gDam2.dam) : null;
 
     const renderNode = (title: string, anim: any, relationship: string) => {
+      const isKnown = anim && anim.breed !== 'Unknown';
       return (
         <View style={{
-          backgroundColor: anim && anim.breed !== 'Unknown' ? '#F4F6F7' : '#FDFEFE',
+          width: 120,
+          height: 64,
+          backgroundColor: isKnown ? '#FFFFFF' : '#F8F9F9',
           borderRadius: 8,
           borderWidth: 1,
-          borderColor: anim && anim.breed !== 'Unknown' ? '#A2D9CE' : '#E5E8E8',
+          borderColor: isKnown ? Colors.primary[300] : '#E5E8E8',
           padding: 8,
-          alignItems: 'center',
           justifyContent: 'center',
-          flex: 1,
-          margin: 4,
-          minHeight: 60
+          shadowColor: '#000',
+          shadowOffset: { width: 0, height: 1 },
+          shadowOpacity: 0.05,
+          shadowRadius: 2,
+          elevation: 1,
         }}>
-          <Text variant="caption" color="neutral.500" style={{ fontSize: 9, fontWeight: 'bold' }}>{relationship}</Text>
-          <Text weight="bold" style={{ fontSize: 12, marginTop: 2 }}>{anim ? anim.tag : 'Unknown'}</Text>
-          <Text variant="caption" style={{ fontSize: 10, color: '#7F8C8D' }}>{anim && anim.breed !== 'Unknown' ? anim.breed : '—'}</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 2 }}>
+            <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: isKnown ? Colors.primary[500] : '#BDC3C7', marginRight: 4 }} />
+            <Text variant="caption" color="neutral.500" style={{ fontSize: 9, fontWeight: '700', textTransform: 'uppercase' }}>{relationship}</Text>
+          </View>
+          <Text weight="bold" color="neutral.800" style={{ fontSize: 13 }} numberOfLines={1}>{anim ? anim.tag : 'Unknown'}</Text>
+          <Text variant="caption" style={{ fontSize: 10, color: '#7F8C8D' }}>{isKnown ? anim.breed : '—'}</Text>
         </View>
       );
     };
+
+    const Connector = () => (
+      <View style={{ width: 20, alignSelf: 'stretch', flexDirection: 'row', alignItems: 'center' }}>
+        <View style={{ width: '50%', alignSelf: 'stretch', paddingVertical: '25%' }}>
+          <View style={{ flex: 1, borderTopWidth: 2, borderBottomWidth: 2, borderRightWidth: 2, borderColor: Colors.primary[200], borderTopRightRadius: 6, borderBottomRightRadius: 6 }} />
+        </View>
+        <View style={{ width: '50%', height: 2, backgroundColor: Colors.primary[200] }} />
+      </View>
+    );
+
+    const TreeBranch = ({ topNode, bottomNode, childNode, gap = 12 }: any) => (
+      <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+        <View style={{ gap }}>
+          {topNode}
+          {bottomNode}
+        </View>
+        <Connector />
+        {childNode}
+      </View>
+    );
 
     const handleEditPedigreePress = () => {
       setPedigreeForm({
@@ -5160,82 +5187,67 @@ function RegisterContent() {
 
     return (
       <ScrollView contentContainerStyle={{ padding: 16, alignItems: 'center' }}>
-        <View style={{ flexDirection: 'row', justifyContent: 'space-between', width: '100%', alignItems: 'center', marginBottom: 16 }}>
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', width: '100%', alignItems: 'center', marginBottom: 24 }}>
           <Text variant="caption" color="neutral.500" style={{ flex: 1, paddingRight: 8 }}>
-            4-Generation Pedigree Tree. Boxes show active registered ancestors.
+            4-Generation Pedigree Tree. Scroll right to view lineage.
           </Text>
           <TouchableOpacity 
             onPress={handleEditPedigreePress} 
-            style={{ paddingHorizontal: 12, paddingVertical: 8, backgroundColor: Colors.primary[50], borderRadius: 8, borderWidth: 1, borderColor: Colors.primary[200] }}
+            style={{ paddingHorizontal: 16, paddingVertical: 8, backgroundColor: Colors.primary[50], borderRadius: 8, borderWidth: 1, borderColor: Colors.primary[200] }}
           >
             <Text style={{ fontSize: 12, color: Colors.primary[600], fontWeight: 'bold' }}>Modify Pedigree</Text>
           </TouchableOpacity>
         </View>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 16 }}>
-          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-            <View style={{ width: 110, gap: 4 }}>
-              {renderNode('GG Sire', ggSire1, "Sire's Sire Sire")}
-              {renderNode('GG Dam', ggDam1, "Sire's Sire Dam")}
-              <View style={{ height: 4 }} />
-              {renderNode('GG Sire', ggSire2, "Sire's Dam Sire")}
-              {renderNode('GG Dam', ggDam2, "Sire's Dam Dam")}
-              <View style={{ height: 16 }} />
-              {renderNode('GG Sire', ggSire3, "Dam's Sire Sire")}
-              {renderNode('GG Dam', ggDam3, "Dam's Sire Dam")}
-              <View style={{ height: 4 }} />
-              {renderNode('GG Sire', ggSire4, "Dam's Dam Sire")}
-              {renderNode('GG Dam', ggDam4, "Dam's Dam Dam")}
-            </View>
-
-            <View style={{ width: 16, alignItems: 'center', justifyContent: 'center' }}>
-              <ChevronLeft size={16} color="#BDC3C7" />
-              <View style={{ height: 50 }} />
-              <ChevronLeft size={16} color="#BDC3C7" />
-              <View style={{ height: 100 }} />
-              <ChevronLeft size={16} color="#BDC3C7" />
-              <View style={{ height: 50 }} />
-              <ChevronLeft size={16} color="#BDC3C7" />
-            </View>
-
-            <View style={{ width: 120, gap: 4, justifyContent: 'space-around', height: '100%' }}>
-              <View style={{ flex: 1, justifyContent: 'center' }}>
-                {renderNode('Grandsire (Sire)', gSire1, 'Paternal Grandsire')}
-              </View>
-              <View style={{ flex: 1, justifyContent: 'center' }}>
-                {renderNode('Granddam (Sire)', gDam1, 'Paternal Granddam')}
-              </View>
-              <View style={{ height: 16 }} />
-              <View style={{ flex: 1, justifyContent: 'center' }}>
-                {renderNode('Grandsire (Dam)', gSire2, 'Maternal Grandsire')}
-              </View>
-              <View style={{ flex: 1, justifyContent: 'center' }}>
-                {renderNode('Granddam (Dam)', gDam2, 'Maternal Granddam')}
-              </View>
-            </View>
-
-            <View style={{ width: 16, alignItems: 'center', justifyContent: 'center' }}>
-              <ChevronLeft size={16} color="#BDC3C7" />
-              <View style={{ height: 180 }} />
-              <ChevronLeft size={16} color="#BDC3C7" />
-            </View>
-
-            <View style={{ width: 120, gap: 20, justifyContent: 'space-around', height: '100%' }}>
-              <View style={{ flex: 1, justifyContent: 'center' }}>
-                {renderNode('Sire', sire1, 'Sire (Father)')}
-              </View>
-              <View style={{ flex: 1, justifyContent: 'center' }}>
-                {renderNode('Dam', dam1, 'Dam (Mother)')}
-              </View>
-            </View>
-
-            <View style={{ width: 16, alignItems: 'center', justifyContent: 'center' }}>
-              <ChevronLeft size={20} color="#BDC3C7" />
-            </View>
-
-            <View style={{ width: 120, justifyContent: 'center', height: '100%' }}>
-              {renderNode('Self', root, 'Animal')}
-            </View>
-          </View>
+        
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingRight: 24, paddingBottom: 24 }}>
+          <TreeBranch 
+            gap={16}
+            topNode={
+              <TreeBranch 
+                gap={16}
+                topNode={
+                  <TreeBranch 
+                    gap={8}
+                    topNode={renderNode('GG Sire', ggSire1, "Sire's Sire Sire")} 
+                    bottomNode={renderNode('GG Dam', ggDam1, "Sire's Sire Dam")} 
+                    childNode={renderNode('Grandsire', gSire1, 'Paternal Grandsire')} 
+                  />
+                }
+                bottomNode={
+                  <TreeBranch 
+                    gap={8}
+                    topNode={renderNode('GG Sire', ggSire2, "Sire's Dam Sire")} 
+                    bottomNode={renderNode('GG Dam', ggDam2, "Sire's Dam Dam")} 
+                    childNode={renderNode('Granddam', gDam1, 'Paternal Granddam')} 
+                  />
+                }
+                childNode={renderNode('Sire', sire1, 'Sire (Father)')}
+              />
+            }
+            bottomNode={
+              <TreeBranch 
+                gap={16}
+                topNode={
+                  <TreeBranch 
+                    gap={8}
+                    topNode={renderNode('GG Sire', ggSire3, "Dam's Sire Sire")} 
+                    bottomNode={renderNode('GG Dam', ggDam3, "Dam's Sire Dam")} 
+                    childNode={renderNode('Grandsire', gSire2, 'Maternal Grandsire')} 
+                  />
+                }
+                bottomNode={
+                  <TreeBranch 
+                    gap={8}
+                    topNode={renderNode('GG Sire', ggSire4, "Dam's Dam Sire")} 
+                    bottomNode={renderNode('GG Dam', ggDam4, "Dam's Dam Dam")} 
+                    childNode={renderNode('Granddam', gDam2, 'Maternal Granddam')} 
+                  />
+                }
+                childNode={renderNode('Dam', dam1, 'Dam (Mother)')}
+              />
+            }
+            childNode={renderNode('Self', root, 'Animal')}
+          />
         </ScrollView>
       </ScrollView>
     );
