@@ -994,22 +994,38 @@ function RegisterContent() {
               keyboardDismissMode="none"
             >
               <View style={styles.formGroup}>
-                <Text variant="body2" style={styles.label}>Drug Class</Text>
-                <TextInput
-                  style={styles.input}
+                <Picker
+                  label="Drug Class"
                   value={newDrug.drugClass}
-                  onChangeText={(text) => setNewDrug({...newDrug, drugClass: text})}
-                  placeholder="e.g., Antibiotic, Vitamin"
+                  onValueChange={(value) => setNewDrug({...newDrug, drugClass: value})}
+                  items={[
+                    { label: 'Select Drug Class', value: '' },
+                    { label: 'Anthelminitics', value: 'Anthelminitics' },
+                    { label: 'Antibiotics', value: 'Antibiotics' },
+                    { label: 'NSAIDS', value: 'NSAIDS' },
+                    { label: 'Electrolytes', value: 'Electrolytes' },
+                    { label: 'Vitamins and Minerals', value: 'Vitamins and Minerals' },
+                    { label: 'Pour ons', value: 'Pour ons' },
+                    { label: 'Ectoparasitides', value: 'Ectoparasitides' },
+                    { label: 'Synchronisation drugs', value: 'Synchronisation drugs' }
+                  ]}
                 />
               </View>
               
               <View style={styles.formGroup}>
-                <Text variant="body2" style={styles.label}>Type</Text>
-                <TextInput
-                  style={styles.input}
+                <Picker
+                  label="Type"
                   value={newDrug.type}
-                  onChangeText={(text) => setNewDrug({...newDrug, type: text})}
-                  placeholder="e.g., Injectable, Oral"
+                  onValueChange={(value) => setNewDrug({...newDrug, type: value})}
+                  items={[
+                    { label: 'Select Type', value: '' },
+                    { label: 'Oral', value: 'Oral' },
+                    { label: 'Drench', value: 'Drench' },
+                    { label: 'Intramuscular', value: 'Intramuscular' },
+                    { label: 'Subcutaneous', value: 'Subcutaneous' },
+                    { label: 'Topical', value: 'Topical' },
+                    { label: 'Pour-on', value: 'Pour-on' }
+                  ]}
                 />
               </View>
               
@@ -2944,22 +2960,38 @@ function RegisterContent() {
               </View>
 
               <View style={styles.formGroup}>
-                <Text variant="body2" style={styles.label}>Drug Class *</Text>
-                <TextInput
-                  style={styles.input}
+                <Picker
+                  label="Drug Class *"
                   value={editingDrug?.drugClass || ''}
-                  onChangeText={(text) => editingDrug && setEditingDrug({...editingDrug, drugClass: text})}
-                  placeholder="e.g. Antibiotic"
+                  onValueChange={(value) => editingDrug && setEditingDrug({...editingDrug, drugClass: value})}
+                  items={[
+                    { label: 'Select Drug Class', value: '' },
+                    { label: 'Anthelminitics', value: 'Anthelminitics' },
+                    { label: 'Antibiotics', value: 'Antibiotics' },
+                    { label: 'NSAIDS', value: 'NSAIDS' },
+                    { label: 'Electrolytes', value: 'Electrolytes' },
+                    { label: 'Vitamins and Minerals', value: 'Vitamins and Minerals' },
+                    { label: 'Pour ons', value: 'Pour ons' },
+                    { label: 'Ectoparasitides', value: 'Ectoparasitides' },
+                    { label: 'Synchronisation drugs', value: 'Synchronisation drugs' }
+                  ]}
                 />
               </View>
 
               <View style={styles.formGroup}>
-                <Text variant="body2" style={styles.label}>Type *</Text>
-                <TextInput
-                  style={styles.input}
+                <Picker
+                  label="Type *"
                   value={editingDrug?.type || ''}
-                  onChangeText={(text) => editingDrug && setEditingDrug({...editingDrug, type: text})}
-                  placeholder="e.g. Injectable"
+                  onValueChange={(value) => editingDrug && setEditingDrug({...editingDrug, type: value})}
+                  items={[
+                    { label: 'Select Type', value: '' },
+                    { label: 'Oral', value: 'Oral' },
+                    { label: 'Drench', value: 'Drench' },
+                    { label: 'Intramuscular', value: 'Intramuscular' },
+                    { label: 'Subcutaneous', value: 'Subcutaneous' },
+                    { label: 'Topical', value: 'Topical' },
+                    { label: 'Pour-on', value: 'Pour-on' }
+                  ]}
                 />
               </View>
 
