@@ -1263,7 +1263,15 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   saveButtonText: {
-    color: Colors.white,
+    color: '#fff',
+    fontSize: 16,
     fontWeight: 'bold',
+  },
+  modalBtn: {
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });

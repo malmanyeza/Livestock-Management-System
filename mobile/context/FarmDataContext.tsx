@@ -2695,8 +2695,7 @@ export const FarmDataProvider: React.FC<{ children: ReactNode }> = ({ children }
   const bcs = calculateBCS(aliveAnimals);
   const repro = calculateReproductionMetrics(aliveAnimals);
   const prod = calculateProductionMetrics(aliveAnimals);
-  
-  const scores = calculateCategoryScores(adg, fcr, bcs, repro, prod, aliveAnimals);
+  const scores = calculateCategoryScores(adg, fcr, bcs, repro, prod);
 
   const updateProfile = async (updates: Partial<Profile>) => {
     if (!profile) return;
