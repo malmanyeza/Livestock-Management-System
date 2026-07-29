@@ -1654,18 +1654,26 @@ function RegisterContent() {
         await upsertParent(pedigreeForm.sire, 'Male', pedigreeForm.sireSire, pedigreeForm.sireDam);
         if (pedigreeForm.sireSire) {
           await upsertParent(pedigreeForm.sireSire, 'Male', pedigreeForm.sireSireSire, pedigreeForm.sireSireDam);
+          if (pedigreeForm.sireSireSire) await upsertParent(pedigreeForm.sireSireSire, 'Male', '', '');
+          if (pedigreeForm.sireSireDam) await upsertParent(pedigreeForm.sireSireDam, 'Female', '', '');
         }
         if (pedigreeForm.sireDam) {
           await upsertParent(pedigreeForm.sireDam, 'Female', pedigreeForm.sireDamSire, pedigreeForm.sireDamDam);
+          if (pedigreeForm.sireDamSire) await upsertParent(pedigreeForm.sireDamSire, 'Male', '', '');
+          if (pedigreeForm.sireDamDam) await upsertParent(pedigreeForm.sireDamDam, 'Female', '', '');
         }
       }
       if (pedigreeForm.dam) {
         await upsertParent(pedigreeForm.dam, 'Female', pedigreeForm.damSire, pedigreeForm.damDam);
         if (pedigreeForm.damSire) {
           await upsertParent(pedigreeForm.damSire, 'Male', pedigreeForm.damSireSire, pedigreeForm.damSireDam);
+          if (pedigreeForm.damSireSire) await upsertParent(pedigreeForm.damSireSire, 'Male', '', '');
+          if (pedigreeForm.damSireDam) await upsertParent(pedigreeForm.damSireDam, 'Female', '', '');
         }
         if (pedigreeForm.damDam) {
           await upsertParent(pedigreeForm.damDam, 'Female', pedigreeForm.damDamSire, pedigreeForm.damDamDam);
+          if (pedigreeForm.damDamSire) await upsertParent(pedigreeForm.damDamSire, 'Male', '', '');
+          if (pedigreeForm.damDamDam) await upsertParent(pedigreeForm.damDamDam, 'Female', '', '');
         }
       }
 

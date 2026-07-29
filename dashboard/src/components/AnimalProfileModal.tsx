@@ -346,18 +346,26 @@ export default function AnimalProfileModal({
         await upsertParent(editPedigree.sire, 'Male', editPedigree.sireSire, editPedigree.sireDam)
         if (editPedigree.sireSire) {
           await upsertParent(editPedigree.sireSire, 'Male', editPedigree.sireSireSire, editPedigree.sireSireDam)
+          if (editPedigree.sireSireSire) await upsertParent(editPedigree.sireSireSire, 'Male', '', '')
+          if (editPedigree.sireSireDam) await upsertParent(editPedigree.sireSireDam, 'Female', '', '')
         }
         if (editPedigree.sireDam) {
           await upsertParent(editPedigree.sireDam, 'Female', editPedigree.sireDamSire, editPedigree.sireDamDam)
+          if (editPedigree.sireDamSire) await upsertParent(editPedigree.sireDamSire, 'Male', '', '')
+          if (editPedigree.sireDamDam) await upsertParent(editPedigree.sireDamDam, 'Female', '', '')
         }
       }
       if (editPedigree.dam) {
         await upsertParent(editPedigree.dam, 'Female', editPedigree.damSire, editPedigree.damDam)
         if (editPedigree.damSire) {
           await upsertParent(editPedigree.damSire, 'Male', editPedigree.damSireSire, editPedigree.damSireDam)
+          if (editPedigree.damSireSire) await upsertParent(editPedigree.damSireSire, 'Male', '', '')
+          if (editPedigree.damSireDam) await upsertParent(editPedigree.damSireDam, 'Female', '', '')
         }
         if (editPedigree.damDam) {
           await upsertParent(editPedigree.damDam, 'Female', editPedigree.damDamSire, editPedigree.damDamDam)
+          if (editPedigree.damDamSire) await upsertParent(editPedigree.damDamSire, 'Male', '', '')
+          if (editPedigree.damDamDam) await upsertParent(editPedigree.damDamDam, 'Female', '', '')
         }
       }
 
