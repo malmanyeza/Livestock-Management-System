@@ -5132,8 +5132,8 @@ function RegisterContent() {
           onPress={handleEditPedigreePress}
           activeOpacity={0.7}
           style={{
-            width: 120,
-            height: 64,
+            width: 130,
+            height: 68,
             backgroundColor: isKnown ? '#FFFFFF' : '#F8F9F9',
             borderRadius: 8,
             borderWidth: 1,
@@ -5148,10 +5148,10 @@ function RegisterContent() {
           }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 2 }}>
             <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: isKnown ? Colors.primary[500] : '#BDC3C7', marginRight: 4 }} />
-            <Text variant="caption" color="neutral.500" style={{ fontSize: 9, fontWeight: '700', textTransform: 'uppercase' }}>{relationship}</Text>
+            <Text variant="caption" color="neutral.500" style={{ fontSize: 9, fontWeight: '700', textTransform: 'uppercase' }} allowFontScaling={false} adjustsFontSizeToFit={true} numberOfLines={1}>{relationship}</Text>
           </View>
-          <Text weight="bold" color="neutral.800" style={{ fontSize: 13 }} numberOfLines={1}>{anim ? anim.tag : 'Unknown'}</Text>
-          <Text variant="caption" style={{ fontSize: 10, color: '#7F8C8D' }}>{isKnown ? anim.breed : '—'}</Text>
+          <Text weight="bold" color="neutral.800" style={{ fontSize: 13 }} numberOfLines={1} allowFontScaling={false} adjustsFontSizeToFit={true}>{anim ? anim.tag : 'Unknown'}</Text>
+          <Text variant="caption" style={{ fontSize: 10, color: '#7F8C8D' }} allowFontScaling={false}>{isKnown ? anim.breed : '—'}</Text>
         </TouchableOpacity>
       );
     };
