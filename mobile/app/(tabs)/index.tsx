@@ -618,8 +618,16 @@ export default function HomeScreen() {
 
             
             <View style={[styles.paginationContainer, { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 16 }]}>
-              <TouchableOpacity onPress={() => goToSlide(Math.max(0, activeSlide - 1))} activeOpacity={0.7} style={{ padding: 4 }}>
-                <ChevronLeft size={24} color={activeSlide > 0 ? Colors.neutral[600] : Colors.neutral[300]} />
+              <TouchableOpacity 
+                onPress={() => goToSlide(Math.max(0, activeSlide - 1))} 
+                activeOpacity={0.7} 
+                style={{ 
+                  padding: 8, 
+                  backgroundColor: activeSlide > 0 ? Colors.primary[50] : 'transparent',
+                  borderRadius: 20
+                }}
+              >
+                <ChevronLeft size={24} color={activeSlide > 0 ? Colors.primary[600] : Colors.neutral[300]} />
               </TouchableOpacity>
               
               <View style={{ flexDirection: 'row', gap: 8 }}>
@@ -635,8 +643,16 @@ export default function HomeScreen() {
                 ))}
               </View>
 
-              <TouchableOpacity onPress={() => goToSlide(Math.min(1, activeSlide + 1))} activeOpacity={0.7} style={{ padding: 4 }}>
-                <ChevronRight size={24} color={activeSlide < 1 ? Colors.neutral[600] : Colors.neutral[300]} />
+              <TouchableOpacity 
+                onPress={() => goToSlide(Math.min(1, activeSlide + 1))} 
+                activeOpacity={0.7} 
+                style={{ 
+                  padding: 8, 
+                  backgroundColor: activeSlide < 1 ? Colors.primary[50] : 'transparent',
+                  borderRadius: 20
+                }}
+              >
+                <ChevronRight size={24} color={activeSlide < 1 ? Colors.primary[600] : Colors.neutral[300]} />
               </TouchableOpacity>
             </View>
           </View>
