@@ -5120,28 +5120,31 @@ function RegisterContent() {
     const renderNode = (title: string, anim: any, relationship: string) => {
       const isKnown = anim && anim.breed !== 'Unknown';
       return (
-        <View style={{
-          width: 120,
-          height: 64,
-          backgroundColor: isKnown ? '#FFFFFF' : '#F8F9F9',
-          borderRadius: 8,
-          borderWidth: 1,
-          borderColor: isKnown ? Colors.primary[300] : '#E5E8E8',
-          padding: 8,
-          justifyContent: 'center',
-          shadowColor: '#000',
-          shadowOffset: { width: 0, height: 1 },
-          shadowOpacity: 0.05,
-          shadowRadius: 2,
-          elevation: 1,
-        }}>
+        <TouchableOpacity 
+          onPress={handleEditPedigreePress}
+          activeOpacity={0.7}
+          style={{
+            width: 120,
+            height: 64,
+            backgroundColor: isKnown ? '#FFFFFF' : '#F8F9F9',
+            borderRadius: 8,
+            borderWidth: 1,
+            borderColor: isKnown ? Colors.primary[300] : '#E5E8E8',
+            padding: 8,
+            justifyContent: 'center',
+            shadowColor: '#000',
+            shadowOffset: { width: 0, height: 1 },
+            shadowOpacity: 0.05,
+            shadowRadius: 2,
+            elevation: 1,
+          }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 2 }}>
             <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: isKnown ? Colors.primary[500] : '#BDC3C7', marginRight: 4 }} />
             <Text variant="caption" color="neutral.500" style={{ fontSize: 9, fontWeight: '700', textTransform: 'uppercase' }}>{relationship}</Text>
           </View>
           <Text weight="bold" color="neutral.800" style={{ fontSize: 13 }} numberOfLines={1}>{anim ? anim.tag : 'Unknown'}</Text>
           <Text variant="caption" style={{ fontSize: 10, color: '#7F8C8D' }}>{isKnown ? anim.breed : '—'}</Text>
-        </View>
+        </TouchableOpacity>
       );
     };
 
@@ -5186,10 +5189,10 @@ function RegisterContent() {
     };
 
     return (
-      <ScrollView contentContainerStyle={{ padding: 16, alignItems: 'center' }}>
-        <View style={{ flexDirection: 'row', justifyContent: 'space-between', width: '100%', alignItems: 'center', marginBottom: 24 }}>
+      <View style={{ flex: 1, width: '100%' }}>
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', width: '100%', alignItems: 'center', marginBottom: 24, paddingHorizontal: 16, paddingTop: 16 }}>
           <Text variant="caption" color="neutral.500" style={{ flex: 1, paddingRight: 8 }}>
-            4-Generation Pedigree Tree. Scroll right to view lineage.
+            4-Generation Pedigree Tree. Scroll right to view lineage. Tap any node to edit.
           </Text>
           <TouchableOpacity 
             onPress={handleEditPedigreePress} 
