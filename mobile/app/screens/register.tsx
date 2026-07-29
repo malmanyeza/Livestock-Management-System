@@ -5252,7 +5252,7 @@ function RegisterContent() {
             childNode={renderNode('Self', root, 'Animal')}
           />
         </ScrollView>
-      </ScrollView>
+      </View>
     );
   };
 
