@@ -565,6 +565,14 @@ function RegisterContent() {
     sireDam: '',
     damSire: '',
     damDam: '',
+    sireSireSire: '',
+    sireSireDam: '',
+    sireDamSire: '',
+    sireDamDam: '',
+    damSireSire: '',
+    damSireDam: '',
+    damDamSire: '',
+    damDamDam: '',
   });
   const [isAddHealthRecordModalVisible, setIsAddHealthRecordModalVisible] = useState(false);
   const [isAddBreedingRecordModalVisible, setIsAddBreedingRecordModalVisible] = useState(false);
@@ -1644,9 +1652,21 @@ function RegisterContent() {
 
       if (pedigreeForm.sire) {
         await upsertParent(pedigreeForm.sire, 'Male', pedigreeForm.sireSire, pedigreeForm.sireDam);
+        if (pedigreeForm.sireSire) {
+          await upsertParent(pedigreeForm.sireSire, 'Male', pedigreeForm.sireSireSire, pedigreeForm.sireSireDam);
+        }
+        if (pedigreeForm.sireDam) {
+          await upsertParent(pedigreeForm.sireDam, 'Female', pedigreeForm.sireDamSire, pedigreeForm.sireDamDam);
+        }
       }
       if (pedigreeForm.dam) {
         await upsertParent(pedigreeForm.dam, 'Female', pedigreeForm.damSire, pedigreeForm.damDam);
+        if (pedigreeForm.damSire) {
+          await upsertParent(pedigreeForm.damSire, 'Male', pedigreeForm.damSireSire, pedigreeForm.damSireDam);
+        }
+        if (pedigreeForm.damDam) {
+          await upsertParent(pedigreeForm.damDam, 'Female', pedigreeForm.damDamSire, pedigreeForm.damDamDam);
+        }
       }
 
       setEditingAnimal(prev => prev ? {
@@ -5085,6 +5105,18 @@ function RegisterContent() {
     const gSire2 = dam1?.sire ? findAnimal(dam1.sire) : null;
     const gDam2 = dam1?.dam ? findAnimal(dam1.dam) : null;
 
+    // Great-grandparents (Paternal side)
+    const ggSire1 = gSire1?.sire ? findAnimal(gSire1.sire) : null;
+    const ggDam1 = gSire1?.dam ? findAnimal(gSire1.dam) : null;
+    const ggSire2 = gDam1?.sire ? findAnimal(gDam1.sire) : null;
+    const ggDam2 = gDam1?.dam ? findAnimal(gDam1.dam) : null;
+
+    // Great-grandparents (Maternal side)
+    const ggSire3 = gSire2?.sire ? findAnimal(gSire2.sire) : null;
+    const ggDam3 = gSire2?.dam ? findAnimal(gSire2.dam) : null;
+    const ggSire4 = gDam2?.sire ? findAnimal(gDam2.sire) : null;
+    const ggDam4 = gDam2?.dam ? findAnimal(gDam2.dam) : null;
+
     const renderNode = (title: string, anim: any, relationship: string) => {
       return (
         <View style={{
@@ -5114,6 +5146,14 @@ function RegisterContent() {
         sireDam: sire1?.dam || '',
         damSire: dam1?.sire || '',
         damDam: dam1?.dam || '',
+        sireSireSire: gSire1?.sire || '',
+        sireSireDam: gSire1?.dam || '',
+        sireDamSire: gDam1?.sire || '',
+        sireDamDam: gDam1?.dam || '',
+        damSireSire: gSire2?.sire || '',
+        damSireDam: gSire2?.dam || '',
+        damDamSire: gDam2?.sire || '',
+        damDamDam: gDam2?.dam || '',
       });
       setIsPedigreeEditModalVisible(true);
     };
@@ -5122,7 +5162,7 @@ function RegisterContent() {
       <ScrollView contentContainerStyle={{ padding: 16, alignItems: 'center' }}>
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', width: '100%', alignItems: 'center', marginBottom: 16 }}>
           <Text variant="caption" color="neutral.500" style={{ flex: 1, paddingRight: 8 }}>
-            3-Generation Pedigree Tree. Boxes show active registered ancestors.
+            4-Generation Pedigree Tree. Boxes show active registered ancestors.
           </Text>
           <TouchableOpacity 
             onPress={handleEditPedigreePress} 
@@ -5131,35 +5171,72 @@ function RegisterContent() {
             <Text style={{ fontSize: 12, color: Colors.primary[600], fontWeight: 'bold' }}>Modify Pedigree</Text>
           </TouchableOpacity>
         </View>
-        <View style={{ width: '100%', flexDirection: 'row', alignItems: 'center' }}>
-          <View style={{ flex: 1, gap: 4 }}>
-            {renderNode('Grandsire (Sire)', gSire1, 'Paternal Grandsire')}
-            {renderNode('Granddam (Sire)', gDam1, 'Paternal Granddam')}
-            <View style={{ height: 16 }} />
-            {renderNode('Grandsire (Dam)', gSire2, 'Maternal Grandsire')}
-            {renderNode('Granddam (Dam)', gDam2, 'Maternal Granddam')}
-          </View>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 16 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+            <View style={{ width: 110, gap: 4 }}>
+              {renderNode('GG Sire', ggSire1, "Sire's Sire Sire")}
+              {renderNode('GG Dam', ggDam1, "Sire's Sire Dam")}
+              <View style={{ height: 4 }} />
+              {renderNode('GG Sire', ggSire2, "Sire's Dam Sire")}
+              {renderNode('GG Dam', ggDam2, "Sire's Dam Dam")}
+              <View style={{ height: 16 }} />
+              {renderNode('GG Sire', ggSire3, "Dam's Sire Sire")}
+              {renderNode('GG Dam', ggDam3, "Dam's Sire Dam")}
+              <View style={{ height: 4 }} />
+              {renderNode('GG Sire', ggSire4, "Dam's Dam Sire")}
+              {renderNode('GG Dam', ggDam4, "Dam's Dam Dam")}
+            </View>
 
-          <View style={{ width: 16, alignItems: 'center', justifyContent: 'center' }}>
-            <ChevronLeft size={16} color="#BDC3C7" />
-            <View style={{ height: 80 }} />
-            <ChevronLeft size={16} color="#BDC3C7" />
-          </View>
+            <View style={{ width: 16, alignItems: 'center', justifyContent: 'center' }}>
+              <ChevronLeft size={16} color="#BDC3C7" />
+              <View style={{ height: 50 }} />
+              <ChevronLeft size={16} color="#BDC3C7" />
+              <View style={{ height: 100 }} />
+              <ChevronLeft size={16} color="#BDC3C7" />
+              <View style={{ height: 50 }} />
+              <ChevronLeft size={16} color="#BDC3C7" />
+            </View>
 
-          <View style={{ flex: 1, gap: 20 }}>
-            {renderNode('Sire', sire1, 'Sire (Father)')}
-            <View style={{ height: 10 }} />
-            {renderNode('Dam', dam1, 'Dam (Mother)')}
-          </View>
+            <View style={{ width: 120, gap: 4, justifyContent: 'space-around', height: '100%' }}>
+              <View style={{ flex: 1, justifyContent: 'center' }}>
+                {renderNode('Grandsire (Sire)', gSire1, 'Paternal Grandsire')}
+              </View>
+              <View style={{ flex: 1, justifyContent: 'center' }}>
+                {renderNode('Granddam (Sire)', gDam1, 'Paternal Granddam')}
+              </View>
+              <View style={{ height: 16 }} />
+              <View style={{ flex: 1, justifyContent: 'center' }}>
+                {renderNode('Grandsire (Dam)', gSire2, 'Maternal Grandsire')}
+              </View>
+              <View style={{ flex: 1, justifyContent: 'center' }}>
+                {renderNode('Granddam (Dam)', gDam2, 'Maternal Granddam')}
+              </View>
+            </View>
 
-          <View style={{ width: 16, alignItems: 'center', justifyContent: 'center' }}>
-            <ChevronLeft size={20} color="#BDC3C7" />
-          </View>
+            <View style={{ width: 16, alignItems: 'center', justifyContent: 'center' }}>
+              <ChevronLeft size={16} color="#BDC3C7" />
+              <View style={{ height: 180 }} />
+              <ChevronLeft size={16} color="#BDC3C7" />
+            </View>
 
-          <View style={{ flex: 1 }}>
-            {renderNode('Self', root, 'Animal')}
+            <View style={{ width: 120, gap: 20, justifyContent: 'space-around', height: '100%' }}>
+              <View style={{ flex: 1, justifyContent: 'center' }}>
+                {renderNode('Sire', sire1, 'Sire (Father)')}
+              </View>
+              <View style={{ flex: 1, justifyContent: 'center' }}>
+                {renderNode('Dam', dam1, 'Dam (Mother)')}
+              </View>
+            </View>
+
+            <View style={{ width: 16, alignItems: 'center', justifyContent: 'center' }}>
+              <ChevronLeft size={20} color="#BDC3C7" />
+            </View>
+
+            <View style={{ width: 120, justifyContent: 'center', height: '100%' }}>
+              {renderNode('Self', root, 'Animal')}
+            </View>
           </View>
-        </View>
+        </ScrollView>
       </ScrollView>
     );
   };
@@ -6286,6 +6363,50 @@ function RegisterContent() {
                     onChangeText={(val) => setPedigreeForm(prev => ({ ...prev, damDam: val }))}
                     placeholder="e.g. Dam's Dam"
                   />
+                </View>
+              </View>
+
+              <View style={{ borderTopWidth: 1, borderTopColor: '#E5E8E8', marginVertical: 12, paddingTop: 12 }}>
+                <Text variant="body" weight="bold" color={Colors.neutral[700]} style={{ marginBottom: 12 }}>
+                  Paternal Great-Grandparents
+                </Text>
+                <View style={styles.formGroup}>
+                  <Text variant="body2" style={styles.label}>Sire's Sire Sire</Text>
+                  <TextInput style={styles.input} value={pedigreeForm.sireSireSire} onChangeText={(val) => setPedigreeForm(prev => ({ ...prev, sireSireSire: val }))} placeholder="e.g. Sire's Sire Sire" />
+                </View>
+                <View style={styles.formGroup}>
+                  <Text variant="body2" style={styles.label}>Sire's Sire Dam</Text>
+                  <TextInput style={styles.input} value={pedigreeForm.sireSireDam} onChangeText={(val) => setPedigreeForm(prev => ({ ...prev, sireSireDam: val }))} placeholder="e.g. Sire's Sire Dam" />
+                </View>
+                <View style={styles.formGroup}>
+                  <Text variant="body2" style={styles.label}>Sire's Dam Sire</Text>
+                  <TextInput style={styles.input} value={pedigreeForm.sireDamSire} onChangeText={(val) => setPedigreeForm(prev => ({ ...prev, sireDamSire: val }))} placeholder="e.g. Sire's Dam Sire" />
+                </View>
+                <View style={styles.formGroup}>
+                  <Text variant="body2" style={styles.label}>Sire's Dam Dam</Text>
+                  <TextInput style={styles.input} value={pedigreeForm.sireDamDam} onChangeText={(val) => setPedigreeForm(prev => ({ ...prev, sireDamDam: val }))} placeholder="e.g. Sire's Dam Dam" />
+                </View>
+              </View>
+
+              <View style={{ borderTopWidth: 1, borderTopColor: '#E5E8E8', marginVertical: 12, paddingTop: 12 }}>
+                <Text variant="body" weight="bold" color={Colors.neutral[700]} style={{ marginBottom: 12 }}>
+                  Maternal Great-Grandparents
+                </Text>
+                <View style={styles.formGroup}>
+                  <Text variant="body2" style={styles.label}>Dam's Sire Sire</Text>
+                  <TextInput style={styles.input} value={pedigreeForm.damSireSire} onChangeText={(val) => setPedigreeForm(prev => ({ ...prev, damSireSire: val }))} placeholder="e.g. Dam's Sire Sire" />
+                </View>
+                <View style={styles.formGroup}>
+                  <Text variant="body2" style={styles.label}>Dam's Sire Dam</Text>
+                  <TextInput style={styles.input} value={pedigreeForm.damSireDam} onChangeText={(val) => setPedigreeForm(prev => ({ ...prev, damSireDam: val }))} placeholder="e.g. Dam's Sire Dam" />
+                </View>
+                <View style={styles.formGroup}>
+                  <Text variant="body2" style={styles.label}>Dam's Dam Sire</Text>
+                  <TextInput style={styles.input} value={pedigreeForm.damDamSire} onChangeText={(val) => setPedigreeForm(prev => ({ ...prev, damDamSire: val }))} placeholder="e.g. Dam's Dam Sire" />
+                </View>
+                <View style={styles.formGroup}>
+                  <Text variant="body2" style={styles.label}>Dam's Dam Dam</Text>
+                  <TextInput style={styles.input} value={pedigreeForm.damDamDam} onChangeText={(val) => setPedigreeForm(prev => ({ ...prev, damDamDam: val }))} placeholder="e.g. Dam's Dam Dam" />
                 </View>
               </View>
             </ScrollView>

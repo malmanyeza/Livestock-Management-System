@@ -44,7 +44,15 @@ export default function AnimalProfileModal({
     damSire: '',
     sire: animal.sire || '',
     sireDam: '',
-    sireSire: ''
+    sireSire: '',
+    sireSireSire: '',
+    sireSireDam: '',
+    sireDamSire: '',
+    sireDamDam: '',
+    damSireSire: '',
+    damSireDam: '',
+    damDamSire: '',
+    damDamDam: ''
   })
   const [isEditingPedigree, setIsEditingPedigree] = useState(false)
   const [editPedigree, setEditPedigree] = useState({
@@ -53,7 +61,15 @@ export default function AnimalProfileModal({
     damSire: '',
     sire: '',
     sireDam: '',
-    sireSire: ''
+    sireSire: '',
+    sireSireSire: '',
+    sireSireDam: '',
+    sireDamSire: '',
+    sireDamDam: '',
+    damSireSire: '',
+    damSireDam: '',
+    damDamSire: '',
+    damDamDam: ''
   })
   const [refreshTrigger, setRefreshTrigger] = useState(0)
 
@@ -176,37 +192,75 @@ export default function AnimalProfileModal({
         events.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
         setTimeline(events)
 
-        // 7. Resolve 3-Generation Pedigree Tree (Parents and Grandparents)
+        // 7. Resolve 4-Generation Pedigree Tree
         let damDam = ''
         let damSire = ''
         let sireDam = ''
         let sireSire = ''
+        let sireSireSire = ''
+        let sireSireDam = ''
+        let sireDamSire = ''
+        let sireDamDam = ''
+        let damSireSire = ''
+        let damSireDam = ''
+        let damDamSire = ''
+        let damDamDam = ''
 
-        if (animal.dam) {
-          const { data: damObj } = await supabase
+        const fetchParents = async (tag: string) => {
+          if (!tag) return null;
+          const { data } = await supabase
             .from('animals')
             .select('tag, sire, dam')
             .eq('user_id', animal.user_id)
-            .eq('tag', animal.dam)
+            .eq('tag', tag)
             .limit(1)
             .maybeSingle()
+          return data;
+        };
+
+        if (animal.dam) {
+          const damObj = await fetchParents(animal.dam);
           if (damObj) {
-            damDam = damObj.dam || ''
-            damSire = damObj.sire || ''
+            damDam = damObj.dam || '';
+            damSire = damObj.sire || '';
+            
+            if (damSire) {
+              const damSireObj = await fetchParents(damSire);
+              if (damSireObj) {
+                damSireSire = damSireObj.sire || '';
+                damSireDam = damSireObj.dam || '';
+              }
+            }
+            if (damDam) {
+              const damDamObj = await fetchParents(damDam);
+              if (damDamObj) {
+                damDamSire = damDamObj.sire || '';
+                damDamDam = damDamObj.dam || '';
+              }
+            }
           }
         }
 
         if (animal.sire) {
-          const { data: sireObj } = await supabase
-            .from('animals')
-            .select('tag, sire, dam')
-            .eq('user_id', animal.user_id)
-            .eq('tag', animal.sire)
-            .limit(1)
-            .maybeSingle()
+          const sireObj = await fetchParents(animal.sire);
           if (sireObj) {
-            sireDam = sireObj.dam || ''
-            sireSire = sireObj.sire || ''
+            sireDam = sireObj.dam || '';
+            sireSire = sireObj.sire || '';
+
+            if (sireSire) {
+              const sireSireObj = await fetchParents(sireSire);
+              if (sireSireObj) {
+                sireSireSire = sireSireObj.sire || '';
+                sireSireDam = sireSireObj.dam || '';
+              }
+            }
+            if (sireDam) {
+              const sireDamObj = await fetchParents(sireDam);
+              if (sireDamObj) {
+                sireDamSire = sireDamObj.sire || '';
+                sireDamDam = sireDamObj.dam || '';
+              }
+            }
           }
         }
 
@@ -216,7 +270,15 @@ export default function AnimalProfileModal({
           damSire,
           sire: animal.sire || '',
           sireDam,
-          sireSire
+          sireSire,
+          sireSireSire,
+          sireSireDam,
+          sireDamSire,
+          sireDamDam,
+          damSireSire,
+          damSireDam,
+          damDamSire,
+          damDamDam
         })
 
       } catch (e) {
@@ -281,9 +343,21 @@ export default function AnimalProfileModal({
 
       if (editPedigree.sire) {
         await upsertParent(editPedigree.sire, 'Male', editPedigree.sireSire, editPedigree.sireDam)
+        if (editPedigree.sireSire) {
+          await upsertParent(editPedigree.sireSire, 'Male', editPedigree.sireSireSire, editPedigree.sireSireDam)
+        }
+        if (editPedigree.sireDam) {
+          await upsertParent(editPedigree.sireDam, 'Female', editPedigree.sireDamSire, editPedigree.sireDamDam)
+        }
       }
       if (editPedigree.dam) {
         await upsertParent(editPedigree.dam, 'Female', editPedigree.damSire, editPedigree.damDam)
+        if (editPedigree.damSire) {
+          await upsertParent(editPedigree.damSire, 'Male', editPedigree.damSireSire, editPedigree.damSireDam)
+        }
+        if (editPedigree.damDam) {
+          await upsertParent(editPedigree.damDam, 'Female', editPedigree.damDamSire, editPedigree.damDamDam)
+        }
       }
 
       animal.sire = editPedigree.sire
@@ -327,7 +401,7 @@ export default function AnimalProfileModal({
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
                   <h4 className="text-sm font-bold text-gray-800 uppercase tracking-wide">
-                    {isEditingPedigree ? 'Edit Pedigree Tree' : '3-Generation Pedigree Tree'}
+                    {isEditingPedigree ? 'Edit Pedigree Tree' : '4-Generation Pedigree Tree'}
                   </h4>
                   {isEditingPedigree ? (
                     <div className="flex gap-2">
@@ -427,11 +501,55 @@ export default function AnimalProfileModal({
                         </div>
                       </div>
                     </div>
+
+                    <div className="border-t border-gray-200/60 my-2 pt-2">
+                      <span className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2">Paternal Great-Grandparents</span>
+                      <div className="grid grid-cols-4 gap-2">
+                        <div>
+                          <label className="block text-gray-500 font-semibold mb-1 text-[9px]">Sire's Sire Sire</label>
+                          <input type="text" className="w-full p-2 border border-gray-200 rounded-lg text-gray-800 focus:outline-none focus:border-[#7AC142] bg-white text-[10px]" value={editPedigree.sireSireSire} onChange={e => setEditPedigree({ ...editPedigree, sireSireSire: e.target.value })} />
+                        </div>
+                        <div>
+                          <label className="block text-gray-500 font-semibold mb-1 text-[9px]">Sire's Sire Dam</label>
+                          <input type="text" className="w-full p-2 border border-gray-200 rounded-lg text-gray-800 focus:outline-none focus:border-[#7AC142] bg-white text-[10px]" value={editPedigree.sireSireDam} onChange={e => setEditPedigree({ ...editPedigree, sireSireDam: e.target.value })} />
+                        </div>
+                        <div>
+                          <label className="block text-gray-500 font-semibold mb-1 text-[9px]">Sire's Dam Sire</label>
+                          <input type="text" className="w-full p-2 border border-gray-200 rounded-lg text-gray-800 focus:outline-none focus:border-[#7AC142] bg-white text-[10px]" value={editPedigree.sireDamSire} onChange={e => setEditPedigree({ ...editPedigree, sireDamSire: e.target.value })} />
+                        </div>
+                        <div>
+                          <label className="block text-gray-500 font-semibold mb-1 text-[9px]">Sire's Dam Dam</label>
+                          <input type="text" className="w-full p-2 border border-gray-200 rounded-lg text-gray-800 focus:outline-none focus:border-[#7AC142] bg-white text-[10px]" value={editPedigree.sireDamDam} onChange={e => setEditPedigree({ ...editPedigree, sireDamDam: e.target.value })} />
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="border-t border-gray-200/60 my-2 pt-2">
+                      <span className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2">Maternal Great-Grandparents</span>
+                      <div className="grid grid-cols-4 gap-2">
+                        <div>
+                          <label className="block text-gray-500 font-semibold mb-1 text-[9px]">Dam's Sire Sire</label>
+                          <input type="text" className="w-full p-2 border border-gray-200 rounded-lg text-gray-800 focus:outline-none focus:border-[#7AC142] bg-white text-[10px]" value={editPedigree.damSireSire} onChange={e => setEditPedigree({ ...editPedigree, damSireSire: e.target.value })} />
+                        </div>
+                        <div>
+                          <label className="block text-gray-500 font-semibold mb-1 text-[9px]">Dam's Sire Dam</label>
+                          <input type="text" className="w-full p-2 border border-gray-200 rounded-lg text-gray-800 focus:outline-none focus:border-[#7AC142] bg-white text-[10px]" value={editPedigree.damSireDam} onChange={e => setEditPedigree({ ...editPedigree, damSireDam: e.target.value })} />
+                        </div>
+                        <div>
+                          <label className="block text-gray-500 font-semibold mb-1 text-[9px]">Dam's Dam Sire</label>
+                          <input type="text" className="w-full p-2 border border-gray-200 rounded-lg text-gray-800 focus:outline-none focus:border-[#7AC142] bg-white text-[10px]" value={editPedigree.damDamSire} onChange={e => setEditPedigree({ ...editPedigree, damDamSire: e.target.value })} />
+                        </div>
+                        <div>
+                          <label className="block text-gray-500 font-semibold mb-1 text-[9px]">Dam's Dam Dam</label>
+                          <input type="text" className="w-full p-2 border border-gray-200 rounded-lg text-gray-800 focus:outline-none focus:border-[#7AC142] bg-white text-[10px]" value={editPedigree.damDamDam} onChange={e => setEditPedigree({ ...editPedigree, damDamDam: e.target.value })} />
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 ) : (
                   <div className="p-6 rounded-2xl border border-gray-100 bg-gray-50/40 flex flex-col space-y-4">
                     {/* Grid Layout of Genealogy Tree */}
-                    <div className="grid grid-cols-3 gap-y-6 gap-x-2 relative text-xs">
+                    <div className="grid grid-cols-4 gap-y-6 gap-x-2 relative text-xs">
                       {/* Level 1: Child */}
                       <div className="col-span-1 flex items-center justify-center">
                         <div className="p-3 rounded-xl border-2 border-[#7AC142] bg-[#F0F9EB] font-bold text-center w-full shadow-sm text-neutral-800">
@@ -445,12 +563,12 @@ export default function AnimalProfileModal({
                         {/* Sire */}
                         <div className="p-2.5 rounded-xl border border-blue-200 bg-blue-50 font-bold text-center shadow-xs text-neutral-800">
                           {pedigree.sire || 'Unknown Sire'}
-                          <span className="block text-[9px] text-blue-500 font-medium mt-0.5">(Father / Sire)</span>
+                          <span className="block text-[9px] text-blue-500 font-medium mt-0.5">(Father)</span>
                         </div>
                         {/* Dam */}
                         <div className="p-2.5 rounded-xl border border-emerald-200 bg-emerald-50 font-bold text-center shadow-xs text-neutral-800">
                           {pedigree.dam || 'Unknown Dam'}
-                          <span className="block text-[9px] text-emerald-500 font-medium mt-0.5">(Mother / Dam)</span>
+                          <span className="block text-[9px] text-emerald-500 font-medium mt-0.5">(Mother)</span>
                         </div>
                       </div>
 
@@ -458,24 +576,36 @@ export default function AnimalProfileModal({
                       <div className="col-span-1 flex flex-col justify-between space-y-2">
                         {/* Paternal Grandsire */}
                         <div className="p-2 rounded-lg border border-gray-200 bg-white text-center text-gray-700 shadow-xxs">
-                          <span className="font-semibold">{pedigree.sireSire || '—'}</span>
+                          <span className="font-semibold text-[10px]">{pedigree.sireSire || '—'}</span>
                           <span className="block text-[8px] text-gray-400">Paternal Grandsire</span>
                         </div>
                         {/* Paternal Granddam */}
                         <div className="p-2 rounded-lg border border-gray-200 bg-white text-center text-gray-700 shadow-xxs">
-                          <span className="font-semibold">{pedigree.sireDam || '—'}</span>
+                          <span className="font-semibold text-[10px]">{pedigree.sireDam || '—'}</span>
                           <span className="block text-[8px] text-gray-400">Paternal Granddam</span>
                         </div>
                         {/* Maternal Grandsire */}
                         <div className="p-2 rounded-lg border border-gray-200 bg-white text-center text-gray-700 shadow-xxs">
-                          <span className="font-semibold">{pedigree.damSire || '—'}</span>
+                          <span className="font-semibold text-[10px]">{pedigree.damSire || '—'}</span>
                           <span className="block text-[8px] text-gray-400">Maternal Grandsire</span>
                         </div>
                         {/* Maternal Granddam */}
                         <div className="p-2 rounded-lg border border-gray-200 bg-white text-center text-gray-700 shadow-xxs">
-                          <span className="font-semibold">{pedigree.damDam || '—'}</span>
+                          <span className="font-semibold text-[10px]">{pedigree.damDam || '—'}</span>
                           <span className="block text-[8px] text-gray-400">Maternal Granddam</span>
                         </div>
+                      </div>
+
+                      {/* Level 4: Great-Grandparents */}
+                      <div className="col-span-1 flex flex-col justify-between space-y-1">
+                        <div className="p-1 rounded border border-gray-100 bg-white text-center shadow-xxs text-[9px]"><span className="font-bold">{pedigree.sireSireSire || '—'}</span></div>
+                        <div className="p-1 rounded border border-gray-100 bg-white text-center shadow-xxs text-[9px]"><span className="font-bold">{pedigree.sireSireDam || '—'}</span></div>
+                        <div className="p-1 rounded border border-gray-100 bg-white text-center shadow-xxs text-[9px] mt-1"><span className="font-bold">{pedigree.sireDamSire || '—'}</span></div>
+                        <div className="p-1 rounded border border-gray-100 bg-white text-center shadow-xxs text-[9px]"><span className="font-bold">{pedigree.sireDamDam || '—'}</span></div>
+                        <div className="p-1 rounded border border-gray-100 bg-white text-center shadow-xxs text-[9px] mt-2"><span className="font-bold">{pedigree.damSireSire || '—'}</span></div>
+                        <div className="p-1 rounded border border-gray-100 bg-white text-center shadow-xxs text-[9px]"><span className="font-bold">{pedigree.damSireDam || '—'}</span></div>
+                        <div className="p-1 rounded border border-gray-100 bg-white text-center shadow-xxs text-[9px] mt-1"><span className="font-bold">{pedigree.damDamSire || '—'}</span></div>
+                        <div className="p-1 rounded border border-gray-100 bg-white text-center shadow-xxs text-[9px]"><span className="font-bold">{pedigree.damDamDam || '—'}</span></div>
                       </div>
                     </div>
                     <div className="text-[10px] text-gray-400 mt-2 text-center">
