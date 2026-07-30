@@ -107,10 +107,12 @@ function TasksContent() {
   const [todoStatus, setTodoStatus] = useState<'pending' | 'completed'>('pending');
 
   // Observation Form States
+  const [obsCategory, setObsCategory] = useState('Heat Detection');
   const [obsText, setObsText] = useState('');
   const [obsTag, setObsTag] = useState('Whole Herd');
   const [obsSeverity, setObsSeverity] = useState<'high' | 'medium' | 'low'>('medium');
   const [obsObserver, setObsObserver] = useState('');
+  const [customObsObserver, setCustomObsObserver] = useState('');
   const [obsStatus, setObsStatus] = useState<'resolved' | 'unresolved'>('unresolved');
 
   // Edit Permissions
@@ -142,6 +144,21 @@ function TasksContent() {
     return items;
   };
 
+  const getObserverItems = (currentObserverValue: string) => {
+    const uniqueObservers = Array.from(new Set(observations.map(o => o.observer)))
+      .filter(Boolean)
+      .sort((a, b) => a.localeCompare(b));
+      
+    const items = uniqueObservers.map(obs => ({ label: obs, value: obs }));
+    items.push({ label: 'Other (New Observer)', value: 'Other' });
+    
+    if (currentObserverValue && currentObserverValue !== 'Other' && !items.some(item => item.value === currentObserverValue)) {
+       items.unshift({ label: currentObserverValue, value: currentObserverValue });
+    }
+    
+    return items;
+  };
+
   const handleAddNew = () => {
     setEditingItem(null);
     setFormError('');
@@ -160,10 +177,12 @@ function TasksContent() {
     setTodoCreatedBy('');
     setTodoStatus('pending');
 
+    setObsCategory('Heat Detection');
     setObsText('');
     setObsTag('Whole Herd');
     setObsSeverity('medium');
-    setObsObserver('');
+    setObsObserver(observations.length > 0 && observations[0].observer ? observations[0].observer : 'Other');
+    setCustomObsObserver('');
     setObsStatus('unresolved');
 
     setModalVisible(true);
@@ -189,10 +208,15 @@ function TasksContent() {
       setTodoCreatedBy(item.createdBy || '');
       setTodoStatus(item.status === 'completed' ? 'completed' : 'pending');
     } else if ('observation' in item) {
+      setObsCategory(item.category || 'Heat Detection');
       setObsText(item.observation);
       setObsTag(item.tag || 'Whole Herd');
       setObsSeverity(item.severity || 'medium');
-      setObsObserver(item.observer || '');
+      
+      const isExistingObserver = observations.some(o => o.observer === item.observer);
+      setObsObserver(isExistingObserver ? (item.observer || 'Other') : 'Other');
+      setCustomObsObserver(!isExistingObserver ? (item.observer || '') : '');
+      
       setObsStatus(item.status === 'resolved' ? 'resolved' : 'unresolved');
     }
     setModalVisible(true);
@@ -267,26 +291,30 @@ function TasksContent() {
           });
         }
       } else if (activeTab === 'observations') {
-        if (!obsText || !obsTag || !obsObserver) {
+        const finalObserver = obsObserver === 'Other' ? customObsObserver.trim() : obsObserver;
+        
+        if (!obsText || !obsTag || !finalObserver) {
           setFormError('Please fill out all required fields.');
           return;
         }
 
         if (isEditing && editingItem && 'observation' in editingItem) {
           await updateObservation(editingItem.id, {
+            category: obsCategory,
             tag: obsTag,
             observation: obsText,
             severity: obsSeverity,
-            observer: obsObserver,
+            observer: finalObserver,
             status: obsStatus,
           });
         } else {
           await addObservation({
             date: dateStr,
+            category: obsCategory,
             tag: obsTag,
             observation: obsText,
             severity: obsSeverity,
-            observer: obsObserver,
+            observer: finalObserver,
             status: obsStatus,
           });
         }
@@ -1035,6 +1063,18 @@ function TasksContent() {
 
                 {activeTab === 'observations' && (
                   <>
+                    <Picker
+                      label="Category"
+                      value={obsCategory}
+                      onValueChange={setObsCategory}
+                      items={[
+                        { label: 'Heat Detection', value: 'Heat Detection' },
+                        { label: 'Calving', value: 'Calving' },
+                        { label: 'Health', value: 'Health' },
+                        { label: 'Nutrition', value: 'Nutrition' },
+                        { label: 'General', value: 'General' },
+                      ]}
+                    />
                     <TextField
                       label="Observation (Required)"
                       value={obsText}
@@ -1057,12 +1097,20 @@ function TasksContent() {
                         { label: 'Low', value: 'low' },
                       ]}
                     />
-                    <TextField
+                    <Picker
                       label="Observer (Required)"
                       value={obsObserver}
-                      onChangeText={setObsObserver}
-                      placeholder="e.g. John Doe"
+                      onValueChange={setObsObserver}
+                      items={getObserverItems(obsObserver)}
                     />
+                    {obsObserver === 'Other' && (
+                      <TextField
+                        label="New Observer Name (Required)"
+                        value={customObsObserver}
+                        onChangeText={setCustomObsObserver}
+                        placeholder="e.g. John Doe"
+                      />
+                    )}
                     <Picker
                       label="Status"
                       value={obsStatus}

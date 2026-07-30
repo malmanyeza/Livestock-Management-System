@@ -328,6 +328,7 @@ export interface Observation {
   id: string;
   date: string;
   tag: string;
+  category?: string;
   observation: string;
   observer: string;
   severity: 'high' | 'medium' | 'low';
@@ -638,15 +639,22 @@ const mapTodoFromDb = (row: any): TodoTask => ({
   priority: row.priority,
 });
 
-const mapObservationFromDb = (row: any): Observation => ({
-  id: row.id,
-  date: row.date,
-  tag: row.tag,
-  observation: row.observation,
-  severity: row.severity,
-  observer: row.observer,
-  status: row.status || 'unresolved',
-});
+const mapObservationFromDb = (row: any): Observation => {
+  const match = (row.observation || '').match(/^\[(.*?)\]\s+(.*)$/);
+  const category = match ? match[1] : 'Other';
+  const observationText = match ? match[2] : row.observation || '';
+  
+  return {
+    id: row.id,
+    date: row.date,
+    tag: row.tag,
+    category,
+    observation: observationText,
+    severity: row.severity,
+    observer: row.observer,
+    status: row.status || 'unresolved',
+  };
+};
 
 const FarmDataContext = createContext<FarmDataContextProps | undefined>(undefined);
 
@@ -2009,10 +2017,11 @@ export const FarmDataProvider: React.FC<{ children: ReactNode }> = ({ children }
       return;
     }
     if (!targetUserId) throw new Error("No active farmer selected");
+    const combinedObservation = obs.category ? `[${obs.category}] ${obs.observation}` : obs.observation;
     const dbData = {
       date: obs.date,
       tag: obs.tag,
-      observation: obs.observation,
+      observation: combinedObservation,
       severity: obs.severity,
       observer: obs.observer,
       status: obs.status || 'unresolved',
@@ -2081,10 +2090,20 @@ export const FarmDataProvider: React.FC<{ children: ReactNode }> = ({ children }
     const dbUpdates: any = {};
     if (updates.date !== undefined) dbUpdates.date = updates.date;
     if (updates.tag !== undefined) dbUpdates.tag = updates.tag;
-    if (updates.observation !== undefined) dbUpdates.observation = updates.observation;
     if (updates.severity !== undefined) dbUpdates.severity = updates.severity;
     if (updates.observer !== undefined) dbUpdates.observer = updates.observer;
     if (updates.status !== undefined) dbUpdates.status = updates.status;
+    
+    if (updates.observation !== undefined || updates.category !== undefined) {
+      const currentObs = observations.find(o => o.id === id);
+      if (currentObs) {
+        const newCategory = updates.category !== undefined ? updates.category : currentObs.category;
+        const newText = updates.observation !== undefined ? updates.observation : currentObs.observation;
+        dbUpdates.observation = newCategory ? `[${newCategory}] ${newText}` : newText;
+      } else if (updates.observation !== undefined) {
+        dbUpdates.observation = updates.observation;
+      }
+    }
 
     const { data, error } = await supabase
       .from('observations')

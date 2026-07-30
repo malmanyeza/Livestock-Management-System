@@ -123,7 +123,7 @@ const METRIC_GROUPS = [
 ];
 
 function RecordsContent() {
-  const { farmInspection, animals, profile, updateFarmInspection } = useFarmData();
+  const { farmInspection, animals, profile, updateFarmInspection, observations } = useFarmData();
   const hasAnimals = animals.length > 0;
 
   const [isModalOpen, setIsModalOpen] = React.useState(false);
@@ -287,12 +287,43 @@ function RecordsContent() {
     { id: 4, method: 'DNA Profiles', attained: dnaProfiles.attained, target: dnaProfiles.target, mark: dnaProfiles.mark },
   ];
 
-  // Compute Observer Awards dynamically based on animal presence
-  const observerAwards = hasAnimals ? [
-    { id: 1, category: 'Heat Detection', name: 'John Smith', count: 28, badge: 'Gold' },
-    { id: 2, category: 'Calving Observer', name: 'Maria Garcia', count: 32, badge: 'Platinum' },
-    { id: 3, category: 'Health Monitor', name: 'David Johnson', count: 45, badge: 'Diamond' },
-  ] : [];
+  // Dynamically compute observer awards
+  const observerStats: Record<string, Record<string, number>> = {};
+  observations.forEach(obs => {
+    if (obs.observer) {
+      if (!observerStats[obs.observer]) {
+        observerStats[obs.observer] = {};
+      }
+      const cat = obs.category || 'Other';
+      observerStats[obs.observer][cat] = (observerStats[obs.observer][cat] || 0) + 1;
+    }
+  });
+
+  const computedObserverAwards = [];
+  let awardId = 1;
+  for (const observer in observerStats) {
+    for (const category in observerStats[observer]) {
+      const count = observerStats[observer][category];
+      let badge = 'Bronze';
+      if (count >= 10) badge = 'Diamond';
+      else if (count >= 5) badge = 'Platinum';
+      else if (count >= 2) badge = 'Gold';
+      else badge = 'Silver';
+      
+      computedObserverAwards.push({
+        id: awardId++,
+        category,
+        name: observer,
+        count,
+        badge,
+      });
+    }
+  }
+  
+  // Sort by count descending
+  computedObserverAwards.sort((a, b) => b.count - a.count);
+
+  const observerAwards = computedObserverAwards;
 
   const dataAccuracy = getMetric('data accuracy');
   const knowledge = getMetric('knowledge');
