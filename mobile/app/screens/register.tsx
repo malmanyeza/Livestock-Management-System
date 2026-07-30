@@ -5197,7 +5197,7 @@ function RegisterContent() {
     };
 
     return (
-      <View style={{ width: '100%', minHeight: 500 }}>
+      <View style={{ flexShrink: 1, width: '100%' }}>
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', width: '100%', alignItems: 'center', marginBottom: 24, paddingHorizontal: 16, paddingTop: 16 }}>
           <Text variant="caption" color="neutral.500" style={{ flex: 1, paddingRight: 8 }}>
             4-Generation Pedigree Tree. Scroll right to view lineage. Tap any node to edit.
@@ -5209,7 +5209,7 @@ function RegisterContent() {
             <Text style={{ fontSize: 12, color: Colors.primary[600], fontWeight: 'bold' }}>Modify Pedigree</Text>
           </TouchableOpacity>
         </View>
-        <ScrollView showsVerticalScrollIndicator={true} contentContainerStyle={{ paddingLeft: 16 }}>
+        <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={true} contentContainerStyle={{ paddingLeft: 16 }}>
           <ScrollView horizontal showsHorizontalScrollIndicator={true} contentContainerStyle={{ paddingRight: 32, paddingBottom: 40, paddingTop: 16 }}>
             <TreeBranch 
               gap={16}
