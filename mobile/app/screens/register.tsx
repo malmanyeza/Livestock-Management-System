@@ -1769,7 +1769,7 @@ function RegisterContent() {
     try {
       await updatePregnancyRecord(editingPregnancyRecord.id, {
         cowEarTag: editingPregnancyRecord.cowEarTag,
-        bodyConditionScore: editingPregnancyRecord.bodyConditionScore,
+        bodyConditionScore: parseFloat(editingPregnancyRecord.bodyConditionScore as any) || 0,
         lastServiceDate: editingPregnancyRecord.lastServiceDate,
         firstTrimesterPD: editingPregnancyRecord.firstTrimesterPD as any,
         secondTrimesterPD: editingPregnancyRecord.secondTrimesterPD as any,
@@ -1780,7 +1780,7 @@ function RegisterContent() {
         calfId: editingPregnancyRecord.calfId,
         calfSex: editingPregnancyRecord.calfSex as any,
         deliveryType: editingPregnancyRecord.deliveryType as any,
-        averageBCS: editingPregnancyRecord.averageBCS,
+        averageBCS: parseFloat(editingPregnancyRecord.averageBCS as any) || 0,
         expectedReturnToHeatDate: editingPregnancyRecord.expectedReturnToHeatDate,
         actualFirstHeatDate: editingPregnancyRecord.actualFirstHeatDate,
         expectedSecondHeatDate: editingPregnancyRecord.expectedSecondHeatDate,
@@ -2847,11 +2847,10 @@ function RegisterContent() {
                 <Text variant="body2" style={styles.label}>Average BCS</Text>
                 <TextInput
                   style={styles.input}
-                  value={editingPregnancyRecord?.averageBCS !== undefined && editingPregnancyRecord?.averageBCS !== null ? editingPregnancyRecord.averageBCS.toString() : '3.0'}
+                  value={editingPregnancyRecord?.averageBCS !== undefined && editingPregnancyRecord?.averageBCS !== null ? editingPregnancyRecord.averageBCS.toString() : ''}
                   onChangeText={(text) => {
                     if (editingPregnancyRecord) {
-                      const score = parseFloat(text) || 0;
-                      setEditingPregnancyRecord({ ...editingPregnancyRecord, averageBCS: score });
+                      setEditingPregnancyRecord({ ...editingPregnancyRecord, averageBCS: text as any });
                     }
                   }}
                   placeholder="e.g. 3.0"
@@ -2883,7 +2882,7 @@ function RegisterContent() {
               <Button variant="outline" onPress={() => { setIsEditPregnancyRecordModalVisible(false); setEditingPregnancyRecord(null); }} style={styles.cancelButton}>
                 Cancel
               </Button>
-              <Button onPress={handleSavePregnancyRecord} disabled={isSubmitting || !editingPregnancyRecord?.lastServiceDate || !editingPregnancyRecord?.expectedCalvingDate}>
+              <Button onPress={handleSavePregnancyRecord} disabled={isSubmitting || !editingPregnancyRecord?.cowEarTag}>
                 {isSubmitting ? 'Saving...' : 'Save Changes'}
               </Button>
             </View>
@@ -5579,7 +5578,7 @@ function RegisterContent() {
       try {
         await addPregnancyRecord({
           cowEarTag: newPregnancyRecord.cowEarTag,
-          bodyConditionScore: newPregnancyRecord.bodyConditionScore,
+          bodyConditionScore: parseFloat(newPregnancyRecord.bodyConditionScore as any) || 0,
           lastServiceDate: newPregnancyRecord.lastServiceDate,
           firstTrimesterPD: newPregnancyRecord.firstTrimesterPD,
           secondTrimesterPD: newPregnancyRecord.secondTrimesterPD,
@@ -5699,16 +5698,8 @@ function RegisterContent() {
                   <Text variant="body2" style={styles.label}>Body Condition Score (1-5) *</Text>
                   <TextInput
                     style={styles.input}
-                    value={newPregnancyRecord.bodyConditionScore ? newPregnancyRecord.bodyConditionScore.toString() : ''}
-                    onChangeText={(text) => {
-                      // Allow empty string, decimal point, and numbers
-                      if (text === '' || /^\d*\.?\d*$/.test(text)) {
-                        const num = parseFloat(text);
-                        if (text === '' || (!isNaN(num) && num >= 1 && num <= 5)) {
-                          setNewPregnancyRecord({...newPregnancyRecord, bodyConditionScore: text === '' ? 0 : num});
-                        }
-                      }
-                    }}
+                    value={newPregnancyRecord.bodyConditionScore !== undefined && newPregnancyRecord.bodyConditionScore !== null ? newPregnancyRecord.bodyConditionScore.toString() : ''}
+                    onChangeText={(text) => setNewPregnancyRecord({...newPregnancyRecord, bodyConditionScore: text as any})}
                     placeholder="Enter BCS (1-5)"
                     keyboardType="numeric"
                   />
@@ -5953,7 +5944,7 @@ function RegisterContent() {
       await addBreedingRecord({
         earTagNumber: newHeatBreedingRecord.earTagNumber,
         stockType: newHeatBreedingRecord.stockType as any,
-        bodyConditionScore: newHeatBreedingRecord.bodyConditionScore,
+        bodyConditionScore: parseFloat(newHeatBreedingRecord.bodyConditionScore as any) || 0,
         heatDetectionDate: newHeatBreedingRecord.heatDetectionDate,
         observer: newHeatBreedingRecord.observer,
         servicedDate: newHeatBreedingRecord.servicedDate || undefined,
@@ -6108,13 +6099,8 @@ function RegisterContent() {
                   <Text variant="body2" style={styles.label}>Body Condition Score (1-5)</Text>
                   <TextInput
                     style={styles.input}
-                    value={newHeatBreedingRecord.bodyConditionScore.toString()}
-                    onChangeText={(text) => {
-                      const num = parseFloat(text);
-                      if (!isNaN(num) && num >= 1 && num <= 5) {
-                        setNewHeatBreedingRecord({...newHeatBreedingRecord, bodyConditionScore: num});
-                      }
-                    }}
+                    value={newHeatBreedingRecord.bodyConditionScore !== undefined && newHeatBreedingRecord.bodyConditionScore !== null ? newHeatBreedingRecord.bodyConditionScore.toString() : ''}
+                    onChangeText={(text) => setNewHeatBreedingRecord({...newHeatBreedingRecord, bodyConditionScore: text as any})}
                     placeholder="Enter BCS (1-5)"
                     keyboardType="numeric"
                   />
