@@ -152,7 +152,7 @@ export default function Genetics() {
     { key: 'calvingInterval',  label: 'Calving Interval' },
     { key: 'calfMortality',    label: 'Calf Mortality' },
     { key: 'calfCropPercent',  label: 'Calf Crop %' },
-    { key: 'vigour',           label: 'Vigour' },
+    { key: 'vigour',           label: 'Aesthetic appeal & vigour' },
   ]
 
   useEffect(() => {
