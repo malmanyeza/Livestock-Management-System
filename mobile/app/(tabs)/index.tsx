@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { View, StyleSheet, TouchableOpacity, ScrollView, Dimensions, Platform, Text as RNText, Modal, TextInput } from 'react-native';
 
 import { router } from 'expo-router';
-import { Heart, Dna, Wheat, BarChart3, ClipboardList, FileEdit, ShoppingCart, User, TrendingUp, ShieldCheck, ChevronDown, ChevronLeft, ChevronRight, Search, X, Check, Settings, Users } from 'lucide-react-native';
+import { Heart, Dna, Wheat, BarChart3, ClipboardList, FileEdit, ShoppingCart, User, TrendingUp, TrendingDown, ShieldCheck, ChevronDown, ChevronLeft, ChevronRight, Search, X, Check, Settings, Users } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Text } from '../../components/typography/Text';
 import { ScreenContainer } from '../../components/layout/ScreenContainer';
@@ -392,6 +392,15 @@ export default function HomeScreen() {
     });
   }, [farmers, farmerSearchQuery, farmerSortBy, farmerSortAsc]);
 
+  const currentDataArray = timeframe === 'monthly' ? dynamicMonthlyData.datasets[0].data : dynamicYearlyData.datasets[0].data;
+  const previousScore = currentDataArray.length > 1 ? currentDataArray[currentDataArray.length - 2] : 0;
+  const trendDiff = currentDLShiftScore - previousScore;
+  const trendIsPositive = trendDiff >= 0;
+  const trendColor = trendIsPositive ? Colors.success[500] : Colors.error[500];
+  const trendTextColor = trendIsPositive ? 'success.500' : 'error.500';
+  const TrendIcon = trendIsPositive ? TrendingUp : TrendingDown;
+  const trendText = `${trendIsPositive ? '+' : ''}${trendDiff}% this ${timeframe === 'monthly' ? 'month' : 'year'}`;
+
   const getFilteredAnimalsCount = () => {
     if (selectedSpecies === 'beef-production') {
       return aliveAnimals.filter(a => a.stockType === 'Cow' || a.stockType === 'Heifer' || a.stockType === 'Bull' || a.stockType === 'Steer' || a.stockType === 'Calve' || (a.stockType as string) === 'Calf').length;
@@ -556,14 +565,12 @@ export default function HomeScreen() {
                 {currentDLShiftScore}%
               </Text>
             </View>
-            {isDemo && (
-              <View style={styles.dlshiftTrend}>
-                <TrendingUp size={20} color={Colors.success[500]} />
-                <Text variant="caption" color="success.500">
-                  +5% this month
-                </Text>
-              </View>
-            )}
+            <View style={[styles.dlshiftTrend, { backgroundColor: trendIsPositive ? 'rgba(34, 197, 94, 0.1)' : 'rgba(239, 68, 68, 0.1)' }]}>
+              <TrendIcon size={20} color={trendColor} />
+              <Text variant="caption" color={trendTextColor as any} style={{ marginLeft: 4 }}>
+                {trendText}
+              </Text>
+            </View>
           </View>
           
           <View style={styles.timeframeSelector}>
