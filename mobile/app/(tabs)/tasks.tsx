@@ -14,6 +14,33 @@ import { useFarmData, FarmEvent as Event, TodoTask as Todo, Observation } from '
 import { TextField } from '../../components/inputs/TextField';
 import { Picker } from '../../components/inputs/Picker';
 
+const OBSERVATION_CATEGORIES: Record<string, { points: number, subCategories: string[] }> = {
+  'Growth & Routine (Standard Maintenance)': {
+    points: 1,
+    subCategories: [
+      'cow very thin', 'losing weight', 'unusual weight drops', 'poor hair coat', 'worms in dung', 'high tick burden'
+    ]
+  },
+  'Biosecurity & Environment safety': {
+    points: 5,
+    subCategories: [
+      'wires', 'plastics', 'Broken fences', 'open gates', 'predators spotted', 'contaminated water troughs', 'moldy feed'
+    ]
+  },
+  'Critical Health (High Priority)': {
+    points: 10,
+    subCategories: [
+      'Symptoms of acute illness', 'bloat', 'limping', 'lethargy', 'red water', 'mastitis', 'injury', 'cloudy or red eye', 'cow is down'
+    ]
+  },
+  'Reproduction & Birth & life saving Log (Time-Sensitive)': {
+    points: 25,
+    subCategories: [
+      'Calving difficulty (dystocia)', 'cow rejecting a calf', 'newborn calf not nursing (poor vigor)', 'retained placenta', 'Signs of heat (estrus)', 'mucus discharge', 'water breaking', 'calving in progress', 'newborn failing to nurse'
+    ]
+  }
+};
+
 export default function TasksScreen() {
   return (
     <>
@@ -38,6 +65,7 @@ function TasksContent() {
     addFarmEvent,
     addTodoTask,
     addObservation,
+    verifyObservation,
     toggleTodoStatus,
     updateFarmEvent,
     updateTodoTask,
@@ -107,7 +135,8 @@ function TasksContent() {
   const [todoStatus, setTodoStatus] = useState<'pending' | 'completed'>('pending');
 
   // Observation Form States
-  const [obsCategory, setObsCategory] = useState('Heat Detection');
+  const [obsCategory, setObsCategory] = useState('Growth & Routine (Standard Maintenance)');
+  const [obsSubCategory, setObsSubCategory] = useState('');
   const [obsText, setObsText] = useState('');
   const [obsTag, setObsTag] = useState('Whole Herd');
   const [obsSeverity, setObsSeverity] = useState<'high' | 'medium' | 'low'>('medium');
@@ -177,7 +206,8 @@ function TasksContent() {
     setTodoCreatedBy('');
     setTodoStatus('pending');
 
-    setObsCategory('Heat Detection');
+    setObsCategory('Growth & Routine (Standard Maintenance)');
+    setObsSubCategory('');
     setObsText('');
     setObsTag('Whole Herd');
     setObsSeverity('medium');
@@ -208,7 +238,8 @@ function TasksContent() {
       setTodoCreatedBy(item.createdBy || '');
       setTodoStatus(item.status === 'completed' ? 'completed' : 'pending');
     } else if ('observation' in item) {
-      setObsCategory(item.category || 'Heat Detection');
+      setObsCategory(item.category || 'Growth & Routine (Standard Maintenance)');
+      setObsSubCategory(item.subCategory || '');
       setObsText(item.observation);
       setObsTag(item.tag || 'Whole Herd');
       setObsSeverity(item.severity || 'medium');
@@ -298,9 +329,25 @@ function TasksContent() {
           return;
         }
 
+        let computedPoints = 0;
+        if (OBSERVATION_CATEGORIES[obsCategory]) {
+          computedPoints = OBSERVATION_CATEGORIES[obsCategory].points;
+        }
+        if (obsCategory === 'Growth & Routine (Standard Maintenance)') {
+           const routineObsToday = observations.filter(o => o.category === obsCategory && o.date === dateStr && (o.points || 0) > 0);
+           const pointsToday = routineObsToday.reduce((sum, o) => sum + (o.points || 0), 0);
+           if (pointsToday >= 5) {
+             computedPoints = 0; // Cap reached
+           }
+        }
+        const computedVerificationStatus = computedPoints >= 5 ? 'pending' : 'verified';
+
         if (isEditing && editingItem && 'observation' in editingItem) {
           await updateObservation(editingItem.id, {
             category: obsCategory,
+            subCategory: obsSubCategory,
+            points: computedPoints,
+            verificationStatus: computedVerificationStatus,
             tag: obsTag,
             observation: obsText,
             severity: obsSeverity,
@@ -311,6 +358,9 @@ function TasksContent() {
           await addObservation({
             date: dateStr,
             category: obsCategory,
+            subCategory: obsSubCategory,
+            points: computedPoints,
+            verificationStatus: computedVerificationStatus,
             tag: obsTag,
             observation: obsText,
             severity: obsSeverity,
@@ -572,6 +622,22 @@ function TasksContent() {
               {item.observation}
             </Text>
             <Text variant="caption" color="neutral.600">Tag: {item.tag}</Text>
+            {item.category && <Text variant="caption" color="neutral.500">{item.category}{item.subCategory ? ` - ${item.subCategory}` : ''}</Text>}
+            {(item.points || 0) > 0 && (
+               <Text variant="caption" color={item.verificationStatus === 'verified' ? 'success.600' : 'warning.600'}>
+                 +{item.points} pts ({item.verificationStatus})
+               </Text>
+            )}
+            {item.verificationStatus === 'pending' && profile?.role === 'admin' && (
+              <View style={{ flexDirection: 'row', marginTop: 4, gap: 8 }}>
+                <TouchableOpacity onPress={(e) => { e.stopPropagation(); verifyObservation(item.id, 'verified'); }} style={{ padding: 4, backgroundColor: Colors.success[100], borderRadius: 4 }}>
+                  <Text variant="caption" color="success.700">Verify</Text>
+                </TouchableOpacity>
+                <TouchableOpacity onPress={(e) => { e.stopPropagation(); verifyObservation(item.id, 'rejected'); }} style={{ padding: 4, backgroundColor: Colors.error[100], borderRadius: 4 }}>
+                  <Text variant="caption" color="error.700">Reject</Text>
+                </TouchableOpacity>
+              </View>
+            )}
           </View>
           <View style={styles.eventTime}>
             <Text variant="caption">{format(parseISO(item.date), 'MMM d, yyyy')}</Text>
@@ -1066,15 +1132,20 @@ function TasksContent() {
                     <Picker
                       label="Category"
                       value={obsCategory}
-                      onValueChange={setObsCategory}
-                      items={[
-                        { label: 'Heat Detection', value: 'Heat Detection' },
-                        { label: 'Calving', value: 'Calving' },
-                        { label: 'Health', value: 'Health' },
-                        { label: 'Nutrition', value: 'Nutrition' },
-                        { label: 'General', value: 'General' },
-                      ]}
+                      onValueChange={(val) => {
+                        setObsCategory(val);
+                        setObsSubCategory('');
+                      }}
+                      items={Object.keys(OBSERVATION_CATEGORIES).map(k => ({ label: k, value: k }))}
                     />
+                    {obsCategory && OBSERVATION_CATEGORIES[obsCategory] && (
+                      <Picker
+                        label="Sub-Category"
+                        value={obsSubCategory}
+                        onValueChange={setObsSubCategory}
+                        items={OBSERVATION_CATEGORIES[obsCategory].subCategories.map(sub => ({ label: sub, value: sub }))}
+                      />
+                    )}
                     <TextField
                       label="Observation (Required)"
                       value={obsText}

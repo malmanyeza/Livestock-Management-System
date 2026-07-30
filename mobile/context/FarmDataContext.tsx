@@ -329,6 +329,9 @@ export interface Observation {
   date: string;
   tag: string;
   category?: string;
+  subCategory?: string;
+  points?: number;
+  verificationStatus?: 'pending' | 'verified' | 'rejected';
   observation: string;
   observer: string;
   severity: 'high' | 'medium' | 'low';
@@ -356,6 +359,7 @@ interface FarmDataContextProps {
   addFarmEvent: (event: Omit<FarmEvent, 'id'>) => Promise<void>;
   addTodoTask: (todo: Omit<TodoTask, 'id'>) => Promise<void>;
   addObservation: (obs: Omit<Observation, 'id'>) => Promise<void>;
+  verifyObservation: (id: string, status: 'pending' | 'verified' | 'rejected') => Promise<void>;
   toggleTodoStatus: (id: string, currentStatus: 'pending' | 'completed' | 'overdue') => Promise<void>;
   updateFarmEvent: (id: string, updates: Partial<FarmEvent>) => Promise<void>;
   updateObservation: (id: string, updates: Partial<Observation>) => Promise<void>;
@@ -641,14 +645,17 @@ const mapTodoFromDb = (row: any): TodoTask => ({
 
 const mapObservationFromDb = (row: any): Observation => {
   const match = (row.observation || '').match(/^\[(.*?)\]\s+(.*)$/);
-  const category = match ? match[1] : 'Other';
+  const legacyCategory = match ? match[1] : 'Other';
   const observationText = match ? match[2] : row.observation || '';
   
   return {
     id: row.id,
     date: row.date,
     tag: row.tag,
-    category,
+    category: row.category || legacyCategory,
+    subCategory: row.sub_category,
+    points: row.points || 0,
+    verificationStatus: row.verification_status || 'verified',
     observation: observationText,
     severity: row.severity,
     observer: row.observer,
@@ -2017,26 +2024,52 @@ export const FarmDataProvider: React.FC<{ children: ReactNode }> = ({ children }
       return;
     }
     if (!targetUserId) throw new Error("No active farmer selected");
+    // Fallback combination logic strictly for fallback/display if columns miss
     const combinedObservation = obs.category ? `[${obs.category}] ${obs.observation}` : obs.observation;
     const dbData = {
       date: obs.date,
       tag: obs.tag,
+      category: obs.category,
+      sub_category: obs.subCategory,
+      points: obs.points || 0,
+      verification_status: obs.verificationStatus || 'verified',
       observation: combinedObservation,
       severity: obs.severity,
       observer: obs.observer,
       status: obs.status || 'unresolved',
       user_id: targetUserId,
     };
-    const { data, error } = await supabase
-      .from('observations')
-      .insert(dbData)
-      .select()
-      .single();
+    try {
+      const { data, error } = await supabase
+        .from('observations')
+        .insert(dbData)
+        .select()
+        .single();
 
-    if (error) throw error;
-    if (data) {
-      setObservations(prev => [...prev, mapObservationFromDb(data)]);
+      if (error) throw error;
+      if (data) {
+        setObservations(prev => [...prev, mapObservationFromDb(data)]);
+      }
+    } catch (e: any) {
+      console.warn("DB Insert Failed. If column doesn't exist, you must run the SQL migration script:", e.message);
+      // Fallback: Just insert locally if it failed due to schema mismatch
+      const newId = (observations.length + 1).toString();
+      setObservations(prev => [...prev, { ...obs, id: newId }]);
+      throw e;
     }
+  };
+
+  const verifyObservation = async (id: string, status: 'pending' | 'verified' | 'rejected') => {
+    if (!supabase) {
+      setObservations(prev => prev.map(o => o.id === id ? { ...o, verificationStatus: status } : o));
+      return;
+    }
+    const { error } = await supabase
+      .from('observations')
+      .update({ verification_status: status })
+      .eq('id', id);
+    if (error) throw error;
+    setObservations(prev => prev.map(o => o.id === id ? { ...o, verificationStatus: status } : o));
   };
 
   const toggleTodoStatus = async (id: string, currentStatus: 'pending' | 'completed' | 'overdue') => {

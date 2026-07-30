@@ -287,41 +287,104 @@ function RecordsContent() {
     { id: 4, method: 'DNA Profiles', attained: dnaProfiles.attained, target: dnaProfiles.target, mark: dnaProfiles.mark },
   ];
 
-  // Dynamically compute observer awards
-  const observerStats: Record<string, Record<string, number>> = {};
+  // Gamification: Compute observer awards based on points
+  const observerPointsTotal: Record<string, number> = {};
+  const observerCategoryPoints: Record<string, Record<string, number>> = {};
+
   observations.forEach(obs => {
-    if (obs.observer) {
-      if (!observerStats[obs.observer]) {
-        observerStats[obs.observer] = {};
+    if (obs.observer && obs.verificationStatus !== 'rejected') {
+      if (!observerPointsTotal[obs.observer]) {
+        observerPointsTotal[obs.observer] = 0;
+        observerCategoryPoints[obs.observer] = {
+          'Biosecurity & Environment safety': 0,
+          'Critical Health (High Priority)': 0,
+          'Reproduction & Birth & life saving Log (Time-Sensitive)': 0,
+          'Growth & Routine (Standard Maintenance)': 0,
+        };
       }
+      const pts = obs.points || 0;
+      observerPointsTotal[obs.observer] += pts;
       const cat = obs.category || 'Other';
-      observerStats[obs.observer][cat] = (observerStats[obs.observer][cat] || 0) + 1;
+      if (observerCategoryPoints[obs.observer][cat] !== undefined) {
+        observerCategoryPoints[obs.observer][cat] += pts;
+      }
     }
   });
 
   const computedObserverAwards = [];
   let awardId = 1;
-  for (const observer in observerStats) {
-    for (const category in observerStats[observer]) {
-      const count = observerStats[observer][category];
-      let badge = 'Bronze';
-      if (count >= 10) badge = 'Diamond';
-      else if (count >= 5) badge = 'Platinum';
-      else if (count >= 2) badge = 'Gold';
-      else badge = 'Silver';
-      
+
+  let topLifeSaver = '';
+  let maxLifeSaverPts = 0;
+  let topOverall = '';
+  let maxOverallPts = 0;
+
+  for (const observer in observerPointsTotal) {
+    // 1. Sharp Eye Award (100+ points in Biosecurity or Critical Health)
+    const sharpEyePts = (observerCategoryPoints[observer]['Biosecurity & Environment safety'] || 0) + 
+                        (observerCategoryPoints[observer]['Critical Health (High Priority)'] || 0);
+    if (sharpEyePts >= 100) {
       computedObserverAwards.push({
         id: awardId++,
-        category,
+        category: 'Sharp Eye Award',
         name: observer,
-        count,
-        badge,
+        count: sharpEyePts,
+        badge: 'Diamond',
+        rating: '100+ points in Critical Health & Biosecurity'
+      });
+    }
+
+    // 2. Compute max Life Saver
+    const lsPts = observerCategoryPoints[observer]['Reproduction & Birth & life saving Log (Time-Sensitive)'] || 0;
+    if (lsPts > maxLifeSaverPts) {
+      maxLifeSaverPts = lsPts;
+      topLifeSaver = observer;
+    }
+
+    // 3. Compute max Overall
+    if (observerPointsTotal[observer] > maxOverallPts) {
+      maxOverallPts = observerPointsTotal[observer];
+      topOverall = observer;
+    }
+  }
+
+  // Assign Life Saver Award
+  if (topLifeSaver && maxLifeSaverPts > 0) {
+    computedObserverAwards.push({
+      id: awardId++,
+      category: 'Life Saver Award',
+      name: topLifeSaver,
+      count: maxLifeSaverPts,
+      badge: 'Platinum',
+      rating: 'Highest points in Life Saving Log'
+    });
+  }
+
+  // Assign Consistent Logger / Top Overall
+  if (topOverall && maxOverallPts > 0) {
+    computedObserverAwards.push({
+      id: awardId++,
+      category: 'Consistent Logger',
+      name: topOverall,
+      count: maxOverallPts,
+      badge: 'Gold',
+      rating: `Highest overall score: ${maxOverallPts} pts`
+    });
+  }
+
+  // List Observer Points for other users
+  for (const observer in observerPointsTotal) {
+    if (observer !== topOverall && observer !== topLifeSaver) {
+      computedObserverAwards.push({
+        id: awardId++,
+        category: 'Observer Score',
+        name: observer,
+        count: observerPointsTotal[observer],
+        badge: 'Silver',
+        rating: `Total Score: ${observerPointsTotal[observer]} pts`
       });
     }
   }
-  
-  // Sort by count descending
-  computedObserverAwards.sort((a, b) => b.count - a.count);
 
   const observerAwards = computedObserverAwards;
 
@@ -450,13 +513,13 @@ function RecordsContent() {
         <Card title="Observer Awards" style={styles.card}>
           <DataTable
             columns={[
-              { key: 'category', title: 'Category', width: 150 },
-              { key: 'name', title: 'Observer', width: 150 },
-              { key: 'count', title: 'Count', width: 80, align: 'center' },
+              { key: 'category', title: 'Award / Category', width: 140 },
+              { key: 'name', title: 'Observer', width: 120 },
+              { key: 'count', title: 'Points', width: 70, align: 'center' },
               { 
                 key: 'badge', 
                 title: 'Badge', 
-                width: 100, 
+                width: 90, 
                 align: 'center',
                 render: (value: string) => (
                   <View style={[
@@ -469,6 +532,7 @@ function RecordsContent() {
                   </View>
                 )
               },
+              { key: 'rating', title: 'Details', width: 160 },
             ]}
             data={observerAwards}
           />
