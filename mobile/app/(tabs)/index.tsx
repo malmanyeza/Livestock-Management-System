@@ -210,10 +210,10 @@ function CustomBarChart({ data, width, height }: { data: any; width: number; hei
         const barHeight = val > 0 ? (val / maxVal) * (height - 60) + 10 : 0;
         return (
           <View key={idx} style={{ alignItems: 'center', width: 55 }}>
-            <Text variant="caption" color="secondary.500" style={{ fontSize: 10, marginBottom: 4, fontWeight: '600' }}>
+            <Text variant="caption" color={val < 50 ? 'error.500' : val < 75 ? 'warning.500' : 'success.500'} style={{ fontSize: 10, marginBottom: 4, fontWeight: '600' }}>
               {val}%
             </Text>
-            <View style={{ width: 16, height: barHeight, backgroundColor: Colors.secondary[500], borderRadius: 4 }} />
+            <View style={{ width: 16, height: barHeight, backgroundColor: val < 50 ? Colors.error[500] : val < 75 ? Colors.warning[500] : Colors.success[500], borderRadius: 4 }} />
             <Text variant="caption" color="neutral.600" style={{ fontSize: 9, marginTop: 6, textAlign: 'center' }}>
               {labels[idx]}
             </Text>
