@@ -32,6 +32,33 @@ const C = {
   white:       '#FFFFFF'
 }
 
+const OBSERVATION_CATEGORIES: Record<string, { points: number, subCategories: string[] }> = {
+  'Growth & Routine (Standard Maintenance)': {
+    points: 1,
+    subCategories: [
+      'cow very thin', 'losing weight', 'unusual weight drops', 'poor hair coat', 'worms in dung', 'high tick burden'
+    ]
+  },
+  'Biosecurity & Environment safety': {
+    points: 5,
+    subCategories: [
+      'wires', 'plastics', 'Broken fences', 'open gates', 'predators spotted', 'contaminated water troughs', 'moldy feed'
+    ]
+  },
+  'Critical Health (High Priority)': {
+    points: 10,
+    subCategories: [
+      'Symptoms of acute illness', 'bloat', 'limping', 'lethargy', 'red water', 'mastitis', 'injury', 'cloudy or red eye', 'cow is down'
+    ]
+  },
+  'Reproduction & Birth & life saving Log (Time-Sensitive)': {
+    points: 25,
+    subCategories: [
+      'Calving difficulty (dystocia)', 'cow rejecting a calf', 'newborn calf not nursing (poor vigor)', 'retained placenta', 'Signs of heat (estrus)', 'mucus discharge', 'water breaking', 'calving in progress', 'newborn failing to nurse'
+    ]
+  }
+}
+
 type TabType = 'events' | 'todos' | 'observations'
 
 export default function Tasks() {
@@ -248,6 +275,27 @@ export default function Tasks() {
   // ─── Observation handlers ───────────────────────────────────────────────────
   const handleSaveObs = async (form: any) => {
     if (!targetUserId) return
+
+    // Gamification Logic
+    let computedPoints = 0
+    let verificationStatus = 'verified'
+    
+    if (form.category && OBSERVATION_CATEGORIES[form.category]) {
+      computedPoints = OBSERVATION_CATEGORIES[form.category].points
+      // Apply Daily Cap for Growth & Routine
+      if (form.category === 'Growth & Routine (Standard Maintenance)') {
+        const routineObsToday = observations.filter(o => o.category === form.category && o.date === form.date && (o.points || 0) > 0)
+        const currentPoints = routineObsToday.reduce((sum, o) => sum + (o.points || 0), 0)
+        if (currentPoints >= 5) {
+          computedPoints = 0 // Cap reached
+        }
+      }
+      // Apply Manager Verification
+      if (computedPoints >= 5) {
+        verificationStatus = 'pending'
+      }
+    }
+
     const payload = {
       user_id: targetUserId,
       observation: form.observation,
@@ -255,28 +303,46 @@ export default function Tasks() {
       status: form.status,
       date: form.date,
       tag: form.tag,
-      observer: form.observer || null
+      observer: form.observer || null,
+      category: form.category || null,
+      sub_category: form.subCategory || null,
+      points: computedPoints,
+      verification_status: verificationStatus
     }
 
     if (editingObs) {
-      const { data, error } = await supabase
-        .from('observations')
-        .update(payload)
-        .eq('id', editingObs.id)
-        .select()
-        .single()
-      if (error) throw error
-      setObservations(prev => prev.map(o => o.id === editingObs.id ? data : o))
-      setEditingObs(null)
+      try {
+        const { data, error } = await supabase
+          .from('observations')
+          .update(payload)
+          .eq('id', editingObs.id)
+          .select()
+          .single()
+        if (error) throw error
+        setObservations(prev => prev.map(o => o.id === editingObs.id ? data : o))
+        setEditingObs(null)
+      } catch (err: any) {
+        if (err.message?.includes('Could not find the') || err.message?.includes('column')) {
+          alert('Missing Database Columns: You need to run the SQL migration script to add category, sub_category, points, and verification_status to the observations table in Supabase.')
+        }
+        throw err
+      }
     } else {
-      const { data, error } = await supabase
-        .from('observations')
-        .insert(payload)
-        .select()
-        .single()
-      if (error) throw error
-      setObservations(prev => [data, ...prev])
-      setShowAddObs(false)
+      try {
+        const { data, error } = await supabase
+          .from('observations')
+          .insert(payload)
+          .select()
+          .single()
+        if (error) throw error
+        setObservations(prev => [data, ...prev])
+        setShowAddObs(false)
+      } catch (err: any) {
+        if (err.message?.includes('Could not find the') || err.message?.includes('column')) {
+          alert('Missing Database Columns: You need to run the SQL migration script to add category, sub_category, points, and verification_status to the observations table in Supabase.')
+        }
+        throw err
+      }
     }
   }
 
@@ -547,7 +613,9 @@ export default function Tasks() {
               <thead>
                 <tr className="border-b text-xs font-semibold uppercase tracking-wider text-neutral-500 bg-neutral-50/50" style={{ borderColor: C.neutral100 }}>
                   <th className="px-6 py-4">Date</th>
+                  <th className="px-6 py-4">Category</th>
                   <th className="px-6 py-4">Observation / Finding</th>
+                  <th className="px-6 py-4">Points</th>
                   <th className="px-6 py-4">Target</th>
                   <th className="px-6 py-4">Observer</th>
                   <th className="px-6 py-4 text-center">Severity</th>
@@ -565,7 +633,26 @@ export default function Tasks() {
                 ) : filteredObs.map(item => (
                   <tr key={item.id} className="hover:bg-neutral-50/30 transition-colors">
                     <td className="px-6 py-4 whitespace-nowrap text-neutral-700">{item.date}</td>
+                    <td className="px-6 py-4 text-neutral-600 font-medium">
+                      <div className="flex flex-col">
+                        <span>{item.category || '-'}</span>
+                        <span className="text-xs text-neutral-400">{item.sub_category}</span>
+                      </div>
+                    </td>
                     <td className="px-6 py-4 text-neutral-900 font-semibold">{item.observation}</td>
+                    <td className="px-6 py-4">
+                      {item.points !== undefined && item.points !== null ? (
+                        <div className="flex flex-col gap-1 items-start">
+                          <span className="text-sm font-bold" style={{ color: C.primary600 }}>{item.points} pts</span>
+                          {item.verification_status === 'pending' && (
+                            <span className="text-xs px-2 py-0.5 rounded font-bold" style={{ backgroundColor: C.warning50, color: C.warning500 }}>Pending</span>
+                          )}
+                          {item.verification_status === 'verified' && (
+                            <span className="text-xs px-2 py-0.5 rounded font-bold" style={{ backgroundColor: C.success50, color: C.success600 }}>Verified</span>
+                          )}
+                        </div>
+                      ) : '-'}
+                    </td>
                     <td className="px-6 py-4 whitespace-nowrap text-neutral-800">{item.tag}</td>
                     <td className="px-6 py-4 whitespace-nowrap text-neutral-600">{item.observer || '—'}</td>
                     <td className="px-6 py-4 whitespace-nowrap text-center">{severityBadge(item.severity)}</td>
@@ -869,6 +956,8 @@ function TodoModal({ editingItem, onClose, onSave }: { editingItem?: any; onClos
 function ObsModal({ animals, editingItem, onClose, onSave }: { animals: any[]; editingItem?: any; onClose: () => void; onSave: (form: any) => Promise<void> }) {
   const [form, setForm] = useState({
     date: editingItem?.date || new Date().toISOString().split('T')[0],
+    category: editingItem?.category || Object.keys(OBSERVATION_CATEGORIES)[0],
+    subCategory: editingItem?.sub_category || OBSERVATION_CATEGORIES[Object.keys(OBSERVATION_CATEGORIES)[0]].subCategories[0],
     observation: editingItem?.observation || '',
     tag: editingItem?.tag || 'Whole Herd',
     severity: editingItem?.severity || 'medium',
@@ -918,6 +1007,34 @@ function ObsModal({ animals, editingItem, onClose, onSave }: { animals: any[]; e
                   <option value="low">Low</option>
                   <option value="medium">Medium</option>
                   <option value="high">High</option>
+                </select>
+                <ChevronDown size={14} className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: C.neutral500 }} />
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-semibold mb-1 uppercase tracking-wider" style={{ color: C.neutral500 }}>Category</label>
+              <div className="relative">
+                <select value={form.category} onChange={e => {
+                  const newCat = e.target.value
+                  setForm(p => ({ ...p, category: newCat, subCategory: OBSERVATION_CATEGORIES[newCat].subCategories[0] }))
+                }}
+                  className="w-full rounded-xl px-4 py-2.5 text-sm outline-none border appearance-none cursor-pointer"
+                  style={{ borderColor: C.neutral200, color: C.neutral900, backgroundColor: C.neutral50 }}>
+                  {Object.keys(OBSERVATION_CATEGORIES).map(cat => <option key={cat} value={cat}>{cat}</option>)}
+                </select>
+                <ChevronDown size={14} className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: C.neutral500 }} />
+              </div>
+            </div>
+            <div>
+              <label className="block text-xs font-semibold mb-1 uppercase tracking-wider" style={{ color: C.neutral500 }}>Sub-Category</label>
+              <div className="relative">
+                <select value={form.subCategory} onChange={e => setForm(p => ({ ...p, subCategory: e.target.value }))}
+                  className="w-full rounded-xl px-4 py-2.5 text-sm outline-none border appearance-none cursor-pointer"
+                  style={{ borderColor: C.neutral200, color: C.neutral900, backgroundColor: C.neutral50 }}>
+                  {OBSERVATION_CATEGORIES[form.category]?.subCategories.map((sub: string) => <option key={sub} value={sub}>{sub}</option>)}
                 </select>
                 <ChevronDown size={14} className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: C.neutral500 }} />
               </div>

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import { X } from 'lucide-react'
@@ -135,6 +135,7 @@ export default function Records() {
   const { session, targetUserId, selectedProductionYear } = useAuth()
   const [fi, setFi] = useState<Record<string, any>>({})
   const [animalCount, setAnimalCount] = useState(0)
+  const [observations, setObservations] = useState<any[]>([])
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [formOverrides, setFormOverrides] = useState<Record<string, { attained: string; target: string }>>({})
   const [saving, setSaving] = useState(false)
@@ -150,6 +151,8 @@ export default function Records() {
       })
     supabase.from('animals').select('id', { count: 'exact', head: true }).eq('user_id', targetUserId).eq('production_year', selectedProductionYear)
       .then(({ count }) => setAnimalCount(count ?? 0))
+    supabase.from('observations').select('*').eq('user_id', targetUserId)
+      .then(({ data }) => setObservations(data ?? []))
   }, [targetUserId, selectedProductionYear])
 
   const hasAnimals = animalCount > 0
@@ -213,11 +216,84 @@ export default function Records() {
     { method: 'Brand Registration', ...getMetric('brand registration') },
     { method: 'DNA Profiles',       ...getMetric('dna profiles') },
   ]
-  const observerAwards = hasAnimals ? [
-    { category: 'Heat Detection',    name: 'John Smith',    count: 28, badge: 'Gold' },
-    { category: 'Calving Observer',  name: 'Maria Garcia',  count: 32, badge: 'Platinum' },
-    { category: 'Health Monitor',    name: 'David Johnson', count: 45, badge: 'Diamond' },
-  ] : []
+  const observerAwards = useMemo(() => {
+    if (!hasAnimals || observations.length === 0) return []
+
+    const observerPointsTotal: Record<string, number> = {}
+    const observerCategoryPoints: Record<string, Record<string, number>> = {}
+
+    observations.forEach(obs => {
+      if (obs.observer && obs.verification_status !== 'rejected') {
+        if (!observerPointsTotal[obs.observer]) {
+          observerPointsTotal[obs.observer] = 0
+          observerCategoryPoints[obs.observer] = {
+            'Biosecurity & Environment safety': 0,
+            'Critical Health (High Priority)': 0,
+            'Reproduction & Birth & life saving Log (Time-Sensitive)': 0,
+            'Growth & Routine (Standard Maintenance)': 0,
+          }
+        }
+        
+        let cat = obs.category;
+        let pts = obs.points;
+        
+        // Legacy fallback
+        if (!cat) {
+          const match = (obs.observation || '').match(/^\[(.*?)\]/);
+          cat = match ? match[1] : 'Other';
+          if (pts === undefined || pts === null || pts === 0) {
+            pts = cat === 'Growth & Routine (Standard Maintenance)' ? 1 : (cat !== 'Other' ? 5 : 0);
+          }
+        }
+        
+        cat = cat || 'Other';
+        pts = pts || 0;
+
+        observerPointsTotal[obs.observer] += pts
+        if (observerCategoryPoints[obs.observer][cat] !== undefined) {
+          observerCategoryPoints[obs.observer][cat] += pts
+        }
+      }
+    })
+
+    const computed = []
+    let topLifeSaver = '', maxLifeSaverPts = 0
+    let topOverall = '', maxOverallPts = 0
+
+    for (const observer in observerPointsTotal) {
+      const sharpEyePts = (observerCategoryPoints[observer]['Biosecurity & Environment safety'] || 0) + 
+                          (observerCategoryPoints[observer]['Critical Health (High Priority)'] || 0)
+      if (sharpEyePts >= 100) {
+        computed.push({ category: 'Sharp Eye Award', name: observer, count: sharpEyePts, badge: 'Diamond' })
+      }
+
+      const lsPts = observerCategoryPoints[observer]['Reproduction & Birth & life saving Log (Time-Sensitive)'] || 0
+      if (lsPts > maxLifeSaverPts) {
+        maxLifeSaverPts = lsPts
+        topLifeSaver = observer
+      }
+
+      if (observerPointsTotal[observer] > maxOverallPts) {
+        maxOverallPts = observerPointsTotal[observer]
+        topOverall = observer
+      }
+    }
+
+    if (topLifeSaver && maxLifeSaverPts > 0) {
+      computed.push({ category: 'Life Saver Award', name: topLifeSaver, count: maxLifeSaverPts, badge: 'Platinum' })
+    }
+    if (topOverall && maxOverallPts > 0) {
+      computed.push({ category: 'Consistent Logger', name: topOverall, count: maxOverallPts, badge: 'Gold' })
+    }
+
+    for (const observer in observerPointsTotal) {
+      if (observer !== topOverall && observer !== topLifeSaver && observerPointsTotal[observer] > 0) {
+        computed.push({ category: 'Observer Score', name: observer, count: observerPointsTotal[observer], badge: 'Silver' })
+      }
+    }
+
+    return computed
+  }, [hasAnimals, observations])
 
   // Mark badge renderer
   const MarkBadge = (mark: string) => (

@@ -3,7 +3,7 @@ import { supabase } from '../lib/supabase'
 import { useAuth, Profile } from '../context/AuthContext'
 import {
   Heart, Dna, Wheat, BarChart3, ClipboardList,
-  FileEdit, ShoppingCart, Settings, TrendingUp,
+  FileEdit, ShoppingCart, Settings, TrendingUp, TrendingDown,
   ShieldCheck, User, ChevronDown, Search, X, Check,
   ChevronLeft, ChevronRight
 } from 'lucide-react'
@@ -518,6 +518,11 @@ export default function Dashboard() {
   })
   const chartData = timeframe === 'monthly' ? monthlyChartData : yearlyChartData
 
+  const currentShiftValue = scores.scoreDLShift;
+  const previousShiftValue = chartData.length > 1 ? chartData[chartData.length - 2].v : 0;
+  const shiftDiff = currentShiftValue - previousShiftValue;
+  const isShiftPositive = shiftDiff >= 0;
+  const shiftSign = shiftDiff > 0 ? '+' : '';
 
 
   const sp = SPECIES.find(s => s.value === selectedSpecies)
@@ -622,9 +627,15 @@ export default function Dashboard() {
             <p className="text-4xl font-bold mt-2" style={{ color: C.primary500 }}>{scores.scoreDLShift}%</p>
           </div>
           <div className="flex items-center gap-1.5 px-3 py-2 rounded-xl"
-            style={{ backgroundColor: C.success50 }}>
-            <TrendingUp size={18} style={{ color: C.success500 }} />
-            <span className="text-sm font-semibold" style={{ color: C.success500 }}>+5% this month</span>
+            style={{ backgroundColor: isShiftPositive ? C.success50 : C.warning50 }}>
+            {isShiftPositive ? (
+              <TrendingUp size={18} style={{ color: C.success500 }} />
+            ) : (
+              <TrendingDown size={18} style={{ color: C.warning500 }} />
+            )}
+            <span className="text-sm font-semibold" style={{ color: isShiftPositive ? C.success500 : C.warning500 }}>
+              {shiftSign}{shiftDiff}% {timeframe === 'monthly' ? 'this month' : 'this year'}
+            </span>
           </div>
         </div>
 

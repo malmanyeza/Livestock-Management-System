@@ -5197,7 +5197,7 @@ function RegisterContent() {
     };
 
     return (
-      <View style={{ flexShrink: 1, width: '100%' }}>
+      <View style={{ height: 550, flexShrink: 1, width: '100%' }}>
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', width: '100%', alignItems: 'center', marginBottom: 24, paddingHorizontal: 16, paddingTop: 16 }}>
           <Text variant="caption" color="neutral.500" style={{ flex: 1, paddingRight: 8 }}>
             4-Generation Pedigree Tree. Scroll right to view lineage. Tap any node to edit.
@@ -5209,16 +5209,16 @@ function RegisterContent() {
             <Text style={{ fontSize: 12, color: Colors.primary[600], fontWeight: 'bold' }}>Modify Pedigree</Text>
           </TouchableOpacity>
         </View>
-        <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={true} contentContainerStyle={{ paddingLeft: 16 }}>
+        <ScrollView style={{ flex: 1, width: '100%' }} contentContainerStyle={{ paddingLeft: 16, paddingBottom: 32 }} showsVerticalScrollIndicator={true}>
           <ScrollView horizontal showsHorizontalScrollIndicator={true} contentContainerStyle={{ paddingRight: 32, paddingBottom: 40, paddingTop: 16 }}>
             <TreeBranch 
-              gap={16}
+              gap={32}
               topNode={
                 <TreeBranch 
-                  gap={16}
+                  gap={32}
                   topNode={
                     <TreeBranch 
-                      gap={8}
+                      gap={16}
                       topNode={renderNode('GG Sire', ggSire1, "Sire's Sire Sire")} 
                       bottomNode={renderNode('GG Dam', ggDam1, "Sire's Sire Dam")} 
                       childNode={renderNode('Grandsire', gSire1, 'Paternal Grandsire')} 
@@ -5226,7 +5226,7 @@ function RegisterContent() {
                   }
                   bottomNode={
                     <TreeBranch 
-                      gap={8}
+                      gap={16}
                       topNode={renderNode('GG Sire', ggSire2, "Sire's Dam Sire")} 
                       bottomNode={renderNode('GG Dam', ggDam2, "Sire's Dam Dam")} 
                       childNode={renderNode('Granddam', gDam1, 'Paternal Granddam')} 
@@ -5237,10 +5237,10 @@ function RegisterContent() {
               }
               bottomNode={
                 <TreeBranch 
-                  gap={16}
+                  gap={32}
                   topNode={
                     <TreeBranch 
-                      gap={8}
+                      gap={16}
                       topNode={renderNode('GG Sire', ggSire3, "Dam's Sire Sire")} 
                       bottomNode={renderNode('GG Dam', ggDam3, "Dam's Sire Dam")} 
                       childNode={renderNode('Grandsire', gSire2, 'Maternal Grandsire')} 
@@ -5248,7 +5248,7 @@ function RegisterContent() {
                   }
                   bottomNode={
                     <TreeBranch 
-                      gap={8}
+                      gap={16}
                       topNode={renderNode('GG Sire', ggSire4, "Dam's Dam Sire")} 
                       bottomNode={renderNode('GG Dam', ggDam4, "Dam's Dam Dam")} 
                       childNode={renderNode('Granddam', gDam2, 'Maternal Granddam')} 
@@ -5699,7 +5699,10 @@ function RegisterContent() {
                   <TextInput
                     style={styles.input}
                     value={newPregnancyRecord.bodyConditionScore !== undefined && newPregnancyRecord.bodyConditionScore !== null ? newPregnancyRecord.bodyConditionScore.toString() : ''}
-                    onChangeText={(text) => setNewPregnancyRecord({...newPregnancyRecord, bodyConditionScore: text as any})}
+                    onChangeText={(text) => {
+                      const cleanText = text.replace(/[^1-5]/g, '').slice(0, 1);
+                      setNewPregnancyRecord({...newPregnancyRecord, bodyConditionScore: cleanText as any});
+                    }}
                     placeholder="Enter BCS (1-5)"
                     keyboardType="numeric"
                   />
@@ -7375,6 +7378,7 @@ const styles = StyleSheet.create({
     maxWidth: 500,
     maxHeight: '90%',
     flexDirection: 'column',
+    overflow: 'hidden',
   },
   modalScrollView: {
     marginBottom: 16,

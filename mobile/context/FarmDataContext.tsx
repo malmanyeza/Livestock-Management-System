@@ -2024,8 +2024,6 @@ export const FarmDataProvider: React.FC<{ children: ReactNode }> = ({ children }
       return;
     }
     if (!targetUserId) throw new Error("No active farmer selected");
-    // Fallback combination logic strictly for fallback/display if columns miss
-    const combinedObservation = obs.category ? `[${obs.category}] ${obs.observation}` : obs.observation;
     const dbData = {
       date: obs.date,
       tag: obs.tag,
@@ -2033,7 +2031,7 @@ export const FarmDataProvider: React.FC<{ children: ReactNode }> = ({ children }
       sub_category: obs.subCategory,
       points: obs.points || 0,
       verification_status: obs.verificationStatus || 'verified',
-      observation: combinedObservation,
+      observation: obs.observation,
       severity: obs.severity,
       observer: obs.observer,
       status: obs.status || 'unresolved',
@@ -2127,15 +2125,13 @@ export const FarmDataProvider: React.FC<{ children: ReactNode }> = ({ children }
     if (updates.observer !== undefined) dbUpdates.observer = updates.observer;
     if (updates.status !== undefined) dbUpdates.status = updates.status;
     
-    if (updates.observation !== undefined || updates.category !== undefined) {
-      const currentObs = observations.find(o => o.id === id);
-      if (currentObs) {
-        const newCategory = updates.category !== undefined ? updates.category : currentObs.category;
-        const newText = updates.observation !== undefined ? updates.observation : currentObs.observation;
-        dbUpdates.observation = newCategory ? `[${newCategory}] ${newText}` : newText;
-      } else if (updates.observation !== undefined) {
-        dbUpdates.observation = updates.observation;
-      }
+    if (updates.category !== undefined) dbUpdates.category = updates.category;
+    if (updates.subCategory !== undefined) dbUpdates.sub_category = updates.subCategory;
+    if (updates.points !== undefined) dbUpdates.points = updates.points;
+    if (updates.verificationStatus !== undefined) dbUpdates.verification_status = updates.verificationStatus;
+
+    if (updates.observation !== undefined) {
+      dbUpdates.observation = updates.observation;
     }
 
     const { data, error } = await supabase

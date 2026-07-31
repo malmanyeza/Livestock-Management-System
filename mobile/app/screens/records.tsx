@@ -302,9 +302,16 @@ function RecordsContent() {
           'Growth & Routine (Standard Maintenance)': 0,
         };
       }
-      const pts = obs.points || 0;
-      observerPointsTotal[obs.observer] += pts;
+      
       const cat = obs.category || 'Other';
+      let pts = obs.points || 0;
+      
+      // Fallback for legacy records that have 0 points but had a category embedded
+      if (pts === 0 && (obs.observation || '').match(/^\[(.*?)\]/)) {
+        pts = cat === 'Growth & Routine (Standard Maintenance)' ? 1 : (cat !== 'Other' ? 5 : 0);
+      }
+
+      observerPointsTotal[obs.observer] += pts;
       if (observerCategoryPoints[obs.observer][cat] !== undefined) {
         observerCategoryPoints[obs.observer][cat] += pts;
       }
@@ -374,7 +381,7 @@ function RecordsContent() {
 
   // List Observer Points for other users
   for (const observer in observerPointsTotal) {
-    if (observer !== topOverall && observer !== topLifeSaver) {
+    if (observer !== topOverall && observer !== topLifeSaver && observerPointsTotal[observer] > 0) {
       computedObserverAwards.push({
         id: awardId++,
         category: 'Observer Score',

@@ -190,7 +190,7 @@ function NutritionContent() {
   // WGM / ADG status check (Cattle target: 0.68 poor, 0.9 good, 1.13 excellent)
   const adgVal = metrics.adg.cattle;
   const adgStatus = adgVal > 0 ? (adgVal >= 1.13 ? 'pass' : adgVal >= 0.9 ? 'warning' : 'fail') : 'warning';
-  const adgLabel = adgVal > 0 ? `${adgVal} kg/d` : 'N/A';
+  const adgLabel = adgVal > 0 ? `${adgVal.toFixed(2)} kg/d` : 'N/A';
 
   // BCS status check (BCS score target: 2.0 - 4.0)
   const bcsVal = farmInspection.herdBcs ? farmInspection.herdBcs : metrics.averageHerdBCS;
