@@ -66,6 +66,8 @@ const C = {
   neutral900:  '#121416',
   success50:   '#E6F9F1',
   success500:  '#43B97C',
+  warning50:   '#FFF8E6',
+  warning500:  '#F5A623',
   white:       '#FFFFFF',
 }
 
