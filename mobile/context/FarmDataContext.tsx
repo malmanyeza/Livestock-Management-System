@@ -2483,25 +2483,37 @@ export const FarmDataProvider: React.FC<{ children: ReactNode }> = ({ children }
   // A. NUTRITION CALCULATIONS
   
   // 1. Average Daily Gain (ADG)
-  const calculateADG = (aliveAnimals: Animal[]) => {
+  const calculateADG = (aliveAnimals: Animal[], animalWeights: AnimalWeight[]) => {
     const totals = { goats: 0, cattle: 0, sheep: 0, pigs: 0, chickens: 0 };
     const counts = { goats: 0, cattle: 0, sheep: 0, pigs: 0, chickens: 0 };
+    const months: (keyof AnimalWeight)[] = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
 
-    aliveAnimals.forEach(a => {
-      if (a.weight && a.previousWeight && a.daysBetweenWeights && a.daysBetweenWeights > 0) {
-        const adg = (a.weight - a.previousWeight) / a.daysBetweenWeights;
-        if (a.stockType === 'Goat') {
-          totals.goats += adg; counts.goats++;
-        } else if (['Cow', 'Bull', 'Steer', 'Heifer', 'Bullying Heifer', 'Calve'].includes(a.stockType)) {
-          totals.cattle += adg; counts.cattle++;
-        } else if (a.stockType === 'Sheep') {
-          totals.sheep += adg; counts.sheep++;
-        } else if (a.stockType === 'Pig') {
-          totals.pigs += adg; counts.pigs++;
-        } else if (a.stockType === 'Chicken') {
-          totals.chickens += adg; counts.chickens++;
+    animalWeights.forEach(row => {
+      const animal = aliveAnimals.find(a => a.tag === row.animalTag);
+      if (!animal) return;
+
+      let lastWeight: number | null = null;
+      months.forEach(m => {
+        const val = row[m];
+        if (val !== null && val !== undefined && val !== '') {
+          const w = Number(val);
+          if (lastWeight !== null) {
+            const adg = (w - lastWeight) / 30; // approx 30 days per month
+            if (animal.stockType === 'Goat') {
+              totals.goats += adg; counts.goats++;
+            } else if (['Cow', 'Bull', 'Steer', 'Heifer', 'Bullying Heifer', 'Calve', 'Calf'].includes(animal.stockType)) {
+              totals.cattle += adg; counts.cattle++;
+            } else if (animal.stockType === 'Sheep') {
+              totals.sheep += adg; counts.sheep++;
+            } else if (animal.stockType === 'Pig') {
+              totals.pigs += adg; counts.pigs++;
+            } else if (animal.stockType === 'Chicken') {
+              totals.chickens += adg; counts.chickens++;
+            }
+          }
+          lastWeight = w;
         }
-      }
+      });
     });
 
     return {
@@ -2770,7 +2782,7 @@ export const FarmDataProvider: React.FC<{ children: ReactNode }> = ({ children }
   const deadTags = new Set((mortalityRecords || []).map(m => m.animalId).filter(Boolean));
   const aliveAnimals = (animals || []).filter(a => !deadTags.has(a.tag));
 
-  const adg = calculateADG(aliveAnimals);
+  const adg = calculateADG(aliveAnimals, animalWeights);
   const fcr = calculateFCR();
   const bcs = calculateBCS(aliveAnimals);
   const repro = calculateReproductionMetrics(aliveAnimals);

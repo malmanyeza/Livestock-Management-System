@@ -142,6 +142,7 @@ export default function Production() {
   const { targetUserId, selectedProductionYear } = useAuth()
   const [animals, setAnimals]   = useState<any[]>([])
   const [mortality, setMortality] = useState(0)
+  const [animalWeights, setAnimalWeights] = useState<any[]>([])
   const [loading, setLoading]   = useState(true)
   const [targets, setTargets]   = useState({ ...DEFAULT_TARGETS })
 
@@ -155,9 +156,11 @@ export default function Production() {
     Promise.all([
       supabase.from('animals').select('weight,previous_weight,days_between_weights,stock_type,age,calf_status,weaning_weight,is_breeding_cow').eq('user_id', targetUserId).eq('production_year', selectedProductionYear),
       supabase.from('mortality_records').select('id,is_pre_weaning', { count: 'exact' }).eq('user_id', targetUserId).eq('production_year', selectedProductionYear),
-    ]).then(([{ data: a }, { data: m, count }]) => {
+      supabase.from('animal_weights').select('*').eq('user_id', targetUserId).eq('production_year', selectedProductionYear),
+    ]).then(([{ data: a }, { data: m, count }, { data: w }]) => {
       setAnimals(a ?? [])
       setMortality(count ?? 0)
+      setAnimalWeights(w ?? [])
       setLoading(false)
     })
   }, [targetUserId, selectedProductionYear])
@@ -166,10 +169,23 @@ export default function Production() {
   const calves = animals.filter(a => isCalf(a.age, a.stock_type))
   const weanedCalves = calves.filter(a => a.calf_status === 'Replacement' || a.calf_status === 'Sold' || Number(a.weaning_weight || 0) > 0)
   const eligibleCows = animals.filter(a => a.stock_type === 'Cow' || (a.stock_type === 'Heifer' && a.is_breeding_cow))
-  const withWeights = animals.filter(a => a.weight && a.previous_weight && a.days_between_weights > 0)
-  const adg = withWeights.length
-    ? withWeights.reduce((s, a) => s + (a.weight - a.previous_weight) / a.days_between_weights, 0) / withWeights.length
-    : 0
+  let totalAdg = 0;
+  let countAdg = 0;
+  const months = ['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec'];
+  animalWeights.forEach(row => {
+    let lastWeight: number | null = null;
+    months.forEach(m => {
+      if (row[m] !== null && row[m] !== undefined && row[m] !== '') {
+        const w = Number(row[m]);
+        if (lastWeight !== null) {
+          totalAdg += (w - lastWeight) / 30; // approximate ADG per month (30 days)
+          countAdg++;
+        }
+        lastWeight = w;
+      }
+    });
+  });
+  const adg = countAdg > 0 ? Number((totalAdg / countAdg).toFixed(3)) : 0;
   const herdMortality     = animals.length ? (mortality / animals.length) * 100 : 0
   const weaningPercentage = eligibleCows.length > 0 ? (weanedCalves.length / eligibleCows.length) * 100 : 0
   const weaningRate       = calves.length > 0 ? (weanedCalves.length / calves.length) * 100 : 0
