@@ -145,7 +145,7 @@ function StatusBadge({ status }: { status: 'pass' | 'warning' | 'fail' }) {
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 export default function Nutrition() {
-  const { session, targetUserId } = useAuth()
+  const { session, targetUserId, selectedProductionYear } = useAuth()
   const navigate = useNavigate()
   const [fi, setFi] = useState<Record<string, number>>({})
   const [animals, setAnimals] = useState<any[]>([])
