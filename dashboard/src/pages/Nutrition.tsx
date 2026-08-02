@@ -262,7 +262,7 @@ export default function Nutrition() {
     ? (mgtVal >= 4.5 ? 'Excellent' : mgtVal >= 3.5 ? 'Good' : mgtVal >= 2.5 ? 'Moderate' : 'Poor')
     : 'N/A'
 
-  const lastUpdatedStr = lastUpdated ? new Date(lastUpdated).toLocaleDateString() : 'Never';
+  const formatDate = (dateString?: string) => dateString ? new Date(dateString).toLocaleDateString() : 'Never';
 
   const nutritionMetrics: NutritionMetric[] = [
     { id: '1', category: 'Weight Gain (ADG)', result: adgLabel,   target: '0.9 – 1.13',    status: adgStatus },
@@ -274,12 +274,7 @@ export default function Nutrition() {
   ]
 
   // ── Save helpers ──────────────────────────────────────────────────────────────
-  const handleSaveHerdBcs = async () => {
-    await saveToSupabase({ herdBcs })
-    setShowHerdBcs(false)
-  }
-
-  const saveToSupabase = async (updates: Record<string, number>) => {
+  const saveToSupabase = async (updates: Record<string, any>) => {
     if (!session || !targetUserId) return
     const updated = { ...fi, ...updates }
     setFi(updated)
@@ -289,21 +284,26 @@ export default function Nutrition() {
     else     await supabase.from('farm_inspections').insert({ user_id: targetUserId, data: updated })
   }
 
+  const handleSaveHerdBcs = async () => {
+    await saveToSupabase({ herdBcs, herdBcsUpdatedAt: new Date().toISOString() })
+    setShowHerdBcs(false)
+  }
+
   const handleSaveDef = async () => {
     const avg = (dung + rumen + coat + motility) / 4
-    await saveToSupabase({ dungConsistency: dung, rumenFill: rumen, coatSkin: coat, motilityLocomotion: motility, nutritionalDeficiencies: avg })
+    await saveToSupabase({ dungConsistency: dung, rumenFill: rumen, coatSkin: coat, motilityLocomotion: motility, nutritionalDeficiencies: avg, defUpdatedAt: new Date().toISOString() })
     setShowDef(false)
   }
 
   const handleSaveGrowth = async () => {
     const avg = (muscle + frame + fatCover + symmetry) / 4
-    await saveToSupabase({ muscleDefinition: muscle, frameSizing: frame, fatCoverDevelopment: fatCover, skeletalSymmetry: symmetry, growthRatePerception: avg })
+    await saveToSupabase({ muscleDefinition: muscle, frameSizing: frame, fatCoverDevelopment: fatCover, skeletalSymmetry: symmetry, growthRatePerception: avg, growthUpdatedAt: new Date().toISOString() })
     setShowGrowth(false)
   }
 
   const handleSaveMgt = async () => {
     const avg = (bunk + sorting + water + forage) / 4
-    await saveToSupabase({ bunkFeedAvailability: bunk, rationSortingBehaviour: sorting, waterQualityAccess: water, forageQualityPerception: forage, overallNutritionalHealth: avg })
+    await saveToSupabase({ bunkFeedAvailability: bunk, rationSortingBehaviour: sorting, waterQualityAccess: water, forageQualityPerception: forage, overallNutritionalHealth: avg, mgtUpdatedAt: new Date().toISOString() })
     setShowMgt(false)
   }
 
@@ -351,7 +351,7 @@ export default function Nutrition() {
                           style={{ backgroundColor: C.primary50, border: `1px solid ${C.primary100}`, color: C.primary500 }}>
                           Assess
                         </button>
-                        <span className="text-[10px] mt-1" style={{ color: C.neutral400 }}>{lastUpdatedStr}</span>
+                        <span className="text-[10px] mt-1" style={{ color: C.neutral400 }}>{formatDate(fi.herdBcsUpdatedAt as string)}</span>
                       </div>
                     )}
                     {m.category === 'Deficiencies' && (
@@ -361,7 +361,7 @@ export default function Nutrition() {
                           style={{ backgroundColor: C.primary50, border: `1px solid ${C.primary100}`, color: C.primary500 }}>
                           Assess
                         </button>
-                        <span className="text-[10px] mt-1" style={{ color: C.neutral400 }}>{lastUpdatedStr}</span>
+                        <span className="text-[10px] mt-1" style={{ color: C.neutral400 }}>{formatDate(fi.defUpdatedAt as string)}</span>
                       </div>
                     )}
                     {m.category === 'Growth Perception' && (
@@ -371,7 +371,7 @@ export default function Nutrition() {
                           style={{ backgroundColor: C.primary50, border: `1px solid ${C.primary100}`, color: C.primary500 }}>
                           Assess
                         </button>
-                        <span className="text-[10px] mt-1" style={{ color: C.neutral400 }}>{lastUpdatedStr}</span>
+                        <span className="text-[10px] mt-1" style={{ color: C.neutral400 }}>{formatDate(fi.growthUpdatedAt as string)}</span>
                       </div>
                     )}
                     {m.category === 'Management' && (
@@ -381,7 +381,7 @@ export default function Nutrition() {
                           style={{ backgroundColor: C.primary50, border: `1px solid ${C.primary100}`, color: C.primary500 }}>
                           Assess
                         </button>
-                        <span className="text-[10px] mt-1" style={{ color: C.neutral400 }}>{lastUpdatedStr}</span>
+                        <span className="text-[10px] mt-1" style={{ color: C.neutral400 }}>{formatDate(fi.mgtUpdatedAt as string)}</span>
                       </div>
                     )}
                   </td>
