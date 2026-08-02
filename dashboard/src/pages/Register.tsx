@@ -194,6 +194,7 @@ function AddDrugModal({ editingDrug, onClose, onSave }: { editingDrug?: any; onC
     type: editingDrug?.type || '',
     name: editingDrug?.name || '',
     withdrawalPeriod: editingDrug?.withdrawal_period || '',
+    expiryDate: editingDrug?.expiry_date || '',
     pregnancySafe: editingDrug?.pregnancy_safe || 'No',
     stockStatus: editingDrug?.stock_status || 'In Stock'
   })
@@ -218,10 +219,11 @@ function AddDrugModal({ editingDrug, onClose, onSave }: { editingDrug?: any; onC
         <div className="overflow-y-auto flex-1 px-6 py-4 space-y-4">
           {error && <p className="text-sm px-3 py-2 rounded-xl" style={{ backgroundColor: C.error50, color: C.error500 }}>{error}</p>}
           {[
-            { label: 'Drug Class', key: 'drugClass', placeholder: 'e.g., Antibiotics, Anthelminitics', options: ['Anthelminitics', 'Antibiotics', 'NSAIDS', 'Electrolytes', 'Vitamins and Minerals', 'Pour ons', 'Ectoparasitides', 'Synchronisation drugs'] },
-            { label: 'Type', key: 'type', placeholder: 'e.g., Oral, Intramuscular', options: ['Oral', 'Drench', 'Intramuscular', 'Subcutaneous', 'Topical', 'Pour-on'] },
-            { label: 'Drug Name', key: 'name', placeholder: 'e.g., Oxytetracycline' },
-            { label: 'Withdrawal Period', key: 'withdrawalPeriod', placeholder: 'e.g., 21 days' },
+            { label: 'Drug Class', key: 'drugClass', placeholder: 'e.g., Antibiotics, Anthelminitics', type: 'text', options: ['Anthelminitics', 'Antibiotics', 'NSAIDS', 'Electrolytes', 'Vitamins and Minerals', 'Pour ons', 'Ectoparasitides', 'Synchronisation drugs'] },
+            { label: 'Type', key: 'type', placeholder: 'e.g., Oral, Intramuscular', type: 'text', options: ['Oral', 'Drench', 'Intramuscular', 'Subcutaneous', 'Topical', 'Pour-on'] },
+            { label: 'Drug Name', key: 'name', placeholder: 'e.g., Oxytetracycline', type: 'text' },
+            { label: 'Withdrawal Period', key: 'withdrawalPeriod', placeholder: 'e.g., 21 days', type: 'text' },
+            { label: 'Expiry Date', key: 'expiryDate', placeholder: '', type: 'date' },
           ].map(f => (
             <div key={f.key}>
               <label className="block text-xs font-semibold mb-1 uppercase tracking-wider" style={{ color: C.neutral500 }}>{f.label}</label>
@@ -233,7 +235,7 @@ function AddDrugModal({ editingDrug, onClose, onSave }: { editingDrug?: any; onC
                   placeholder={f.placeholder}
                 />
               ) : (
-                <input value={(form as any)[f.key]} onChange={e => setForm(p => ({ ...p, [f.key]: e.target.value }))}
+                <input type={f.type} value={(form as any)[f.key]} onChange={e => setForm(p => ({ ...p, [f.key]: e.target.value }))}
                   placeholder={f.placeholder}
                   className="w-full rounded-xl px-4 py-2.5 text-sm outline-none border transition-colors focus:border-[#7AC142]"
                   style={{ borderColor: C.neutral200, color: C.neutral900, backgroundColor: C.neutral50 }} />
@@ -2056,6 +2058,7 @@ export default function Register() {
       drug_class: d.drugClass,
       type: d.type,
       withdrawal_period: d.withdrawalPeriod,
+      expiry_date: d.expiryDate || null,
       pregnancy_safe: d.pregnancySafe,
       stock_status: d.stockStatus
     }
@@ -2072,6 +2075,7 @@ export default function Register() {
       drug_class: d.drugClass,
       type: d.type,
       withdrawal_period: d.withdrawalPeriod,
+      expiry_date: d.expiryDate || null,
       pregnancy_safe: d.pregnancySafe,
       stock_status: d.stockStatus
     }
@@ -2734,6 +2738,13 @@ export default function Register() {
                 { key: 'drug_class',        label: 'Class' },
                 { key: 'type',              label: 'Type' },
                 { key: 'withdrawal_period', label: 'Withdrawal' },
+                { key: 'expiry_date',       label: 'Expiry', render: (v) => {
+                  if (!v) return <span style={{ color: C.neutral500 }}>—</span>;
+                  const isPast = new Date(v) < new Date();
+                  return <span className={`font-semibold ${isPast ? 'text-red-500' : ''}`} style={{ color: isPast ? C.error500 : C.neutral700 }}>
+                    {new Date(v).toLocaleDateString()}{isPast ? ' *' : ''}
+                  </span>
+                } },
                 { key: 'pregnancy_safe',    label: 'Preg. Safe', render: pregnancyBadge, align: 'center' },
                 { key: 'stock_status',      label: 'Stock',      render: statusBadge, align: 'center' },
                 { key: 'created_at',        label: 'Added',
