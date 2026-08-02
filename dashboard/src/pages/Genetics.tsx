@@ -245,6 +245,12 @@ export default function Genetics() {
   const pd2 = getPregnancyMetric('secondTrimesterPD', String(t2), '—')
   const pd3 = getPregnancyMetric('thirdTrimesterPD', String(t3), '—')
 
+  const pregWithBcs = pregnancyRecs.filter(p => p.body_condition_score !== null && p.body_condition_score !== undefined)
+  const liveBcsAtService = pregWithBcs.length > 0 
+    ? (pregWithBcs.reduce((sum, p) => sum + Number(p.body_condition_score), 0) / pregWithBcs.length).toFixed(1)
+    : '0.0'
+  const bcsService = getPregnancyMetric('bcsAtService', String(liveBcsAtService), '3.0')
+
   const handleOpenModal = () => {
     const overrides = fi.pregnancyOverrides || {}
     setFormOverrides({
@@ -271,6 +277,10 @@ export default function Genetics() {
       thirdTrimesterPD: {
         attained: overrides.thirdTrimesterPD?.attained || '',
         target: overrides.thirdTrimesterPD?.target || '',
+      },
+      bcsAtService: {
+        attained: overrides.bcsAtService?.attained || '',
+        target: overrides.bcsAtService?.target || '',
       },
     })
     setIsModalOpen(true)
@@ -599,6 +609,11 @@ export default function Genetics() {
                   <td className="py-3 text-sm font-medium" style={{ color: C.neutral700 }}>3rd Trimester PD</td>
                   <td className="py-3 text-sm font-semibold text-center" style={{ color: C.neutral700 }}>{pd3.attained}</td>
                   <td className="py-3 text-sm font-medium text-center" style={{ color: C.neutral500 }}>{pd3.target}</td>
+                </tr>
+                <tr className="border-b" style={{ borderColor: C.neutral100 }}>
+                  <td className="py-3 text-sm font-medium" style={{ color: C.neutral700 }}>BCS at Service</td>
+                  <td className="py-3 text-sm font-semibold text-center" style={{ color: C.neutral700 }}>{bcsService.attained}</td>
+                  <td className="py-3 text-sm font-medium text-center" style={{ color: C.neutral500 }}>{bcsService.target}</td>
                 </tr>
               </tbody>
             </table>
@@ -981,6 +996,39 @@ export default function Genetics() {
                         value={formOverrides.thirdTrimesterPD?.target ?? ''}
                         onChange={e => setFormOverrides(prev => ({ ...prev, thirdTrimesterPD: { ...prev.thirdTrimesterPD, target: e.target.value } }))}
                         placeholder="e.g. 8"
+                        className="w-20 text-center text-sm rounded-lg px-2 py-1 outline-none"
+                        style={{ border: `1px solid ${C.neutral200}`, color: C.neutral700 }}
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* BCS at Service */}
+                <div className="flex items-center justify-between py-3 border-b"
+                  style={{ borderColor: C.neutral50 }}>
+                  <span className="text-sm font-medium flex-1 mr-4"
+                    style={{ color: C.neutral700 }}>BCS at Service</span>
+                  <div className="flex items-center gap-3">
+                    <div className="text-right">
+                      <p className="text-xs mb-1" style={{ color: C.neutral400 }}>Attained</p>
+                      <input
+                        type="number"
+                        step="0.1"
+                        value={formOverrides.bcsAtService?.attained ?? ''}
+                        onChange={e => setFormOverrides(prev => ({ ...prev, bcsAtService: { ...prev.bcsAtService, attained: e.target.value } }))}
+                        placeholder="e.g. 3.0"
+                        className="w-20 text-center text-sm rounded-lg px-2 py-1 outline-none"
+                        style={{ border: `1px solid ${C.neutral200}`, color: C.neutral700 }}
+                      />
+                    </div>
+                    <div className="text-right">
+                      <p className="text-xs mb-1" style={{ color: C.neutral400 }}>Target</p>
+                      <input
+                        type="number"
+                        step="0.1"
+                        value={formOverrides.bcsAtService?.target ?? ''}
+                        onChange={e => setFormOverrides(prev => ({ ...prev, bcsAtService: { ...prev.bcsAtService, target: e.target.value } }))}
+                        placeholder="e.g. 3.0"
                         className="w-20 text-center text-sm rounded-lg px-2 py-1 outline-none"
                         style={{ border: `1px solid ${C.neutral200}`, color: C.neutral700 }}
                       />

@@ -55,6 +55,8 @@ function GeneticsContent() {
     secondTrimesterPDTarget: '',
     thirdTrimesterPDAttained: '',
     thirdTrimesterPDTarget: '',
+    bcsAtServiceAttained: '',
+    bcsAtServiceTarget: '',
   });
 
   const handleOpenPregnancyModal = () => {
@@ -72,6 +74,8 @@ function GeneticsContent() {
       secondTrimesterPDTarget: overrides.secondTrimesterPD?.target || '',
       thirdTrimesterPDAttained: overrides.thirdTrimesterPD?.attained || '',
       thirdTrimesterPDTarget: overrides.thirdTrimesterPD?.target || '',
+      bcsAtServiceAttained: overrides.bcsAtService?.attained || '',
+      bcsAtServiceTarget: overrides.bcsAtService?.target || '',
     });
     setIsPregnancyModalOpen(true);
   };
@@ -112,6 +116,10 @@ function GeneticsContent() {
       thirdTrimesterPD: {
         attained: formatVal(pregnancyForm.thirdTrimesterPDAttained),
         target: formatVal(pregnancyForm.thirdTrimesterPDTarget),
+      },
+      bcsAtService: {
+        attained: formatVal(pregnancyForm.bcsAtServiceAttained),
+        target: formatVal(pregnancyForm.bcsAtServiceTarget),
       },
       lastUpdated: new Date().toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' })
     };
@@ -348,6 +356,12 @@ function GeneticsContent() {
     const pd2 = getPregnancyMetric('secondTrimesterPD', String(t2), '—');
     const pd3 = getPregnancyMetric('thirdTrimesterPD', String(t3), '—');
 
+    const pregWithBcs = pregnancyRecords.filter(p => p.bodyConditionScore !== null && p.bodyConditionScore !== undefined && p.bodyConditionScore > 0);
+    const liveBcsAtService = pregWithBcs.length > 0
+      ? (pregWithBcs.reduce((sum, p) => sum + Number(p.bodyConditionScore), 0) / pregWithBcs.length).toFixed(1)
+      : '0.0';
+    const bcsService = getPregnancyMetric('bcsAtService', String(liveBcsAtService), '3.0');
+
     return (
       <Card 
         style={styles.card}
@@ -414,6 +428,12 @@ function GeneticsContent() {
             <Text variant="body2" weight="medium" color="neutral.800" style={{ flex: 2 }}>3rd Trimester PD</Text>
             <Text variant="body" weight="bold" color="neutral.800" style={{ flex: 1.2, textAlign: 'center' }}>{pd3.attained}</Text>
             <Text variant="body" weight="medium" color="neutral.500" style={{ flex: 1.2, textAlign: 'center' }}>{pd3.target}</Text>
+          </View>
+
+          <View style={styles.tableRowCustom}>
+            <Text variant="body2" weight="medium" color="neutral.800" style={{ flex: 2 }}>BCS at Service</Text>
+            <Text variant="body" weight="bold" color="neutral.800" style={{ flex: 1.2, textAlign: 'center' }}>{bcsService.attained}</Text>
+            <Text variant="body" weight="medium" color="neutral.500" style={{ flex: 1.2, textAlign: 'center' }}>{bcsService.target}</Text>
           </View>
 
           {farmInspection?.pregnancyOverrides?.lastUpdated && (
@@ -924,6 +944,33 @@ function GeneticsContent() {
                           value={pregnancyForm.thirdTrimesterPDTarget}
                           onChangeText={(val) => setPregnancyForm(prev => ({ ...prev, thirdTrimesterPDTarget: val }))}
                           placeholder="e.g. 8"
+                        />
+                      </View>
+                    </View>
+                  </View>
+
+                  {/* BCS at Service */}
+                  <View style={styles.metricRow}>
+                    <Text variant="body2" weight="medium" color={Colors.neutral[700]} style={styles.metricLabel}>
+                      BCS at Service
+                    </Text>
+                    <View style={styles.inputsRow}>
+                      <View style={styles.inputContainer}>
+                        <Text variant="caption" color={Colors.neutral[400]}>Attained</Text>
+                        <TextInput
+                          style={styles.textInput}
+                          value={pregnancyForm.bcsAtServiceAttained}
+                          onChangeText={(val) => setPregnancyForm(prev => ({ ...prev, bcsAtServiceAttained: val }))}
+                          placeholder="e.g. 3.0"
+                        />
+                      </View>
+                      <View style={styles.inputContainer}>
+                        <Text variant="caption" color={Colors.neutral[400]}>Target</Text>
+                        <TextInput
+                          style={styles.textInput}
+                          value={pregnancyForm.bcsAtServiceTarget}
+                          onChangeText={(val) => setPregnancyForm(prev => ({ ...prev, bcsAtServiceTarget: val }))}
+                          placeholder="e.g. 3.0"
                         />
                       </View>
                     </View>
