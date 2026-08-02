@@ -2611,8 +2611,38 @@ export const FarmDataProvider: React.FC<{ children: ReactNode }> = ({ children }
     const weaningPercentage = eligibleCows.length > 0 ? (weanedCalves.length / eligibleCows.length) * 100 : 0;
     const weaningRate = calves.length > 0 ? (weanedCalves.length / calves.length) * 100 : 0;
 
-    const preWeaningDLWG = 0; 
-    const postWeaningDLWG = 0; 
+    let preWeaningSum = 0; let preWeaningCount = 0;
+    let postWeaningSum = 0; let postWeaningCount = 0;
+
+    calves.forEach(a => {
+      const birth = Number(a.birthWeight || 0);
+      const wean = Number(a.weaningWeight || 0);
+      const w100 = Number(a.weight100day || 0);
+      const w30 = Number(a.weight30day || 0);
+      if (wean > 0 && birth > 0) {
+        preWeaningSum += (wean - birth) / 205;
+        preWeaningCount++;
+      } else if (w100 > 0 && birth > 0) {
+        preWeaningSum += (w100 - birth) / 100;
+        preWeaningCount++;
+      } else if (w30 > 0 && birth > 0) {
+        preWeaningSum += (w30 - birth) / 30;
+        preWeaningCount++;
+      }
+
+      const post6m = Number(a.weight6monthsPostWeaning || 0);
+      const post1w = Number(a.weight1weekPostWeaning || 0);
+      if (post6m > 0 && wean > 0) {
+        postWeaningSum += (post6m - wean) / 180;
+        postWeaningCount++;
+      } else if (post1w > 0 && wean > 0) {
+        postWeaningSum += (post1w - wean) / 7;
+        postWeaningCount++;
+      }
+    });
+
+    const preWeaningDLWG = preWeaningCount > 0 ? Number((preWeaningSum / preWeaningCount).toFixed(3)) : 0;
+    const postWeaningDLWG = postWeaningCount > 0 ? Number((postWeaningSum / postWeaningCount).toFixed(3)) : 0;
 
     const preWeaningMortCount = mortalityRecords.filter(m => m.isPreWeaning).length;
     const postWeaningMortCount = mortalityRecords.filter(m => !m.isPreWeaning).length;

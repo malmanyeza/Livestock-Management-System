@@ -141,7 +141,7 @@ function ProductionMetricCard({
 export default function Production() {
   const { targetUserId, selectedProductionYear } = useAuth()
   const [animals, setAnimals]   = useState<any[]>([])
-  const [mortality, setMortality] = useState(0)
+  const [mortalityRecords, setMortalityRecords] = useState<any[]>([])
   const [animalWeights, setAnimalWeights] = useState<any[]>([])
   const [loading, setLoading]   = useState(true)
   const [targets, setTargets]   = useState({ ...DEFAULT_TARGETS })
@@ -159,7 +159,7 @@ export default function Production() {
       supabase.from('animal_weights').select('*').eq('user_id', targetUserId).eq('production_year', selectedProductionYear),
     ]).then(([{ data: a }, { data: m, count }, { data: w }]) => {
       setAnimals(a ?? [])
-      setMortality(count ?? 0)
+      setMortalityRecords(m ?? [])
       setAnimalWeights(w ?? [])
       setLoading(false)
     })
@@ -186,18 +186,52 @@ export default function Production() {
     });
   });
   const adg = countAdg > 0 ? Number((totalAdg / countAdg).toFixed(3)) : 0;
-  const herdMortality     = animals.length ? (mortality / animals.length) * 100 : 0
-  const weaningPercentage = eligibleCows.length > 0 ? (weanedCalves.length / eligibleCows.length) * 100 : 0
-  const weaningRate       = calves.length > 0 ? (weanedCalves.length / calves.length) * 100 : 0
-  const preWeaningDLWG    = adg * 0.85 // approximate
-  const postWeaningDLWG   = adg
+  let preWeaningSum = 0; let preWeaningCount = 0;
+  let postWeaningSum = 0; let postWeaningCount = 0;
+
+  calves.forEach(a => {
+    const birth = Number(a.birth_weight || 0);
+    const wean = Number(a.weaning_weight || 0);
+    const w100 = Number(a.weight_100day || 0);
+    const w30 = Number(a.weight_30day || 0);
+    if (wean > 0 && birth > 0) {
+      preWeaningSum += (wean - birth) / 205;
+      preWeaningCount++;
+    } else if (w100 > 0 && birth > 0) {
+      preWeaningSum += (w100 - birth) / 100;
+      preWeaningCount++;
+    } else if (w30 > 0 && birth > 0) {
+      preWeaningSum += (w30 - birth) / 30;
+      preWeaningCount++;
+    }
+
+    const post6m = Number(a.weight_6months_post_weaning || 0);
+    const post1w = Number(a.weight_1week_post_weaning || 0);
+    if (post6m > 0 && wean > 0) {
+      postWeaningSum += (post6m - wean) / 180;
+      postWeaningCount++;
+    } else if (post1w > 0 && wean > 0) {
+      postWeaningSum += (post1w - wean) / 7;
+      postWeaningCount++;
+    }
+  });
+
+  const preWeaningDLWG = preWeaningCount > 0 ? Number((preWeaningSum / preWeaningCount).toFixed(3)) : 0;
+  const postWeaningDLWG = postWeaningCount > 0 ? Number((postWeaningSum / postWeaningCount).toFixed(3)) : 0;
+
+  const herdMortality = animals.length > 0 ? (mortalityRecords.length / (animals.length + mortalityRecords.length)) * 100 : 0;
+  const weaningPercentage = eligibleCows.length > 0 ? (weanedCalves.length / eligibleCows.length) * 100 : 0;
+  const weaningRate = calves.length > 0 ? (weanedCalves.length / calves.length) * 100 : 0;
+  
+  const preWeaningMortCount = mortalityRecords.filter(m => m.is_pre_weaning).length;
+  const preWeaningMortality = calves.length > 0 ? (preWeaningMortCount / calves.length) * 100 : 0;
 
   const productionMetrics: ProductionMetric[] = [
     { key: 'weaning',             title: 'Calf Crop % (Weaning %)',    value: weaningPercentage, target: targets.weaning,            unit: '%',     description: TARGET_DESCRIPTIONS.weaning },
     { key: 'adg',                 title: 'Average Daily Gain (ADG)',   value: adg,               target: targets.adg,                unit: 'kg/day', description: TARGET_DESCRIPTIONS.adg },
     { key: 'preWeaningDLWG',      title: 'Pre-weaning DLWG',          value: preWeaningDLWG,    target: targets.preWeaningDLWG,     unit: 'kg/day', description: TARGET_DESCRIPTIONS.preWeaningDLWG },
     { key: 'postWeaningDLWG',     title: 'Post-weaning DLWG',         value: postWeaningDLWG,   target: targets.postWeaningDLWG,    unit: 'kg/day', description: TARGET_DESCRIPTIONS.postWeaningDLWG },
-    { key: 'preWeaningMortality', title: 'Pre-weaning Mortality Rate', value: herdMortality * 0.4, target: targets.preWeaningMortality, unit: '%', description: TARGET_DESCRIPTIONS.preWeaningMortality },
+    { key: 'preWeaningMortality', title: 'Pre-weaning Mortality Rate', value: preWeaningMortality, target: targets.preWeaningMortality, unit: '%', description: TARGET_DESCRIPTIONS.preWeaningMortality },
     { key: 'herdMortality',       title: 'Herd Mortality Rate',        value: herdMortality,     target: targets.herdMortality,      unit: '%',     description: TARGET_DESCRIPTIONS.herdMortality },
     { key: 'weaningRate',         title: 'Weaning Rate',               value: weaningRate,       target: targets.weaningRate,        unit: '%',     description: TARGET_DESCRIPTIONS.weaningRate },
   ]
