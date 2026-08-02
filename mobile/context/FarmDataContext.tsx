@@ -131,6 +131,7 @@ export interface Drug {
   withdrawalPeriod: string;
   pregnancySafe: 'Yes' | 'No';
   stockStatus: 'In Stock' | 'Low Stock' | 'Out of Stock';
+  expiryDate?: string;
   lastUpdated?: string;
 }
 
@@ -588,6 +589,7 @@ const mapDrugFromDb = (row: any): Drug => ({
   withdrawalPeriod: row.withdrawal_period || '',
   pregnancySafe: row.pregnancy_safe,
   stockStatus: row.stock_status,
+  expiryDate: row.expiry_date || '',
   lastUpdated: row.last_updated || row.created_at || undefined,
 });
 
@@ -1639,6 +1641,7 @@ export const FarmDataProvider: React.FC<{ children: ReactNode }> = ({ children }
       withdrawal_period: record.withdrawalPeriod,
       pregnancy_safe: record.pregnancySafe,
       stock_status: record.stockStatus,
+      expiry_date: record.expiryDate,
       user_id: targetUserId,
     };
     const { data, error } = await supabase
@@ -1665,6 +1668,7 @@ export const FarmDataProvider: React.FC<{ children: ReactNode }> = ({ children }
       if (updates.withdrawalPeriod !== undefined) dbUpdates.withdrawal_period = updates.withdrawalPeriod;
       if (updates.pregnancySafe !== undefined) dbUpdates.pregnancy_safe = updates.pregnancySafe;
       if (updates.stockStatus !== undefined) dbUpdates.stock_status = updates.stockStatus;
+      if (updates.expiryDate !== undefined) dbUpdates.expiry_date = updates.expiryDate;
 
       const { data, error } = await supabase
         .from('drugs')
@@ -2058,16 +2062,20 @@ export const FarmDataProvider: React.FC<{ children: ReactNode }> = ({ children }
   };
 
   const verifyObservation = async (id: string, status: 'pending' | 'verified' | 'rejected') => {
-    if (!supabase) {
+    try {
+      if (!supabase) {
+        setObservations(prev => prev.map(o => o.id === id ? { ...o, verificationStatus: status } : o));
+        return;
+      }
+      const { error } = await supabase
+        .from('observations')
+        .update({ verification_status: status })
+        .eq('id', id);
+      if (error) throw error;
       setObservations(prev => prev.map(o => o.id === id ? { ...o, verificationStatus: status } : o));
-      return;
+    } catch (e: any) {
+      alert("Failed to verify observation: " + e.message);
     }
-    const { error } = await supabase
-      .from('observations')
-      .update({ verification_status: status })
-      .eq('id', id);
-    if (error) throw error;
-    setObservations(prev => prev.map(o => o.id === id ? { ...o, verificationStatus: status } : o));
   };
 
   const toggleTodoStatus = async (id: string, currentStatus: 'pending' | 'completed' | 'overdue') => {
@@ -2919,6 +2927,7 @@ export const FarmDataProvider: React.FC<{ children: ReactNode }> = ({ children }
         toggleTodoStatus,
         updateFarmEvent,
         updateObservation,
+        verifyObservation,
         updateTodoTask,
 
         // Auth values

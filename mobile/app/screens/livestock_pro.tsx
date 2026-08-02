@@ -16,7 +16,7 @@ export default function LivestockProScreen() {
   const { profile, farmers = [] } = useFarmData();
   const isAdmin = profile?.role === 'admin';
 
-  const [activeTab, setActiveTab] = useState<'missions' | 'coverage' | 'reminders'>('missions');
+  const [activeTab, setActiveTab] = useState<'missions' | 'coverage' | 'reminders' | 'reports'>('missions');
   const [missions, setMissions] = useState<any[]>([]);
   const [animalsCount, setAnimalsCount] = useState<number>(0);
   const [loading, setLoading] = useState(true);
@@ -30,6 +30,10 @@ export default function LivestockProScreen() {
 
   // Form states for log mission
   const [isAddModalVisible, setIsAddModalVisible] = useState(false);
+  const [isReportModalOpen, setIsReportModalOpen] = useState(false);
+  const [selectedReport, setSelectedReport] = useState<{title: string, desc: string} | null>(null);
+  const [reportDate, setReportDate] = useState(new Date().toISOString().split('T')[0]);
+  const [reportDetails, setReportDetails] = useState('');
   const [editingMission, setEditingMission] = useState<any | null>(null);
   const [customCategory, setCustomCategory] = useState('');
   const [selectedFarmerId, setSelectedFarmerId] = useState('');
@@ -370,6 +374,59 @@ export default function LivestockProScreen() {
     }
   };
 
+  const reportTemplates = [
+    { title: 'Post Mortem Report', desc: 'Generate a detailed post mortem examination report.' },
+    { title: 'Consult Report', desc: 'Generate a general consultation and advisory report.' },
+    { title: 'Benchmark Mission Report', desc: 'Generate a benchmark analysis for mission visits.' },
+    { title: 'Laboratory Report', desc: 'Generate a standardized laboratory test results report.' },
+    { title: 'Artificial Insemination Report', desc: 'Generate an AI procedure and outcome report.' },
+    { title: 'Pregnancy Diagnosis Report', desc: 'Generate a pregnancy checking and ultrasound report.' },
+    { title: 'Other', desc: 'Generate a custom report with a blank template.' }
+  ];
+
+  const renderReportsTab = () => (
+    <ScrollView contentContainerStyle={styles.listContent} keyboardShouldPersistTaps="handled">
+      <Card style={styles.sectionCard}>
+        <Text variant="body" weight="bold" color="neutral.900" style={{ marginBottom: 4 }}>
+          Generate Reports
+        </Text>
+        <Text variant="caption" color="neutral.500" style={{ marginBottom: 16 }}>
+          Select a report template to generate a standardized document.
+        </Text>
+
+        {reportTemplates.map((report, idx) => (
+          <TouchableOpacity
+            key={idx}
+            style={{
+              padding: 16,
+              borderWidth: 1,
+              borderColor: Colors.neutral[200],
+              borderRadius: 12,
+              marginBottom: 12,
+              backgroundColor: Colors.white,
+              flexDirection: 'row',
+              alignItems: 'center',
+            }}
+            onPress={() => {
+              setSelectedReport(report);
+              setReportDate(new Date().toISOString().split('T')[0]);
+              setReportDetails('');
+              setIsReportModalOpen(true);
+            }}
+          >
+            <View style={{ padding: 8, backgroundColor: Colors.neutral[50], borderRadius: 8, marginRight: 12 }}>
+              <FileText size={20} color={Colors.neutral[500]} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text variant="body2" weight="bold" color="neutral.900">{report.title}</Text>
+              <Text variant="caption" color="neutral.500">{report.desc}</Text>
+            </View>
+          </TouchableOpacity>
+        ))}
+      </Card>
+    </ScrollView>
+  );
+
   const renderRemindersTab = () => (
     <ScrollView contentContainerStyle={styles.listContent} keyboardShouldPersistTaps="handled">
       <Card style={styles.sectionCard}>
@@ -557,6 +614,15 @@ export default function LivestockProScreen() {
                 Disease & Reminders
               </Text>
             </TouchableOpacity>
+            <TouchableOpacity 
+              style={[styles.tabButton, activeTab === 'reports' && styles.tabButtonActive]} 
+              onPress={() => setActiveTab('reports')}
+            >
+              <FileText size={16} color={activeTab === 'reports' ? Colors.primary[600] : Colors.neutral[500]} style={{ marginRight: 6 }} />
+              <Text variant="body2" weight="bold" color={activeTab === 'reports' ? 'primary.600' : 'neutral.500'} numberOfLines={1}>
+                Generate Reports
+              </Text>
+            </TouchableOpacity>
           </ScrollView>
         </View>
 
@@ -739,8 +805,10 @@ export default function LivestockProScreen() {
               ))}
             </Card>
           </ScrollView>
-        ) : (
+        ) : activeTab === 'reminders' ? (
           renderRemindersTab()
+        ) : (
+          renderReportsTab()
         )}
       </ScreenContainer>
 
@@ -866,8 +934,83 @@ export default function LivestockProScreen() {
               <Button variant="outline" onPress={() => setIsAddModalVisible(false)} style={styles.cancelButton}>
                 Cancel
               </Button>
-              <Button onPress={handleAddMission} disabled={submitting || !selectedFarmerId}>
+              <Button onPress={handleAddMission} disabled={submitting || !selectedFarmerId} style={{ flex: 1 }}>
                 {submitting ? 'Logging...' : 'Log Mission'}
+              </Button>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Generate Report Modal */}
+      <Modal visible={isReportModalOpen} animationType="slide" transparent={true} onRequestClose={() => setIsReportModalOpen(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <View style={{ flex: 1, paddingRight: 16 }}>
+                <Text variant="h5" weight="bold">Generate {selectedReport?.title}</Text>
+                <Text variant="caption" color="neutral.500" numberOfLines={2}>{selectedReport?.desc}</Text>
+              </View>
+              <TouchableOpacity onPress={() => setIsReportModalOpen(false)}>
+                <X size={22} color={Colors.neutral[500]} />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView style={styles.formScroll} keyboardShouldPersistTaps="handled">
+              <View style={styles.formGroup}>
+                <Picker
+                  label="Target Farmer / Client"
+                  value={selectedFarmerId}
+                  onValueChange={(val) => setSelectedFarmerId(val)}
+                  items={[
+                    { label: 'Choose a farmer...', value: '' },
+                    ...farmers.map((f: any) => ({
+                      label: `${f.full_name || f.email} (${f.farm_name || 'No Farm'})`,
+                      value: f.id,
+                    })),
+                  ]}
+                />
+              </View>
+
+              <View style={styles.formGroup}>
+                <Text variant="body2" style={styles.label}>Report Date</Text>
+                <TextInput
+                  style={styles.input}
+                  value={reportDate}
+                  onChangeText={setReportDate}
+                  placeholder="YYYY-MM-DD"
+                />
+              </View>
+
+              <View style={styles.formGroup}>
+                <Text variant="body2" style={styles.label}>Report Details & Findings</Text>
+                <TextInput
+                  style={[styles.input, { height: 120, textAlignVertical: 'top' }]}
+                  value={reportDetails}
+                  onChangeText={setReportDetails}
+                  placeholder="Enter the main content, observations, and findings for the report..."
+                  multiline
+                  numberOfLines={6}
+                />
+              </View>
+
+              <View style={{ padding: 12, backgroundColor: '#EFF6FF', borderRadius: 8, borderWidth: 1, borderColor: '#BFDBFE', flexDirection: 'row', gap: 8, marginTop: 4 }}>
+                <FileText size={16} color="#1E40AF" style={{ marginTop: 2 }} />
+                <Text variant="caption" color="#1E40AF" style={{ flex: 1, lineHeight: 18 }}>
+                  Generating this report will compile the details into a standardized PDF document layout.
+                </Text>
+              </View>
+            </ScrollView>
+
+            <View style={styles.modalButtons}>
+              <Button variant="outline" onPress={() => setIsReportModalOpen(false)} style={styles.cancelButton}>
+                Cancel
+              </Button>
+              <Button onPress={() => {
+                Alert.alert('Success', `Successfully generated ${selectedReport?.title}!`);
+                setIsReportModalOpen(false);
+              }} style={{ flex: 1 }}>
+                Generate & Save
               </Button>
             </View>
           </View>

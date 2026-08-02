@@ -792,7 +792,8 @@ function RegisterContent() {
     name: '',
     withdrawalPeriod: '',
     pregnancySafe: 'No',
-    stockStatus: 'In Stock'
+    stockStatus: 'In Stock',
+    expiryDate: ''
   });
 
   const handleAddDrug = async () => {
@@ -819,7 +820,8 @@ function RegisterContent() {
         name: '',
         withdrawalPeriod: '',
         pregnancySafe: 'No',
-        stockStatus: 'In Stock'
+        stockStatus: 'In Stock',
+        expiryDate: ''
       });
       setIsAddDrugModalVisible(false);
     } catch (error: any) {
@@ -1056,6 +1058,16 @@ function RegisterContent() {
                   value={newDrug.withdrawalPeriod}
                   onChangeText={(text) => setNewDrug({...newDrug, withdrawalPeriod: text})}
                   placeholder="e.g., 21 days"
+                />
+              </View>
+              
+              <View style={styles.formGroup}>
+                <Text variant="body2" style={styles.label}>Expiry Date</Text>
+                <TextInput
+                  style={styles.input}
+                  value={newDrug.expiryDate}
+                  onChangeText={(text) => setNewDrug({...newDrug, expiryDate: text})}
+                  placeholder="YYYY-MM-DD"
                 />
               </View>
               
@@ -1850,6 +1862,7 @@ function RegisterContent() {
         withdrawalPeriod: editingDrug.withdrawalPeriod,
         pregnancySafe: editingDrug.pregnancySafe as any,
         stockStatus: editingDrug.stockStatus as any,
+        expiryDate: editingDrug.expiryDate,
       });
       setIsEditDrugModalVisible(false);
       setEditingDrug(null);
@@ -3027,12 +3040,22 @@ function RegisterContent() {
               </View>
 
               <View style={styles.formGroup}>
-                <Text variant="body2" style={styles.label}>Withdrawal Period *</Text>
+                <Text variant="body2" style={styles.label}>Withdrawal Period</Text>
                 <TextInput
                   style={styles.input}
                   value={editingDrug?.withdrawalPeriod || ''}
                   onChangeText={(text) => editingDrug && setEditingDrug({...editingDrug, withdrawalPeriod: text})}
-                  placeholder="e.g. 14 days"
+                  placeholder="e.g., 21 days"
+                />
+              </View>
+
+              <View style={styles.formGroup}>
+                <Text variant="body2" style={styles.label}>Expiry Date</Text>
+                <TextInput
+                  style={styles.input}
+                  value={editingDrug?.expiryDate || ''}
+                  onChangeText={(text) => editingDrug && setEditingDrug({...editingDrug, expiryDate: text})}
+                  placeholder="YYYY-MM-DD"
                 />
               </View>
 

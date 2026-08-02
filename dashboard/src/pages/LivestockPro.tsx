@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext'
 import {
   X, Plus, Search, Calendar, Phone, MapPin, Users,
   MessageSquare, ShieldCheck, Activity, BarChart3, Layers, CheckCircle2,
-  Bell, Trash2, Edit
+  Bell, Trash2, Edit, FileText
 } from 'lucide-react'
 import {
   ResponsiveContainer, AreaChart, Area, BarChart, Bar,
@@ -39,12 +39,13 @@ interface Mission {
   created_at: string
 }
 
-type Tab = 'missions' | 'coverage' | 'reminders'
+type Tab = 'missions' | 'coverage' | 'reminders' | 'reports'
 
 const TABS: { key: Tab; label: string; icon: any }[] = [
   { key: 'missions', label: 'Missions Register', icon: Layers },
   { key: 'coverage',  label: 'Coverage Analysis',  icon: BarChart3 },
   { key: 'reminders', label: 'Disease & Reminders',  icon: Bell },
+  { key: 'reports', label: 'Generate Reports', icon: FileText },
 ]
 
 export default function LivestockPro() {
@@ -65,6 +66,8 @@ export default function LivestockPro() {
 
   // Modals
   const [isAddModalOpen, setIsAddModalOpen] = useState(false)
+  const [isReportModalOpen, setIsReportModalOpen] = useState(false)
+  const [selectedReport, setSelectedReport] = useState<{title: string, desc: string} | null>(null)
   const [editingMission, setEditingMission] = useState<Mission | null>(null)
   const [customCategory, setCustomCategory] = useState('')
   const [newMission, setNewMission] = useState({
@@ -818,6 +821,46 @@ export default function LivestockPro() {
               </div>
             </div>
           )}
+
+          {/* ── Tab D: Generate Reports ────────────────────────────────────── */}
+          {activeTab === 'reports' && (
+            <div className="space-y-6">
+              <div className="card p-6 shadow-sm">
+                <p className="font-bold text-lg mb-2" style={{ color: C.neutral900 }}>Generate Reports</p>
+                <p className="text-sm text-neutral-500 mb-6">Select a report template to generate a standardized document.</p>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {[
+                    { title: 'Post Mortem Report', desc: 'Generate a detailed post mortem examination report.' },
+                    { title: 'Consult Report', desc: 'Generate a general consultation and advisory report.' },
+                    { title: 'Benchmark Mission Report', desc: 'Generate a benchmark analysis for mission visits.' },
+                    { title: 'Laboratory Report', desc: 'Generate a standardized laboratory test results report.' },
+                    { title: 'Artificial Insemination Report', desc: 'Generate an AI procedure and outcome report.' },
+                    { title: 'Pregnancy Diagnosis Report', desc: 'Generate a pregnancy checking and ultrasound report.' },
+                    { title: 'Other', desc: 'Generate a custom report with a blank template.' }
+                  ].map((report, idx) => (
+                    <button
+                      key={idx}
+                      onClick={() => {
+                        setSelectedReport(report)
+                        setIsReportModalOpen(true)
+                      }}
+                      className="p-5 border rounded-xl text-left hover:border-primary-500 hover:shadow-md transition-all group bg-white"
+                      style={{ borderColor: C.neutral200 }}
+                    >
+                      <div className="flex items-center gap-3 mb-2">
+                        <div className="p-2 rounded-lg bg-neutral-50 group-hover:bg-primary-50 transition-colors">
+                          <FileText size={20} className="text-neutral-500 group-hover:text-primary-600 transition-colors" />
+                        </div>
+                        <h4 className="font-bold text-sm" style={{ color: C.neutral900 }}>{report.title}</h4>
+                      </div>
+                      <p className="text-xs text-neutral-500">{report.desc}</p>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
         </>
       )}
 
@@ -1003,6 +1046,91 @@ export default function LivestockPro() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Generate Report Modal Dialog */}
+      {isReportModalOpen && selectedReport && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4"
+          style={{ backgroundColor: 'rgba(0,0,0,0.45)' }}>
+          <div className="w-full max-w-lg rounded-2xl overflow-hidden shadow-2xl flex flex-col bg-white"
+            style={{ maxHeight: '90vh' }}>
+            <div className="flex items-center justify-between px-6 py-5 border-b" style={{ borderColor: C.neutral100 }}>
+              <div>
+                <h3 className="text-lg font-bold" style={{ color: C.neutral900 }}>
+                  Generate {selectedReport.title}
+                </h3>
+                <p className="text-xs text-neutral-500 mt-1">{selectedReport.desc}</p>
+              </div>
+              <button onClick={() => setIsReportModalOpen(false)} className="p-1 hover:bg-neutral-100 rounded-lg">
+                <X size={18} style={{ color: C.neutral500 }} />
+              </button>
+            </div>
+
+            <div className="overflow-y-auto p-6 space-y-4 flex-1">
+              <div>
+                <label className="block text-xs font-bold uppercase mb-1.5" style={{ color: C.neutral600 }}>Target Farmer / Client</label>
+                <select
+                  className="w-full text-sm rounded-xl px-3 py-2 border outline-none bg-white cursor-pointer"
+                  style={{ borderColor: C.neutral200, color: C.neutral700 }}
+                >
+                  <option value="">-- Select Farmer --</option>
+                  {farmers.map(f => (
+                    <option key={f.id} value={f.id}>
+                      {f.full_name || f.email} {f.farm_name ? `(${f.farm_name})` : ''}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold uppercase mb-1.5" style={{ color: C.neutral600 }}>Report Date</label>
+                <input
+                  type="date"
+                  defaultValue={new Date().toISOString().split('T')[0]}
+                  className="w-full text-sm rounded-xl px-3 py-2 border outline-none cursor-pointer"
+                  style={{ borderColor: C.neutral200, color: C.neutral800 }}
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold uppercase mb-1.5" style={{ color: C.neutral600 }}>Report Details & Findings</label>
+                <textarea
+                  placeholder="Enter the main content, observations, and findings for the report..."
+                  rows={6}
+                  className="w-full text-sm rounded-xl px-3 py-2 border outline-none resize-none"
+                  style={{ borderColor: C.neutral200, color: C.neutral800 }}
+                />
+              </div>
+              
+              <div className="p-3 bg-blue-50 rounded-xl border border-blue-100 text-sm text-blue-800 flex gap-2">
+                <FileText size={16} className="mt-0.5 shrink-0" />
+                <p>Generating this report will compile the details into a standardized PDF document layout for printing or emailing.</p>
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-3 p-4 border-t" style={{ borderColor: C.neutral100 }}>
+              <button
+                type="button"
+                onClick={() => setIsReportModalOpen(false)}
+                className="px-4 py-2 border rounded-xl text-xs font-bold text-neutral-500 hover:bg-neutral-50"
+                style={{ borderColor: C.neutral200 }}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  alert(`Successfully generated ${selectedReport.title}!`)
+                  setIsReportModalOpen(false)
+                }}
+                className="px-4 py-2 rounded-xl text-xs font-bold text-white shadow-sm hover:opacity-90 active:scale-[0.98] transition-all flex items-center gap-2"
+                style={{ backgroundColor: C.primary500 }}
+              >
+                <FileText size={16} /> Generate & Save
+              </button>
+            </div>
           </div>
         </div>
       )}
