@@ -188,7 +188,7 @@ export default function Nutrition() {
       supabase.from('animal_weights').select('*').eq('user_id', targetUserId).eq('production_year', selectedProductionYear),
     ]).then(([{ data: ins }, { data: a }, { data: w }]) => {
       if (ins?.data) {
-        const d = ins.data as Record<string, number>
+        const d = ins.data as Record<string, any>
         setFi(d)
         setHerdBcs(d.herdBcs ?? 1)
         setDung(d.dungConsistency ?? 1); setRumen(d.rumenFill ?? 1)
@@ -259,6 +259,9 @@ export default function Nutrition() {
   const mgtLabel = mgtVal > 0
     ? (mgtVal >= 4.5 ? 'Excellent' : mgtVal >= 3.5 ? 'Good' : mgtVal >= 2.5 ? 'Moderate' : 'Poor')
     : 'N/A'
+
+  const rawDate = fi.updated_at || fi.created_at;
+  const lastUpdatedStr = rawDate ? new Date(rawDate).toLocaleDateString() : 'Never';
 
   const nutritionMetrics: NutritionMetric[] = [
     { id: '1', category: 'Weight Gain (ADG)', result: adgLabel,   target: '0.9 – 1.13',    status: adgStatus },
@@ -340,32 +343,44 @@ export default function Nutrition() {
                   <td className="text-center"><StatusBadge status={m.status} /></td>
                   <td className="text-center">
                     {m.category === 'Herd BCS' && (
-                      <button onClick={() => setShowHerdBcs(true)}
-                        className="inline-block px-2.5 py-1 rounded-lg text-xs font-bold"
-                        style={{ backgroundColor: C.primary50, border: `1px solid ${C.primary100}`, color: C.primary500 }}>
-                        Assess
-                      </button>
+                      <div className="flex flex-col items-center justify-center">
+                        <button onClick={() => setShowHerdBcs(true)}
+                          className="inline-block px-2.5 py-1 rounded-lg text-xs font-bold"
+                          style={{ backgroundColor: C.primary50, border: `1px solid ${C.primary100}`, color: C.primary500 }}>
+                          Assess
+                        </button>
+                        <span className="text-[10px] mt-1" style={{ color: C.neutral400 }}>{lastUpdatedStr}</span>
+                      </div>
                     )}
                     {m.category === 'Deficiencies' && (
-                      <button onClick={() => setShowDef(true)}
-                        className="inline-block px-2.5 py-1 rounded-lg text-xs font-bold"
-                        style={{ backgroundColor: C.primary50, border: `1px solid ${C.primary100}`, color: C.primary500 }}>
-                        Assess
-                      </button>
+                      <div className="flex flex-col items-center justify-center">
+                        <button onClick={() => setShowDef(true)}
+                          className="inline-block px-2.5 py-1 rounded-lg text-xs font-bold"
+                          style={{ backgroundColor: C.primary50, border: `1px solid ${C.primary100}`, color: C.primary500 }}>
+                          Assess
+                        </button>
+                        <span className="text-[10px] mt-1" style={{ color: C.neutral400 }}>{lastUpdatedStr}</span>
+                      </div>
                     )}
                     {m.category === 'Growth Perception' && (
-                      <button onClick={() => setShowGrowth(true)}
-                        className="inline-block px-2.5 py-1 rounded-lg text-xs font-bold"
-                        style={{ backgroundColor: C.primary50, border: `1px solid ${C.primary100}`, color: C.primary500 }}>
-                        Assess
-                      </button>
+                      <div className="flex flex-col items-center justify-center">
+                        <button onClick={() => setShowGrowth(true)}
+                          className="inline-block px-2.5 py-1 rounded-lg text-xs font-bold"
+                          style={{ backgroundColor: C.primary50, border: `1px solid ${C.primary100}`, color: C.primary500 }}>
+                          Assess
+                        </button>
+                        <span className="text-[10px] mt-1" style={{ color: C.neutral400 }}>{lastUpdatedStr}</span>
+                      </div>
                     )}
                     {m.category === 'Management' && (
-                      <button onClick={() => setShowMgt(true)}
-                        className="inline-block px-2.5 py-1 rounded-lg text-xs font-bold"
-                        style={{ backgroundColor: C.primary50, border: `1px solid ${C.primary100}`, color: C.primary500 }}>
-                        Assess
-                      </button>
+                      <div className="flex flex-col items-center justify-center">
+                        <button onClick={() => setShowMgt(true)}
+                          className="inline-block px-2.5 py-1 rounded-lg text-xs font-bold"
+                          style={{ backgroundColor: C.primary50, border: `1px solid ${C.primary100}`, color: C.primary500 }}>
+                          Assess
+                        </button>
+                        <span className="text-[10px] mt-1" style={{ color: C.neutral400 }}>{lastUpdatedStr}</span>
+                      </div>
                     )}
                   </td>
                 </tr>
