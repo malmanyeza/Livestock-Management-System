@@ -316,6 +316,14 @@ export default function Layout({ children }: { children: React.ReactNode }) {
               </div>
             </div>
           )}
+          <NavLink
+            to="/profile"
+            className={location.pathname === '/profile' ? 'nav-link-active w-full mb-1' : 'nav-link w-full mb-1'}
+            title={!sidebarOpen ? 'Profile Settings' : undefined}
+          >
+            <Settings size={18} className="flex-shrink-0" style={{ color: location.pathname === '/profile' ? '#7AC142' : '#6C757D' }} />
+            {sidebarOpen && <span className="truncate">Profile Settings</span>}
+          </NavLink>
           <button
             onClick={signOut}
             className="nav-link w-full"

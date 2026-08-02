@@ -382,6 +382,14 @@ function AddAnimalModal({ editingAnimal, onClose, onSave }: { editingAnimal?: an
     description: editingAnimal?.description || '',
     bcs: editingAnimal?.bcs !== undefined ? String(editingAnimal.bcs) : '3.0'
   })
+  const BREED_OPTIONS = [
+    'Angus', 'Afrikander', 'Beefmaster', 'Bonsmara', 'Brangus', 'Bradford', 
+    'Boran', 'Brahman', 'Crossbreed', 'Chalorais', 'Hereford', 'Limousin', 
+    'Mashona', 'Nguni', 'Red Dane', 'Santa gertrudis', 'Simmental', 'Sussex', 'Tuli', 'Other'
+  ];
+  
+  const isCustomBreedInitial = editingAnimal?.breed && !BREED_OPTIONS.includes(editingAnimal.breed) && editingAnimal.breed !== '';
+  const [breedType, setBreedType] = useState(isCustomBreedInitial ? 'Other' : (editingAnimal?.breed || ''));
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
@@ -462,12 +470,37 @@ function AddAnimalModal({ editingAnimal, onClose, onSave }: { editingAnimal?: an
           </div>
 
           <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-xs font-semibold mb-1 uppercase tracking-wider" style={{ color: C.neutral500 }}>Breed *</label>
-              <input value={form.breed} onChange={e => setForm(p => ({ ...p, breed: e.target.value }))}
-                placeholder="e.g., Brahman, Angus"
-                className="w-full rounded-xl px-4 py-2.5 text-sm outline-none border transition-colors focus:border-[#7AC142]"
-                style={{ borderColor: C.neutral200, color: C.neutral900, backgroundColor: C.neutral50 }} />
+            <div className="flex flex-col gap-2">
+              <label className="block text-xs font-semibold uppercase tracking-wider" style={{ color: C.neutral500 }}>Breed *</label>
+              <select
+                value={breedType}
+                onChange={e => {
+                  setBreedType(e.target.value);
+                  if (e.target.value !== 'Other') {
+                    setForm(p => ({ ...p, breed: e.target.value }));
+                  } else {
+                    setForm(p => ({ ...p, breed: '' }));
+                  }
+                }}
+                className="w-full rounded-xl px-4 py-2.5 text-sm outline-none border transition-colors focus:border-[#7AC142] appearance-none bg-no-repeat"
+                style={{ 
+                  borderColor: C.neutral200, color: C.neutral900, backgroundColor: C.neutral50,
+                  backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23666' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E")`,
+                  backgroundPosition: 'right 12px center'
+                }}
+              >
+                <option value="" disabled>Select a breed...</option>
+                {BREED_OPTIONS.map(b => <option key={b} value={b}>{b}</option>)}
+              </select>
+              {breedType === 'Other' && (
+                <input 
+                  value={form.breed} 
+                  onChange={e => setForm(p => ({ ...p, breed: e.target.value }))}
+                  placeholder="Enter custom breed..."
+                  className="w-full rounded-xl px-4 py-2.5 text-sm outline-none border transition-colors focus:border-[#7AC142]"
+                  style={{ borderColor: C.neutral200, color: C.neutral900, backgroundColor: C.neutral50 }} 
+                />
+              )}
             </div>
             <div>
               <label className="block text-xs font-semibold mb-1 uppercase tracking-wider" style={{ color: C.neutral500 }}>Sex *</label>

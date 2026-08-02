@@ -9,6 +9,7 @@ import Nutrition from './pages/Nutrition'
 import Register from './pages/Register'
 import Marketplace from './pages/Marketplace'
 import LivestockPro from './pages/LivestockPro'
+import Profile from './pages/Profile'
 import Tasks from './pages/Tasks'
 import Login from './pages/Login'
 import Workers from './pages/Workers'
@@ -42,6 +43,7 @@ function ProtectedRoutes() {
           element={(profile?.role === 'farmer' || profile?.role === 'admin') ? <Workers /> : <Navigate to="/" replace />} 
         />
         <Route path="/livestock-pro" element={<LivestockPro />} />
+        <Route path="/profile" element={<Profile />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </Layout>

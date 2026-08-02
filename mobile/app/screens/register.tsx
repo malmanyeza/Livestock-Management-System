@@ -670,7 +670,9 @@ function RegisterContent() {
   const [showWeaningDatePicker, setShowWeaningDatePicker] = useState(false);
   const [selectedWeaningDate, setSelectedWeaningDate] = useState(new Date());
   const [customBreedList, setCustomBreedList] = useState<string[]>([
-    'Angus', 'Brahman', 'Hereford', 'Mashona', 'Tuli', 'Simmental', 'Other'
+    'Angus', 'Afrikander', 'Beefmaster', 'Bonsmara', 'Brangus', 'Bradford', 
+    'Boran', 'Brahman', 'Crossbreed', 'Chalorais', 'Hereford', 'Limousin', 
+    'Mashona', 'Nguni', 'Red Dane', 'Santa gertrudis', 'Simmental', 'Sussex', 'Tuli'
   ]);
   const [showCustomBreedInput, setShowCustomBreedInput] = useState(false);
   const [showDatePicker, setShowDatePicker] = useState({
@@ -4806,7 +4808,7 @@ function RegisterContent() {
               
               <Picker
                 label="Breed"
-                value={newAnimal.breed}
+                value={showCustomBreedInput ? '__add_new__' : newAnimal.breed}
                 onValueChange={(value) => {
                   if (value === '__add_new__') {
                     setNewAnimal({...newAnimal, breed: ''});
@@ -4819,31 +4821,17 @@ function RegisterContent() {
                 items={[
                   { label: 'Select Breed', value: '' },
                   ...customBreedList.map(b => ({ label: b, value: b })),
-                  { label: '+ Add New Breed...', value: '__add_new__' },
+                  { label: 'Other', value: '__add_new__' },
                 ]}
               />
               {showCustomBreedInput && (
-                <View style={[styles.formGroup, { flexDirection: 'row', alignItems: 'center', gap: 8 }]}>
+                <View style={styles.formGroup}>
                   <TextInput
-                    style={[styles.input, { flex: 1 }]}
+                    style={styles.input}
                     value={newAnimal.breed}
                     onChangeText={(text) => setNewAnimal({...newAnimal, breed: text})}
-                    placeholder="Type new breed name..."
-                    autoFocus
+                    placeholder="Type custom breed name..."
                   />
-                  <Button
-                    size="sm"
-                    onPress={() => {
-                      const trimmed = newAnimal.breed.trim();
-                      if (trimmed && !customBreedList.includes(trimmed)) {
-                        setCustomBreedList(prev => [...prev, trimmed]);
-                      }
-                      setShowCustomBreedInput(false);
-                    }}
-                    disabled={!newAnimal.breed.trim()}
-                  >
-                    Save
-                  </Button>
                 </View>
               )}
               
@@ -5418,7 +5406,7 @@ function RegisterContent() {
                   
                   <Picker
                     label="Breed"
-                    value={editingAnimal?.breed || ''}
+                    value={showCustomBreedInput ? '__add_new__' : (editingAnimal?.breed || '')}
                     onValueChange={(value) => {
                       if (value === '__add_new__') {
                         if (editingAnimal) setEditingAnimal({...editingAnimal, breed: ''});
@@ -5431,31 +5419,17 @@ function RegisterContent() {
                     items={[
                       { label: 'Select Breed', value: '' },
                       ...customBreedList.map(b => ({ label: b, value: b })),
-                      { label: '+ Add New Breed...', value: '__add_new__' },
+                      { label: 'Other', value: '__add_new__' },
                     ]}
                   />
                   {showCustomBreedInput && (
-                    <View style={[styles.formGroup, { flexDirection: 'row', alignItems: 'center', gap: 8 }]}>
+                    <View style={styles.formGroup}>
                       <TextInput
-                        style={[styles.input, { flex: 1 }]}
+                        style={styles.input}
                         value={editingAnimal?.breed || ''}
                         onChangeText={(text) => editingAnimal && setEditingAnimal({...editingAnimal, breed: text})}
-                        placeholder="Type new breed name..."
-                        autoFocus
+                        placeholder="Type custom breed name..."
                       />
-                      <Button
-                        size="sm"
-                        onPress={() => {
-                          const trimmed = editingAnimal?.breed.trim();
-                          if (trimmed && !customBreedList.includes(trimmed)) {
-                            setCustomBreedList(prev => [...prev, trimmed]);
-                          }
-                          setShowCustomBreedInput(false);
-                        }}
-                        disabled={!editingAnimal?.breed.trim()}
-                      >
-                        Save
-                      </Button>
                     </View>
                   )}
                   
@@ -6738,6 +6712,7 @@ function RegisterContent() {
                   )
                 },
                 { key: 'stockType', title: 'Type', width: 120 },
+                { key: 'bcs', title: 'BCS', width: 70, render: (v: any) => <Text>{v ? Number(v).toFixed(1) : '—'}</Text> },
                 { key: 'source', title: 'Source', width: 120 },
                 { key: 'sire', title: 'Sire', width: 100, render: (v: any) => <Text>{v || '—'}</Text> },
                 { key: 'dam', title: 'Dam', width: 100, render: (v: any) => <Text>{v || '—'}</Text> },

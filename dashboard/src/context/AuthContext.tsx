@@ -7,7 +7,13 @@ export interface Profile {
   email: string
   role: string
   full_name?: string
+  owner_first_name?: string
+  owner_last_name?: string
   farm_name?: string
+  phone_number?: string
+  address?: string
+  location?: string
+  province?: string
   farmer_id?: string
   current_production_year?: number
 }

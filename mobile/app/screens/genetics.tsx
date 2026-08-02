@@ -59,6 +59,9 @@ function GeneticsContent() {
     bcsAtServiceTarget: '',
   });
 
+  const [isCalvingModalOpen, setIsCalvingModalOpen] = useState(false);
+  const [calvingForm, setCalvingForm] = useState({ interval: '' });
+
   const handleOpenPregnancyModal = () => {
     const overrides = farmInspection?.pregnancyOverrides || {};
     setPregnancyForm({
@@ -185,6 +188,27 @@ function GeneticsContent() {
       setIsTargetsModalOpen(false);
     } catch (e) {
       console.error(e);
+    }
+  };
+
+  const handleOpenCalvingModal = () => {
+    setCalvingForm({
+      interval: farmInspection?.calvingOverrides?.interval || '365 days',
+    });
+    setIsCalvingModalOpen(true);
+  };
+
+  const handleSaveCalving = async () => {
+    try {
+      await updateFarmInspection({
+        calvingOverrides: {
+          interval: calvingForm.interval,
+          lastUpdated: new Date().toLocaleDateString('en-GB')
+        }
+      });
+      setIsCalvingModalOpen(false);
+    } catch (e) {
+      console.error("Error saving calving overrides:", e);
     }
   };
 
@@ -446,92 +470,94 @@ function GeneticsContent() {
     );
   };
 
-  const renderCalving = () => (
-    <Card style={styles.card}>
-      <Text variant="h5" weight="medium" style={styles.cardTitle}>
-        Calving Performance
-      </Text>
-      <View style={styles.statsContainer}>
-        <View style={styles.statRow}>
-          <Text variant="body" weight="medium">
-            Calving Interval:
-          </Text>
-          <View style={{ alignItems: 'flex-end' }}>
-            <Text variant="body">
-              {farmInspection?.calvingOverrides?.interval || '365 days'}
+  const renderCalving = () => {
+    const calves = animals.filter(a => ['Calve', 'Calf'].includes(a.stockType));
+    const pregWithCalvingBcs = pregnancyRecords.filter(p => p.averageBCS !== null && p.averageBCS !== undefined && p.averageBCS > 0);
+    const bcsAtCalving = pregWithCalvingBcs.length > 0
+      ? (pregWithCalvingBcs.reduce((sum, p) => sum + Number(p.averageBCS), 0) / pregWithCalvingBcs.length).toFixed(1)
+      : '0.0';
+
+    return (
+      <Card 
+        style={styles.card}
+        title="Calving Performance"
+        headerRight={
+          profile?.role === 'admin' && (
+            <TouchableOpacity onPress={handleOpenCalvingModal} style={styles.editButton} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+              <Text variant="body2" color="primary.600" weight="bold">Modify</Text>
+            </TouchableOpacity>
+          )
+        }
+      >
+        <View style={styles.statsContainer}>
+          <View style={styles.statRow}>
+            <Text variant="body" weight="medium">
+              Calving Interval:
             </Text>
-            {farmInspection?.calvingOverrides?.lastUpdated && (
-              <Text variant="caption" color="neutral.400" style={{ fontStyle: 'italic', marginTop: 2 }}>
-                Updated: {farmInspection.calvingOverrides.lastUpdated}
+            <View style={{ alignItems: 'flex-end' }}>
+              <Text variant="body">
+                {farmInspection?.calvingOverrides?.interval || '365 days'}
               </Text>
-            )}
+              {farmInspection?.calvingOverrides?.lastUpdated && (
+                <Text variant="caption" color="neutral.400" style={{ fontStyle: 'italic', marginTop: 2 }}>
+                  Updated: {farmInspection.calvingOverrides.lastUpdated}
+                </Text>
+              )}
+            </View>
+          </View>
+          <View style={styles.statRow}>
+            <Text variant="body" weight="medium">
+              Calving Rate (3-week):
+            </Text>
+            <Text variant="body" color="success.500">
+              {metrics.calvingRate21d}%
+            </Text>
+          </View>
+          <View style={styles.statRow}>
+            <Text variant="body" weight="medium">
+              Calf Mortality:
+            </Text>
+            <Text variant="body" color="error.500">
+              {metrics.mortalityRates.preWeaning}%
+            </Text>
+          </View>
+          
+          <View style={styles.statRow}>
+            <Text variant="body" weight="medium">
+              Total Calves:
+            </Text>
+            <Text variant="body" weight="bold">
+              {calves.length}
+            </Text>
+          </View>
+          <View style={styles.statRow}>
+            <Text variant="body" weight="medium">
+              Male Calves:
+            </Text>
+            <Text variant="body" weight="bold">
+              {calves.filter(c => c.sex === 'Male').length}
+            </Text>
+          </View>
+          <View style={styles.statRow}>
+            <Text variant="body" weight="medium">
+              Female Calves:
+            </Text>
+            <Text variant="body" weight="bold">
+              {calves.filter(c => c.sex === 'Female').length}
+            </Text>
+          </View>
+          <View style={styles.statRow}>
+            <Text variant="body" weight="medium">
+              BCS at Calving:
+            </Text>
+            <Text variant="body" weight="bold">
+              {bcsAtCalving}
+            </Text>
           </View>
         </View>
-        <View style={styles.statRow}>
-          <Text variant="body" weight="medium">
-            Calving Rate (3-week):
-          </Text>
-          <Text variant="body" color="success.500">
-            {metrics.calvingRate21d}%
-          </Text>
-        </View>
-        <View style={styles.statRow}>
-          <Text variant="body" weight="medium">
-            Calf Mortality:
-          </Text>
-          <Text variant="body" color="error.500">
-            {metrics.mortalityRates.preWeaning}%
-          </Text>
-        </View>
-        
-        {(() => {
-          const calves = animals.filter(a => ['Calve', 'Calf'].includes(a.stockType));
-          const pregWithCalvingBcs = pregnancyRecords.filter(p => p.averageBCS !== null && p.averageBCS !== undefined && p.averageBCS > 0);
-          const bcsAtCalving = pregWithCalvingBcs.length > 0
-            ? (pregWithCalvingBcs.reduce((sum, p) => sum + Number(p.averageBCS), 0) / pregWithCalvingBcs.length).toFixed(1)
-            : '0.0';
-          
-          return (
-            <>
-              <View style={styles.statRow}>
-                <Text variant="body" weight="medium">
-                  Total Calves:
-                </Text>
-                <Text variant="body" weight="bold">
-                  {calves.length}
-                </Text>
-              </View>
-              <View style={styles.statRow}>
-                <Text variant="body" weight="medium">
-                  Male Calves:
-                </Text>
-                <Text variant="body" weight="bold">
-                  {calves.filter(c => c.sex === 'Male').length}
-                </Text>
-              </View>
-              <View style={styles.statRow}>
-                <Text variant="body" weight="medium">
-                  Female Calves:
-                </Text>
-                <Text variant="body" weight="bold">
-                  {calves.filter(c => c.sex === 'Female').length}
-                </Text>
-              </View>
-              <View style={styles.statRow}>
-                <Text variant="body" weight="medium">
-                  BCS at Calving:
-                </Text>
-                <Text variant="body" weight="bold">
-                  {bcsAtCalving}
-                </Text>
-              </View>
-            </>
-          );
-        })()}
-      </View>
-    </Card>
-  );
-
+      </Card>
+    );
+  };
 
   const renderBullsAndBreedingSoundness = () => {
     const router = useRouter();
@@ -1117,6 +1143,56 @@ function GeneticsContent() {
                 <TouchableOpacity
                   style={[styles.modalBtn, { backgroundColor: Colors.primary[600] }]}
                   onPress={handleSaveTargets}
+                >
+                  <Text variant="button" color="white">Save</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </KeyboardAvoidingView>
+        </View>
+      </Modal>
+
+      {/* Calving Modal */}
+      <Modal
+        visible={isCalvingModalOpen}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setIsCalvingModalOpen(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <KeyboardAvoidingView
+            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+            style={styles.modalKeyboardAvoiding}
+          >
+            <View style={styles.modalContent}>
+              <View style={styles.modalHeader}>
+                <Text variant="h5" weight="bold">Modify Calving</Text>
+                <TouchableOpacity onPress={() => setIsCalvingModalOpen(false)}>
+                  <Text variant="body" color="primary.600">Close</Text>
+                </TouchableOpacity>
+              </View>
+
+              <ScrollView style={styles.modalScrollView} showsVerticalScrollIndicator={false}>
+                <View style={styles.modalSection}>
+                  <Text variant="subtitle1" weight="bold" color="neutral.700" style={styles.sectionTitle}>Calving Interval</Text>
+                  <View style={styles.modalRow}>
+                    <View style={styles.modalInputGroup}>
+                      <Text variant="caption" weight="medium" color="neutral.500" style={styles.modalLabel}>Interval</Text>
+                      <TextInput
+                        style={styles.modalInput}
+                        value={calvingForm.interval}
+                        onChangeText={(t) => setCalvingForm(prev => ({ ...prev, interval: t }))}
+                        placeholder="e.g. 365 days"
+                      />
+                    </View>
+                  </View>
+                </View>
+              </ScrollView>
+
+              <View style={styles.modalActions}>
+                <TouchableOpacity
+                  style={[styles.modalBtn, { backgroundColor: Colors.primary[600] }]}
+                  onPress={handleSaveCalving}
                 >
                   <Text variant="button" color="white">Save</Text>
                 </TouchableOpacity>
