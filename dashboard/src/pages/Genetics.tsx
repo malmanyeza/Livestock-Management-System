@@ -438,6 +438,11 @@ export default function Genetics() {
   const preWeanMortality = mortalityRecs.filter(m => m.is_pre_weaning).length
   const calvingRate = animals.length > 0 ? Math.round((calves.length / animals.length) * 100) : 0
 
+  const pregWithCalvingBcs = pregnancyRecs.filter(p => p.average_bcs !== null && p.average_bcs !== undefined)
+  const bcsAtCalving = pregWithCalvingBcs.length > 0
+    ? (pregWithCalvingBcs.reduce((sum, p) => sum + Number(p.average_bcs), 0) / pregWithCalvingBcs.length).toFixed(1)
+    : '0.0'
+
   // ── 6. Bull Breeding Soundness ────────────────────────────────────────────
   const bullAnimals = animals.filter(a => a.stock_type === 'Bull')
   const mappedBulls = bullRecs.map(b => ({
@@ -660,6 +665,7 @@ export default function Genetics() {
           <StatRow label="Total Calves"            value={calves.length} />
           <StatRow label="Male Calves"             value={calves.filter(c => c.sex === 'Male').length} />
           <StatRow label="Female Calves"           value={calves.filter(c => c.sex === 'Female').length} />
+          <StatRow label="BCS at Calving"          value={bcsAtCalving} />
         </div>
       )}
 
