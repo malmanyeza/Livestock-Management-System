@@ -120,7 +120,7 @@ export default function Dashboard() {
 
     Promise.all([
       supabase.from('animals').select('*').eq('user_id', targetUserId).eq('production_year', selectedProductionYear),
-      supabase.from('todo_tasks').select('id', { count: 'exact', head: true }).eq('user_id', targetUserId),
+      supabase.from('todo_tasks').select('id', { count: 'exact', head: true }).eq('user_id', targetUserId).neq('status', 'completed'),
       supabase.from('breeding_records').select('*').eq('user_id', targetUserId).eq('production_year', selectedProductionYear),
       supabase.from('pregnancy_records').select('*').eq('user_id', targetUserId).eq('production_year', selectedProductionYear),
       supabase.from('feed_records').select('*').eq('user_id', targetUserId).eq('production_year', selectedProductionYear),
@@ -592,7 +592,7 @@ export default function Dashboard() {
           </div>
           <div className="text-right">
             <p className="text-4xl font-bold text-white">{todoCount}</p>
-            <p className="text-white" style={{ opacity: 0.9 }}>Tasks Today</p>
+            <p className="text-white" style={{ opacity: 0.9 }}>Active Tasks</p>
           </div>
         </div>
       </div>
