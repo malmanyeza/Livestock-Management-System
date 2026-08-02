@@ -153,7 +153,7 @@ export default function Production() {
     if (!targetUserId) return
     setLoading(true)
     Promise.all([
-      supabase.from('animals').select('weight,previous_weight,days_between_weights,stock_type,age').eq('user_id', targetUserId).eq('production_year', selectedProductionYear),
+      supabase.from('animals').select('weight,previous_weight,days_between_weights,stock_type,age,calf_status,weaning_weight,is_breeding_cow').eq('user_id', targetUserId).eq('production_year', selectedProductionYear),
       supabase.from('mortality_records').select('id,is_pre_weaning', { count: 'exact' }).eq('user_id', targetUserId).eq('production_year', selectedProductionYear),
     ]).then(([{ data: a }, { data: m, count }]) => {
       setAnimals(a ?? [])
@@ -164,13 +164,15 @@ export default function Production() {
 
   // Derived metrics — same formulas as FarmDataContext
   const calves = animals.filter(a => isCalf(a.age, a.stock_type))
+  const weanedCalves = calves.filter(a => a.calf_status === 'Replacement' || a.calf_status === 'Sold' || Number(a.weaning_weight || 0) > 0)
+  const eligibleCows = animals.filter(a => a.stock_type === 'Cow' || (a.stock_type === 'Heifer' && a.is_breeding_cow))
   const withWeights = animals.filter(a => a.weight && a.previous_weight && a.days_between_weights > 0)
   const adg = withWeights.length
     ? withWeights.reduce((s, a) => s + (a.weight - a.previous_weight) / a.days_between_weights, 0) / withWeights.length
     : 0
   const herdMortality     = animals.length ? (mortality / animals.length) * 100 : 0
-  const weaningPercentage = animals.length ? (calves.length / animals.length) * 100 : 0
-  const weaningRate       = weaningPercentage
+  const weaningPercentage = eligibleCows.length > 0 ? (weanedCalves.length / eligibleCows.length) * 100 : 0
+  const weaningRate       = calves.length > 0 ? (weanedCalves.length / calves.length) * 100 : 0
   const preWeaningDLWG    = adg * 0.85 // approximate
   const postWeaningDLWG   = adg
 
