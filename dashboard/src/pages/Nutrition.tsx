@@ -149,6 +149,7 @@ export default function Nutrition() {
   const navigate = useNavigate()
   const [fi, setFi] = useState<Record<string, number>>({})
   const [animals, setAnimals] = useState<any[]>([])
+  const [animalWeights, setAnimalWeights] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
 
   // Modal visibility
@@ -184,7 +185,8 @@ export default function Nutrition() {
     Promise.all([
       supabase.from('farm_inspections').select('*').eq('user_id', targetUserId).maybeSingle(),
       supabase.from('animals').select('weight,previous_weight,days_between_weights,bcs,stock_type').eq('user_id', targetUserId),
-    ]).then(([{ data: ins }, { data: a }]) => {
+      supabase.from('animal_weights').select('*').eq('user_id', targetUserId).eq('production_year', selectedProductionYear),
+    ]).then(([{ data: ins }, { data: a }, { data: w }]) => {
       if (ins?.data) {
         const d = ins.data as Record<string, number>
         setFi(d)
@@ -206,17 +208,31 @@ export default function Nutrition() {
         setWater(1); setForage(1)
       }
       setAnimals(a ?? [])
+      setAnimalWeights(w ?? [])
       setLoading(false)
     })
-  }, [targetUserId])
+  }, [targetUserId, selectedProductionYear])
 
   // ── Derived metrics (same formulas as mobile) ────────────────────────────────
-  const withWeights = animals.filter(a => a.weight && a.previous_weight && a.days_between_weights > 0)
-  const adgVal = withWeights.length
-    ? withWeights.reduce((s, a) => s + (a.weight - a.previous_weight) / a.days_between_weights, 0) / withWeights.length
-    : 0
-  const adgStatus: 'pass'|'warning'|'fail' = adgVal > 0 ? (adgVal >= 1.13 ? 'pass' : adgVal >= 0.9 ? 'warning' : 'fail') : 'warning'
-  const adgLabel = adgVal > 0 ? `${adgVal.toFixed(2)} kg/d` : 'N/A'
+  let totalAdg = 0;
+  let countAdg = 0;
+  const months = ['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec'];
+  animalWeights.forEach(row => {
+    let lastWeight: number | null = null;
+    months.forEach(m => {
+      if (row[m] !== null && row[m] !== undefined && row[m] !== '') {
+        const w = Number(row[m]);
+        if (lastWeight !== null) {
+          totalAdg += (w - lastWeight) / 30;
+          countAdg++;
+        }
+        lastWeight = w;
+      }
+    });
+  });
+  const adgVal = countAdg > 0 ? Number((totalAdg / countAdg).toFixed(3)) : 0;
+  const adgStatus: 'pass'|'warning'|'fail' = countAdg > 0 ? (adgVal >= 1.13 ? 'pass' : adgVal >= 0.9 ? 'warning' : 'fail') : 'warning'
+  const adgLabel = countAdg > 0 ? `${adgVal.toFixed(3)} kg/d` : 'N/A'
 
   const withBCS = animals.filter(a => a.bcs)
   const bcsVal = fi.herdBcs ? fi.herdBcs : (withBCS.length ? withBCS.reduce((s, a) => s + a.bcs, 0) / withBCS.length : 0)
