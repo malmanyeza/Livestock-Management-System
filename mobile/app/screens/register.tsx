@@ -2848,7 +2848,7 @@ function RegisterContent() {
               </View>
 
               <View style={styles.formGroup}>
-                <Text variant="body2" style={styles.label}>Average BCS</Text>
+                <Text variant="body2" style={styles.label}>BCS at Calving</Text>
                 <TextInput
                   style={styles.input}
                   value={editingPregnancyRecord?.averageBCS !== undefined && editingPregnancyRecord?.averageBCS !== null ? editingPregnancyRecord.averageBCS.toString() : ''}
@@ -5917,7 +5917,7 @@ function RegisterContent() {
               </View>
 
               <View style={styles.formGroup}>
-                <Text variant="body2" style={styles.label}>Average BCS</Text>
+                <Text variant="body2" style={styles.label}>BCS at Calving</Text>
                 <TextInput
                   style={styles.input}
                   value={newPregnancyRecord.averageBCS !== undefined && newPregnancyRecord.averageBCS !== null ? newPregnancyRecord.averageBCS.toString() : '3.0'}
@@ -6956,7 +6956,7 @@ function RegisterContent() {
               <DataTable
                 columns={[
                   { key: 'cowEarTag', title: 'Cow Ear Tag', width: 100 },
-                  { key: 'bodyConditionScore', title: 'BCS', width: 70 },
+                  { key: 'bodyConditionScore', title: 'BCS at Service', width: 110 },
                   { key: 'lastServiceDate', title: 'Last Service', width: 100 },
                   { key: 'firstTrimesterPD', title: '1st Tri PD', width: 90, render: (value: string) => (
                     <Text color={value === 'Positive' ? 'success.500' : value === 'Negative' ? 'error.500' : value === 'Inconclusive' ? 'warning.500' : 'neutral.500'}>{value}</Text>
@@ -6973,7 +6973,7 @@ function RegisterContent() {
                   { key: 'calfId', title: 'Calf ID', width: 100 },
                   { key: 'calfSex', title: 'Calf Sex', width: 90 },
                   { key: 'deliveryType', title: 'Delivery', width: 110 },
-                  { key: 'averageBCS', title: 'Avg BCS', width: 80, render: (value: number) => (
+                  { key: 'averageBCS', title: 'BCS at Calving', width: 110, render: (value: number) => (
                     <Text>{value !== null && value !== undefined ? value.toFixed(1) : '-'}</Text>
                   )},
                   { key: 'expectedReturnToHeatDate', title: 'Exp. Return to Heat', width: 160 },

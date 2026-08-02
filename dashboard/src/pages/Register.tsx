@@ -1273,7 +1273,7 @@ function AddPregnancyModal({ animals, editingPregnancy, onClose, onSave }: { ani
               </div>
             </div>
             <div>
-              <label className="block text-xs font-semibold mb-1 uppercase tracking-wider" style={{ color: C.neutral500 }}>BCS</label>
+              <label className="block text-xs font-semibold mb-1 uppercase tracking-wider" style={{ color: C.neutral500 }}>BCS at Service</label>
               <input type="number" step="0.1" value={form.bodyConditionScore} onChange={e => setForm(p => ({ ...p, bodyConditionScore: e.target.value }))}
                 className="w-full rounded-xl px-4 py-2.5 text-sm outline-none border transition-colors focus:border-[#7AC142]"
                 style={{ borderColor: C.neutral200, color: C.neutral900, backgroundColor: C.neutral50 }} />
@@ -1392,7 +1392,7 @@ function AddPregnancyModal({ animals, editingPregnancy, onClose, onSave }: { ani
                 style={{ borderColor: C.neutral200, color: C.neutral900, backgroundColor: C.neutral50 }} />
             </div>
             <div>
-              <label className="block text-xs font-semibold mb-1 uppercase tracking-wider" style={{ color: C.neutral500 }}>Average BCS</label>
+              <label className="block text-xs font-semibold mb-1 uppercase tracking-wider" style={{ color: C.neutral500 }}>BCS at Calving</label>
               <input type="number" step="0.1" value={form.averageBCS} onChange={e => setForm(p => ({ ...p, averageBCS: e.target.value }))}
                 className="w-full rounded-xl px-4 py-2.5 text-sm outline-none border transition-colors focus:border-[#7AC142]"
                 style={{ borderColor: C.neutral200, color: C.neutral900, backgroundColor: C.neutral50 }} />
@@ -2829,7 +2829,7 @@ export default function Register() {
               </div>
               <Table data={filteredPregnancy} cols={[
                 { key: 'cow_ear_tag',                label: 'Cow Tag', render: tagBadge },
-                { key: 'body_condition_score',       label: 'BCS', align: 'center', render: (v) => v ? <span className="font-semibold text-neutral-800">{v}</span> : '—' },
+                { key: 'body_condition_score',       label: 'BCS at Service', align: 'center', render: (v) => v ? <span className="font-semibold text-neutral-800">{v}</span> : '—' },
                 { key: 'last_service_date',          label: 'Service Date' },
                 { key: 'first_trimester_pd',         label: '1st Tri PD', render: statusBadge, align: 'center' },
                 { key: 'second_trimester_pd',        label: '2nd Tri PD', render: statusBadge, align: 'center' },
@@ -2840,7 +2840,7 @@ export default function Register() {
                 { key: 'calf_id',                    label: 'Calf ID', render: tagBadge },
                 { key: 'calf_sex',                   label: 'Calf Sex', render: sexBadge, align: 'center' },
                 { key: 'delivery_type',              label: 'Delivery' },
-                { key: 'average_bcs',                label: 'Avg BCS', align: 'center' },
+                { key: 'average_bcs',                label: 'BCS at Calving', align: 'center' },
                 { key: 'expected_return_to_heat_date', label: 'Expected Return to Heat' },
                 {
                   key: 'actions',
