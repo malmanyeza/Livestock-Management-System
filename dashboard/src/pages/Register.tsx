@@ -364,6 +364,7 @@ function AddMortalityModal({ animals, onClose, onSave, editingMortality }: { ani
 
 // ─── Add Animal Modal ─────────────────────────────────────────────────────────
 function AddAnimalModal({ editingAnimal, onClose, onSave }: { editingAnimal?: any; onClose: () => void; onSave: (d: any) => Promise<void> }) {
+  const { profile } = useAuth()
   const [form, setForm] = useState({
     tag: editingAnimal?.tag || '',
     date_of_birth: editingAnimal?.date_of_birth || '',
@@ -376,7 +377,8 @@ function AddAnimalModal({ editingAnimal, onClose, onSave }: { editingAnimal?: an
     birth_weight: editingAnimal?.birth_weight || '',
     date_of_weaning: editingAnimal?.date_of_weaning || '',
     weaning_weight: editingAnimal?.weaning_weight || '',
-    description: editingAnimal?.description || ''
+    description: editingAnimal?.description || '',
+    bcs: editingAnimal?.bcs !== undefined ? String(editingAnimal.bcs) : '3.0'
   })
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
@@ -422,7 +424,7 @@ function AddAnimalModal({ editingAnimal, onClose, onSave }: { editingAnimal?: an
         date_of_weaning: form.date_of_weaning || null,
         weaning_weight: form.weaning_weight ? Number(form.weaning_weight) : null,
         description: form.description.trim() || null,
-        bcs: editingAnimal?.bcs ?? 3.0,
+        bcs: Number(form.bcs) || 3.0,
       })
     } catch (e: any) {
       setError(e.message || 'Failed to save animal')
@@ -549,6 +551,15 @@ function AddAnimalModal({ editingAnimal, onClose, onSave }: { editingAnimal?: an
                 className="w-full rounded-xl px-4 py-2.5 text-sm outline-none border transition-colors focus:border-[#7AC142]"
                 style={{ borderColor: C.neutral200, color: C.neutral900, backgroundColor: C.neutral50 }} />
             </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold mb-1 uppercase tracking-wider" style={{ color: C.neutral500 }}>Body Condition Score (BCS)</label>
+            <input type="number" step="0.1" min="1" max="5" value={form.bcs} onChange={e => setForm(p => ({ ...p, bcs: e.target.value }))}
+              disabled={profile?.role !== 'admin'}
+              placeholder="e.g., 3.0"
+              className="w-full rounded-xl px-4 py-2.5 text-sm outline-none border transition-colors focus:border-[#7AC142]"
+              style={{ borderColor: C.neutral200, color: profile?.role !== 'admin' ? C.neutral500 : C.neutral900, backgroundColor: profile?.role !== 'admin' ? C.neutral100 : C.neutral50 }} />
           </div>
 
           <div>

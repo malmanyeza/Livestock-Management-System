@@ -334,6 +334,7 @@ interface AnimalData {
   weight6monthsPostWeaning?: number;
   calfStatus?: 'Active' | 'Replacement' | 'Sold';
   preWeaningMortality?: boolean;
+  bcs?: string | number;
 }
 
 
@@ -663,7 +664,8 @@ function RegisterContent() {
     dam: '',
     dateOfWeaning: '',
     weaningWeight: '',
-    description: ''
+    description: '',
+    bcs: '3.0'
   });
   const [showWeaningDatePicker, setShowWeaningDatePicker] = useState(false);
   const [selectedWeaningDate, setSelectedWeaningDate] = useState(new Date());
@@ -1602,6 +1604,7 @@ function RegisterContent() {
         dateOfWeaning: editingAnimal.dateOfWeaning || undefined,
         weaningWeight: editingAnimal.weaningWeight ? parseFloat(editingAnimal.weaningWeight.toString()) : undefined,
         description: editingAnimal.description || undefined,
+        bcs: editingAnimal.bcs ? parseFloat(editingAnimal.bcs.toString()) : undefined,
       });
 
 
@@ -2117,7 +2120,7 @@ function RegisterContent() {
         stockType: newAnimal.stockType as any,
         source: newAnimal.source as any,
         weight: newAnimal.birthWeight ? parseFloat(newAnimal.birthWeight) : undefined,
-        bcs: 3.0,
+        bcs: newAnimal.bcs ? parseFloat(newAnimal.bcs.toString()) : 3.0,
         birthWeight: newAnimal.birthWeight || undefined,
         sire: newAnimal.sire || undefined,
         dam: newAnimal.dam || undefined,
@@ -2140,7 +2143,8 @@ function RegisterContent() {
         dam: '',
         dateOfWeaning: '',
         weaningWeight: '',
-        description: ''
+        description: '',
+        bcs: '3.0'
       });
       setShowCustomBreedInput(false);
       setIsAddModalVisible(false);
@@ -4928,6 +4932,24 @@ function RegisterContent() {
               </View>
 
               <View style={styles.formGroup}>
+                <Text variant="body2" style={styles.label}>Body Condition Score (BCS)</Text>
+                <TextInput
+                  style={styles.input}
+                  value={newAnimal.bcs ? String(newAnimal.bcs) : '3.0'}
+                  onChangeText={(text) => {
+                    const parsed = parseFloat(text);
+                    if (!isNaN(parsed) && parsed >= 1 && parsed <= 5) {
+                      setNewAnimal({...newAnimal, bcs: text});
+                    } else if (text === '') {
+                      setNewAnimal({...newAnimal, bcs: ''});
+                    }
+                  }}
+                  keyboardType="numeric"
+                  placeholder="e.g. 3.0 (Range 1-5)"
+                />
+              </View>
+
+              <View style={styles.formGroup}>
                 <Text variant="body2" style={styles.label}>Description</Text>
                 <TextInput
                   style={[styles.input, { height: 80, textAlignVertical: 'top' }]}
@@ -5522,6 +5544,24 @@ function RegisterContent() {
                       onChangeText={(text) => editingAnimal && setEditingAnimal({...editingAnimal, weaningWeight: text})}
                       placeholder="e.g., 180"
                       keyboardType="numeric"
+                    />
+                  </View>
+
+                  <View style={styles.formGroup}>
+                    <Text variant="body2" style={styles.label}>Body Condition Score (BCS)</Text>
+                    <TextInput
+                      style={styles.input}
+                      value={editingAnimal?.bcs ? String(editingAnimal.bcs) : '3.0'}
+                      onChangeText={(text) => {
+                        const parsed = parseFloat(text);
+                        if (!isNaN(parsed) && parsed >= 1 && parsed <= 5 && editingAnimal) {
+                          setEditingAnimal({...editingAnimal, bcs: text});
+                        } else if (text === '' && editingAnimal) {
+                          setEditingAnimal({...editingAnimal, bcs: ''});
+                        }
+                      }}
+                      keyboardType="numeric"
+                      placeholder="e.g. 3.0 (Range 1-5)"
                     />
                   </View>
 
