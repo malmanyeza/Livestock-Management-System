@@ -520,10 +520,10 @@ export default function HomeScreen() {
               </View>
               <View>
                 <Text variant="h3" weight="bold" color="white">
-                  {todoList.length}
+                  {todoList.filter(t => t.status !== 'completed').length}
                 </Text>
                 <Text variant="body" color="white" style={{ opacity: 0.9 }}>
-                  Tasks Today
+                  Active Tasks
                 </Text>
               </View>
             </View>
