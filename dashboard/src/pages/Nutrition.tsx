@@ -351,7 +351,7 @@ export default function Nutrition() {
                           style={{ backgroundColor: C.primary50, border: `1px solid ${C.primary100}`, color: C.primary500 }}>
                           Assess
                         </button>
-                        <span className="text-[10px] mt-1" style={{ color: C.neutral400 }}>{formatDate(fi.herdBcsUpdatedAt as string)}</span>
+                        <span className="text-[10px] mt-1" style={{ color: C.neutral400 }}>{formatDate(fi.herdBcsUpdatedAt as unknown as string)}</span>
                       </div>
                     )}
                     {m.category === 'Deficiencies' && (
@@ -361,7 +361,7 @@ export default function Nutrition() {
                           style={{ backgroundColor: C.primary50, border: `1px solid ${C.primary100}`, color: C.primary500 }}>
                           Assess
                         </button>
-                        <span className="text-[10px] mt-1" style={{ color: C.neutral400 }}>{formatDate(fi.defUpdatedAt as string)}</span>
+                        <span className="text-[10px] mt-1" style={{ color: C.neutral400 }}>{formatDate(fi.defUpdatedAt as unknown as string)}</span>
                       </div>
                     )}
                     {m.category === 'Growth Perception' && (
@@ -371,7 +371,7 @@ export default function Nutrition() {
                           style={{ backgroundColor: C.primary50, border: `1px solid ${C.primary100}`, color: C.primary500 }}>
                           Assess
                         </button>
-                        <span className="text-[10px] mt-1" style={{ color: C.neutral400 }}>{formatDate(fi.growthUpdatedAt as string)}</span>
+                        <span className="text-[10px] mt-1" style={{ color: C.neutral400 }}>{formatDate(fi.growthUpdatedAt as unknown as string)}</span>
                       </div>
                     )}
                     {m.category === 'Management' && (
@@ -381,7 +381,7 @@ export default function Nutrition() {
                           style={{ backgroundColor: C.primary50, border: `1px solid ${C.primary100}`, color: C.primary500 }}>
                           Assess
                         </button>
-                        <span className="text-[10px] mt-1" style={{ color: C.neutral400 }}>{formatDate(fi.mgtUpdatedAt as string)}</span>
+                        <span className="text-[10px] mt-1" style={{ color: C.neutral400 }}>{formatDate(fi.mgtUpdatedAt as unknown as string)}</span>
                       </div>
                     )}
                   </td>
