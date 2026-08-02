@@ -151,6 +151,7 @@ export default function Nutrition() {
   const [animals, setAnimals] = useState<any[]>([])
   const [animalWeights, setAnimalWeights] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
+  const [lastUpdated, setLastUpdated] = useState<string | null>(null)
 
   // Modal visibility
   const [showHerdBcs, setShowHerdBcs] = useState(false)
@@ -190,6 +191,7 @@ export default function Nutrition() {
       if (ins?.data) {
         const d = ins.data as Record<string, any>
         setFi(d)
+        setLastUpdated(ins.updated_at || ins.created_at || null)
         setHerdBcs(d.herdBcs ?? 1)
         setDung(d.dungConsistency ?? 1); setRumen(d.rumenFill ?? 1)
         setCoat(d.coatSkin ?? 1); setMotility(d.motilityLocomotion ?? 1)
@@ -260,8 +262,7 @@ export default function Nutrition() {
     ? (mgtVal >= 4.5 ? 'Excellent' : mgtVal >= 3.5 ? 'Good' : mgtVal >= 2.5 ? 'Moderate' : 'Poor')
     : 'N/A'
 
-  const rawDate = fi.updated_at || fi.created_at;
-  const lastUpdatedStr = rawDate ? new Date(rawDate).toLocaleDateString() : 'Never';
+  const lastUpdatedStr = lastUpdated ? new Date(lastUpdated).toLocaleDateString() : 'Never';
 
   const nutritionMetrics: NutritionMetric[] = [
     { id: '1', category: 'Weight Gain (ADG)', result: adgLabel,   target: '0.9 – 1.13',    status: adgStatus },
@@ -282,8 +283,9 @@ export default function Nutrition() {
     if (!session || !targetUserId) return
     const updated = { ...fi, ...updates }
     setFi(updated)
+    setLastUpdated(new Date().toISOString())
     const { data: ex } = await supabase.from('farm_inspections').select('id').eq('user_id', targetUserId).maybeSingle()
-    if (ex) await supabase.from('farm_inspections').update({ data: updated }).eq('id', ex.id)
+    if (ex) await supabase.from('farm_inspections').update({ data: updated, updated_at: new Date().toISOString() }).eq('id', ex.id)
     else     await supabase.from('farm_inspections').insert({ user_id: targetUserId, data: updated })
   }
 
