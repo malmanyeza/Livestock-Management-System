@@ -11,6 +11,7 @@ export interface Profile {
   owner_last_name?: string
   farm_name?: string
   phone_number?: string
+  phone?: string
   address?: string
   location?: string
   province?: string
