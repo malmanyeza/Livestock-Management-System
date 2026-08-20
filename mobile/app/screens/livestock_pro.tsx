@@ -10,13 +10,18 @@ import { Picker } from '@/components/inputs/Picker';
 import Colors from '@/constants/Colors';
 import { supabase } from '@/utils/supabase';
 import { useFarmData } from '@/context/FarmDataContext';
+import * as Print from 'expo-print';
+import * as Sharing from 'expo-sharing';
+import { generateReportHTML } from '../../utils/reportGenerator';
 
 export default function LivestockProScreen() {
   const router = useRouter();
   const { profile, farmers = [] } = useFarmData();
   const isAdmin = profile?.role === 'admin';
 
-  const [activeTab, setActiveTab] = useState<'missions' | 'coverage' | 'reminders' | 'reports'>('missions');
+  const [activeTab, setActiveTab] = useState<'missions' | 'coverage' | 'reminders' | 'reports' | 'saved_reports'>('missions');
+  const [savedReports, setSavedReports] = useState<any[]>([]);
+  const [loadingReports, setLoadingReports] = useState(false);
   const [missions, setMissions] = useState<any[]>([]);
   const [animalsCount, setAnimalsCount] = useState<number>(0);
   const [loading, setLoading] = useState(true);
@@ -148,6 +153,44 @@ export default function LivestockProScreen() {
       pct: Math.round((count / total) * 100)
     })).sort((a, b) => b.count - a.count);
   }, [missions]);
+
+  const fetchSavedReports = async () => {
+    setLoadingReports(true);
+    try {
+      if (!supabase) throw new Error('Supabase client not available');
+      const qLab = supabase.from('vet_lab_reports').select('*');
+      const qConsult = supabase.from('vet_consultation_reports').select('*');
+      const qPostMortem = supabase.from('vet_post_mortem_reports').select('*');
+      const qAI = supabase.from('vet_ai_reports').select('*');
+      const qPregnancy = supabase.from('vet_pregnancy_reports').select('*');
+      const qSpecial = supabase.from('vet_special_consult_reports').select('*');
+
+      const [rLab, rConsult, rPostMortem, rAI, rPregnancy, rSpecial] = await Promise.all([
+        qLab, qConsult, qPostMortem, qAI, qPregnancy, qSpecial
+      ]);
+
+      const combined = [
+        ...(rLab.data || []).map(r => ({ id: r.id, type: 'Laboratory Diagnostic', date: r.report_date, user_id: r.user_id, data: r })),
+        ...(rConsult.data || []).map(r => ({ id: r.id, type: 'Consultation', date: r.report_date, user_id: r.user_id, data: r })),
+        ...(rPostMortem.data || []).map(r => ({ id: r.id, type: 'Post Mortem Report', date: r.report_date, user_id: r.user_id, data: r })),
+        ...(rAI.data || []).map(r => ({ id: r.id, type: 'Artificial Insemination', date: r.record_date, user_id: r.user_id, data: r })),
+        ...(rPregnancy.data || []).map(r => ({ id: r.id, type: 'Pregnancy Diagnosis', date: r.report_date, user_id: r.user_id, data: r })),
+        ...(rSpecial.data || []).map(r => ({ id: r.id, type: 'Special Consultation', date: r.report_date, user_id: r.user_id, data: r }))
+      ];
+      combined.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+      setSavedReports(combined);
+    } catch (e) {
+      console.error("Error fetching saved reports:", e);
+    } finally {
+      setLoadingReports(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === 'saved_reports') {
+      fetchSavedReports();
+    }
+  }, [activeTab]);
 
   const hotTopics = useMemo(() => {
     const provinceMap: Record<string, Record<string, number>> = {};
@@ -427,6 +470,46 @@ export default function LivestockProScreen() {
     </ScrollView>
   );
 
+  const renderSavedReportsTab = () => (
+    <ScrollView contentContainerStyle={styles.listContent} keyboardShouldPersistTaps="handled">
+      <Card style={styles.sectionCard}>
+        <Text variant="body" weight="bold" color="neutral.900" style={{ marginBottom: 16 }}>
+          Report History
+        </Text>
+        {loadingReports ? (
+          <ActivityIndicator size="small" color={Colors.primary[500]} />
+        ) : savedReports.length === 0 ? (
+          <Text variant="body2" color="neutral.500" style={{ textAlign: 'center', padding: 20 }}>No saved reports found.</Text>
+        ) : (
+          savedReports.map((report, idx) => {
+            const farmer = farmers.find((f: any) => f.id === report.user_id);
+            return (
+              <View key={report.id || idx} style={{ padding: 12, borderBottomWidth: 1, borderBottomColor: Colors.neutral[100], flexDirection: 'row', alignItems: 'center' }}>
+                <View style={{ flex: 1 }}>
+                  <Text variant="body2" weight="bold">{report.type}</Text>
+                  <Text variant="caption" color="neutral.500">Date: {report.date} • Farmer: {farmer?.full_name || 'N/A'}</Text>
+                </View>
+                <TouchableOpacity onPress={async () => {
+                  try {
+                    const html = generateReportHTML(report.type, report.data, farmer?.full_name || 'N/A', report.date);
+                    const { uri } = await Print.printToFileAsync({ html });
+                    if (await Sharing.isAvailableAsync()) {
+                      await Sharing.shareAsync(uri);
+                    }
+                  } catch (e: any) {
+                    Alert.alert('Error', 'Failed to generate PDF: ' + e.message);
+                  }
+                }} style={{ padding: 8, backgroundColor: Colors.primary[50], borderRadius: 8 }}>
+                  <FileText size={16} color={Colors.primary[600]} />
+                </TouchableOpacity>
+              </View>
+            )
+          })
+        )}
+      </Card>
+    </ScrollView>
+  );
+
   const renderRemindersTab = () => (
     <ScrollView contentContainerStyle={styles.listContent} keyboardShouldPersistTaps="handled">
       <Card style={styles.sectionCard}>
@@ -623,6 +706,15 @@ export default function LivestockProScreen() {
                 Generate Reports
               </Text>
             </TouchableOpacity>
+            <TouchableOpacity 
+              style={[styles.tabButton, activeTab === 'saved_reports' && styles.tabButtonActive]} 
+              onPress={() => setActiveTab('saved_reports')}
+            >
+              <Briefcase size={16} color={activeTab === 'saved_reports' ? Colors.primary[600] : Colors.neutral[500]} style={{ marginRight: 6 }} />
+              <Text variant="body2" weight="bold" color={activeTab === 'saved_reports' ? 'primary.600' : 'neutral.500'} numberOfLines={1}>
+                Report History
+              </Text>
+            </TouchableOpacity>
           </ScrollView>
         </View>
 
@@ -807,6 +899,8 @@ export default function LivestockProScreen() {
           </ScrollView>
         ) : activeTab === 'reminders' ? (
           renderRemindersTab()
+        ) : activeTab === 'saved_reports' ? (
+          renderSavedReportsTab()
         ) : (
           renderReportsTab()
         )}
@@ -1006,10 +1100,41 @@ export default function LivestockProScreen() {
               <Button variant="outline" onPress={() => setIsReportModalOpen(false)} style={styles.cancelButton}>
                 Cancel
               </Button>
-              <Button onPress={() => {
-                Alert.alert('Success', `Successfully generated ${selectedReport?.title}!`);
-                setIsReportModalOpen(false);
-              }} style={{ flex: 1 }}>
+              <Button onPress={async () => {
+                if (!selectedFarmerId) return Alert.alert('Error', 'Please select a farmer.');
+                setSubmitting(true);
+                try {
+                  const farmer = farmers.find((f: any) => f.id === selectedFarmerId);
+                  const dataObj = { report_date: reportDate, user_id: selectedFarmerId, diagnostic_summary: reportDetails, comments: reportDetails };
+                  
+                  let tableName = 'vet_consultation_reports';
+                  if (selectedReport?.title === 'Post Mortem Report') tableName = 'vet_post_mortem_reports';
+                  else if (selectedReport?.title === 'Laboratory Report') tableName = 'vet_lab_reports';
+                  else if (selectedReport?.title === 'Artificial Insemination Report') tableName = 'vet_ai_reports';
+                  else if (selectedReport?.title === 'Pregnancy Diagnosis Report') tableName = 'vet_pregnancy_reports';
+                  else if (selectedReport?.title === 'Other') tableName = 'vet_special_consult_reports';
+
+                  if (supabase) {
+                    const { error } = await supabase.from(tableName).insert([dataObj]);
+                    if (error) throw error;
+                  }
+                  
+                  const html = generateReportHTML(selectedReport?.title || 'Report', dataObj, farmer?.full_name || 'N/A', reportDate);
+                  const { uri } = await Print.printToFileAsync({ html });
+                  if (await Sharing.isAvailableAsync()) {
+                    await Sharing.shareAsync(uri);
+                  } else {
+                    Alert.alert('Success', `Successfully generated ${selectedReport?.title}!`);
+                  }
+                  
+                  setIsReportModalOpen(false);
+                  if (activeTab === 'saved_reports') fetchSavedReports();
+                } catch (e: any) {
+                  Alert.alert('Error', 'Failed to generate report: ' + e.message);
+                } finally {
+                  setSubmitting(false);
+                }
+              }} style={{ flex: 1 }} loading={submitting}>
                 Generate & Save
               </Button>
             </View>

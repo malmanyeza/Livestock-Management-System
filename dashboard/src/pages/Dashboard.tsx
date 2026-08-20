@@ -10,7 +10,7 @@ import {
 import { useNavigate } from 'react-router-dom'
 import {
   ResponsiveContainer, AreaChart, Area, XAxis, YAxis,
-  CartesianGrid, Tooltip, BarChart, Bar
+  CartesianGrid, Tooltip, BarChart, Bar, Cell
 } from 'recharts'
 
 // ─── Constants (mirrors mobile exactly) ──────────────────────────────────────
@@ -626,7 +626,7 @@ export default function Dashboard() {
         <div className="flex items-start justify-between mb-4">
           <div>
             <h3 className="text-lg font-bold" style={{ color: C.neutral900 }}>Livestock Shift Score</h3>
-            <p className="text-4xl font-bold mt-2" style={{ color: C.primary500 }}>{scores.scoreDLShift}%</p>
+            <p className="text-4xl font-bold mt-2" style={{ color: scores.scoreDLShift >= 50 ? C.primary500 : (scores.scoreDLShift >= 30 ? C.warning500 : '#ef4444') }}>{scores.scoreDLShift}%</p>
           </div>
           <div className="flex items-center gap-1.5 px-3 py-2 rounded-xl"
             style={{ backgroundColor: isShiftPositive ? C.success50 : C.warning50 }}>
@@ -691,7 +691,11 @@ export default function Dashboard() {
                     contentStyle={{ backgroundColor: C.white, border: `1px solid ${C.neutral200}`, borderRadius: 10, fontSize: 12 }}
                     formatter={(v) => [`${v}%`, 'Score']}
                   />
-                  <Bar dataKey="score" radius={[4, 4, 0, 0]} fill={C.primary500} />
+                  <Bar dataKey="score" radius={[4, 4, 0, 0]}>
+                    {categoryData.map((entry: any, index: number) => (
+                      <Cell key={`cell-${index}`} fill={entry.score >= 50 ? C.primary500 : (entry.score >= 30 ? C.warning500 : '#ef4444')} />
+                    ))}
+                  </Bar>
                 </BarChart>
               </ResponsiveContainer>
             )}

@@ -12,7 +12,7 @@ import { PieChart } from '../../components/charts/PieChart';
 import Colors from '../../constants/Colors';
 import { Stack, useRouter, useLocalSearchParams } from 'expo-router';
 import { useFarmData } from '../../context/FarmDataContext';
-import { Eye, Pencil, Trash2, X, ChevronLeft, CheckSquare, Square, Scale, Activity, Flame, Heart, Baby, Sparkles, DollarSign } from 'lucide-react-native';
+import { Eye, Pencil, Trash2, X, ChevronLeft, CheckSquare, Square, Scale, Activity, Flame, Heart, Baby, Sparkles, DollarSign, ChevronDown, ChevronUp, RotateCcw } from 'lucide-react-native';
 
 
 
@@ -493,6 +493,58 @@ const DatePickerModal: React.FC<DatePickerModalProps> = ({
   );
 };
 
+const BcsInput = ({ value, onChange, label, placeholder }: { value: string, onChange: (val: string) => void, label?: string, placeholder?: string }) => {
+  const handleIncrement = () => {
+    let num = parseFloat(value || '3.0');
+    if (isNaN(num)) num = 3.0;
+    if (num < 5) {
+      num = Math.min(5, num + 0.25);
+      // Format nicely, e.g. 3.25, 3.5, 3.75, 4
+      let formatted = num.toFixed(2).replace(/\.00$/, '');
+      if (formatted.includes('.') && formatted.endsWith('0')) {
+        formatted = formatted.slice(0, -1);
+      }
+      onChange(formatted);
+    }
+  };
+  
+  const handleDecrement = () => {
+    let num = parseFloat(value || '3.0');
+    if (isNaN(num)) num = 3.0;
+    if (num > 1) {
+      num = Math.max(1, num - 0.25);
+      let formatted = num.toFixed(2).replace(/\.00$/, '');
+      if (formatted.includes('.') && formatted.endsWith('0')) {
+        formatted = formatted.slice(0, -1);
+      }
+      onChange(formatted);
+    }
+  };
+
+  return (
+    <View style={styles.formGroup}>
+      {label && <Text variant="body2" style={styles.label}>{label}</Text>}
+      <View style={{ position: 'relative', justifyContent: 'center' }}>
+        <TextInput
+          style={[styles.input, { paddingRight: 40 }]}
+          value={value}
+          onChangeText={onChange}
+          keyboardType="numeric"
+          placeholder={placeholder}
+        />
+        <View style={{ position: 'absolute', right: 4, top: 4, bottom: 4, justifyContent: 'space-between', paddingVertical: 2 }}>
+          <TouchableOpacity onPress={handleIncrement} style={styles.bcsStepperButton}>
+            <ChevronUp size={16} color={Colors.neutral?.[600] || '#4b5563'} />
+          </TouchableOpacity>
+          <TouchableOpacity onPress={handleDecrement} style={styles.bcsStepperButton}>
+            <ChevronDown size={16} color={Colors.neutral?.[600] || '#4b5563'} />
+          </TouchableOpacity>
+        </View>
+      </View>
+    </View>
+  );
+};
+
 export default function RegisterScreen() {
   return (
     <>
@@ -544,6 +596,7 @@ function RegisterContent() {
     updateBreedingRecord,
     updatePregnancyRecord,
     updateMortalityRecord,
+    deleteMortalityRecord,
     updateTransaction,
     deleteTransaction,
     profile,
@@ -1903,6 +1956,34 @@ function RegisterContent() {
     }
   };
 
+  const handleUndoMortalityRecord = async () => {
+    if (!editingMortalityRecord) return;
+    Alert.alert(
+      "Undo Mortality",
+      "Are you sure you want to undo this mortality? This will restore the animal to the active herd with all its information intact.",
+      [
+        { text: "Cancel", style: "cancel" },
+        { 
+          text: "Undo", 
+          style: "destructive",
+          onPress: async () => {
+            setIsSubmitting(true);
+            try {
+              await deleteMortalityRecord(editingMortalityRecord.id);
+              setIsEditMortalityRecordModalVisible(false);
+              setEditingMortalityRecord(null);
+              alert('Mortality undone. Animal restored successfully.');
+            } catch (e: any) {
+              alert('Failed to undo mortality: ' + e.message);
+            } finally {
+              setIsSubmitting(false);
+            }
+          }
+        }
+      ]
+    );
+  };
+
   const handleEditBullBreedingRecord = (record: any) => {
     setEditingBullBreedingRecord({ ...record });
     setIsEditBullBreedingRecordModalVisible(true);
@@ -3189,6 +3270,11 @@ function RegisterContent() {
             </ScrollView>
 
             <View style={styles.modalButtons}>
+              {isAdmin && (
+                <TouchableOpacity onPress={handleUndoMortalityRecord} style={{ padding: 10, marginRight: 'auto' }}>
+                  <RotateCcw size={24} color={Colors.error[500]} />
+                </TouchableOpacity>
+              )}
               <Button variant="outline" onPress={() => { setIsEditMortalityRecordModalVisible(false); setEditingMortalityRecord(null); }} style={styles.cancelButton}>
                 Cancel
               </Button>
@@ -4942,23 +5028,14 @@ function RegisterContent() {
                 />
               </View>
 
-              <View style={styles.formGroup}>
-                <Text variant="body2" style={styles.label}>Body Condition Score (BCS)</Text>
-                <TextInput
-                  style={styles.input}
-                  value={newAnimal.bcs ? String(newAnimal.bcs) : '3.0'}
-                  onChangeText={(text) => {
-                    const parsed = parseFloat(text);
-                    if (!isNaN(parsed) && parsed >= 1 && parsed <= 5) {
-                      setNewAnimal({...newAnimal, bcs: text});
-                    } else if (text === '') {
-                      setNewAnimal({...newAnimal, bcs: ''});
-                    }
-                  }}
-                  keyboardType="numeric"
-                  placeholder="e.g. 3.0 (Range 1-5)"
-                />
-              </View>
+              <BcsInput 
+                label="Body Condition Score (BCS)"
+                value={newAnimal.bcs ? String(newAnimal.bcs) : '3.0'}
+                onChange={(text) => {
+                  setNewAnimal({...newAnimal, bcs: text});
+                }}
+                placeholder="e.g. 3.0 (Range 1-5)"
+              />
 
               <View style={styles.formGroup}>
                 <Text variant="body2" style={styles.label}>Description</Text>
@@ -5544,23 +5621,14 @@ function RegisterContent() {
                     />
                   </View>
 
-                  <View style={styles.formGroup}>
-                    <Text variant="body2" style={styles.label}>Body Condition Score (BCS)</Text>
-                    <TextInput
-                      style={styles.input}
-                      value={editingAnimal?.bcs ? String(editingAnimal.bcs) : '3.0'}
-                      onChangeText={(text) => {
-                        const parsed = parseFloat(text);
-                        if (!isNaN(parsed) && parsed >= 1 && parsed <= 5 && editingAnimal) {
-                          setEditingAnimal({...editingAnimal, bcs: text});
-                        } else if (text === '' && editingAnimal) {
-                          setEditingAnimal({...editingAnimal, bcs: ''});
-                        }
-                      }}
-                      keyboardType="numeric"
-                      placeholder="e.g. 3.0 (Range 1-5)"
-                    />
-                  </View>
+                  <BcsInput 
+                    label="Body Condition Score (BCS)"
+                    value={editingAnimal?.bcs ? String(editingAnimal.bcs) : '3.0'}
+                    onChange={(text) => {
+                      if (editingAnimal) setEditingAnimal({...editingAnimal, bcs: text});
+                    }}
+                    placeholder="e.g. 3.0 (Range 1-5)"
+                  />
 
                   <View style={styles.formGroup}>
                     <Text variant="body2" style={styles.label}>Description</Text>
@@ -5731,19 +5799,12 @@ function RegisterContent() {
                   />
                 </View>
 
-                <View style={styles.formGroup}>
-                  <Text variant="body2" style={styles.label}>Body Condition Score (1-5) *</Text>
-                  <TextInput
-                    style={styles.input}
-                    value={newPregnancyRecord.bodyConditionScore !== undefined && newPregnancyRecord.bodyConditionScore !== null ? newPregnancyRecord.bodyConditionScore.toString() : ''}
-                    onChangeText={(text) => {
-                      const cleanText = text.replace(/[^1-5]/g, '').slice(0, 1);
-                      setNewPregnancyRecord({...newPregnancyRecord, bodyConditionScore: cleanText as any});
-                    }}
-                    placeholder="Enter BCS (1-5)"
-                    keyboardType="numeric"
-                  />
-                </View>
+                <BcsInput 
+                  label="Body Condition Score (1-5) *"
+                  value={newPregnancyRecord.bodyConditionScore !== undefined && newPregnancyRecord.bodyConditionScore !== null ? newPregnancyRecord.bodyConditionScore.toString() : ''}
+                  onChange={(text) => setNewPregnancyRecord({...newPregnancyRecord, bodyConditionScore: text as any})}
+                  placeholder="Enter BCS (1-5)"
+                />
               <View style={styles.formGroup}>
                 <Text variant="body2" style={styles.label}>Last Service Date *</Text>
                 <TouchableOpacity 
@@ -5913,19 +5974,12 @@ function RegisterContent() {
                 />
               </View>
 
-              <View style={styles.formGroup}>
-                <Text variant="body2" style={styles.label}>BCS at Calving</Text>
-                <TextInput
-                  style={styles.input}
-                  value={newPregnancyRecord.averageBCS !== undefined && newPregnancyRecord.averageBCS !== null ? newPregnancyRecord.averageBCS.toString() : '3.0'}
-                  onChangeText={(text) => {
-                    const score = parseFloat(text) || 0;
-                    setNewPregnancyRecord({ ...newPregnancyRecord, averageBCS: score });
-                  }}
-                  placeholder="e.g. 3.0"
-                  keyboardType="numeric"
-                />
-              </View>
+              <BcsInput 
+                label="BCS at Calving"
+                value={newPregnancyRecord.averageBCS !== undefined && newPregnancyRecord.averageBCS !== null ? newPregnancyRecord.averageBCS.toString() : '3.0'}
+                onChange={(text) => setNewPregnancyRecord({...newPregnancyRecord, averageBCS: text as any})}
+                placeholder="e.g. 3.0"
+              />
 
               <View style={styles.formGroup}>
                 <Text variant="body2" style={styles.label}>Expected Return to Heat Date</Text>
@@ -6135,16 +6189,12 @@ function RegisterContent() {
                   />
                 </View>
 
-                <View style={styles.formGroup}>
-                  <Text variant="body2" style={styles.label}>Body Condition Score (1-5)</Text>
-                  <TextInput
-                    style={styles.input}
-                    value={newHeatBreedingRecord.bodyConditionScore !== undefined && newHeatBreedingRecord.bodyConditionScore !== null ? newHeatBreedingRecord.bodyConditionScore.toString() : ''}
-                    onChangeText={(text) => setNewHeatBreedingRecord({...newHeatBreedingRecord, bodyConditionScore: text as any})}
-                    placeholder="Enter BCS (1-5)"
-                    keyboardType="numeric"
-                  />
-                </View>
+                <BcsInput 
+                  label="Body Condition Score (1-5)"
+                  value={newHeatBreedingRecord.bodyConditionScore !== undefined && newHeatBreedingRecord.bodyConditionScore !== null ? newHeatBreedingRecord.bodyConditionScore.toString() : ''}
+                  onChange={(text) => setNewHeatBreedingRecord({...newHeatBreedingRecord, bodyConditionScore: text as any})}
+                  placeholder="Enter BCS (1-5)"
+                />
 
                 <View style={styles.formGroup}>
                   <Text variant="body2" style={styles.label}>Heat Detection Date *</Text>
@@ -6576,11 +6626,7 @@ function RegisterContent() {
             </View>
           </View>
 
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.chartsContainer}
-          >
+          <View style={styles.chartsContainer}>
             <View style={styles.chart}>
               <Text variant="h6" weight="medium" style={styles.chartTitle}>Breed Distribution</Text>
               <PieChart
@@ -6613,7 +6659,7 @@ function RegisterContent() {
                 width={300}
               />
             </View>
-          </ScrollView>
+          </View>
         </Card>
         )}
 
@@ -7563,11 +7609,12 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
   chartsContainer: {
-    flexDirection: 'row',
+    flexDirection: 'column',
     gap: 16,
+    width: '100%',
   },
   chart: {
-    flex: 1,
+    width: '100%',
     alignItems: 'center',
   },
   chartTitle: {
@@ -7702,5 +7749,11 @@ const styles = StyleSheet.create({
   dpFooterButton: {
     flex: 1,
     marginHorizontal: 4,
+  },
+  bcsStepperButton: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });

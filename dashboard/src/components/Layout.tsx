@@ -2,7 +2,7 @@ import { NavLink, useLocation } from 'react-router-dom'
 import {
   Heart, Dna, Wheat, BarChart3, ClipboardList,
   FileEdit, ShoppingCart, Settings, User, Menu, X, ShieldCheck, LogOut,
-  Search, Check, ChevronDown, CheckSquare
+  Search, Check, ChevronDown, CheckSquare, Stethoscope
 } from 'lucide-react'
 import { useState, useMemo, useEffect } from 'react'
 import { useAuth } from '../context/AuthContext'
@@ -17,6 +17,7 @@ const NAV = [
   { to: '/nutrition',  icon: Wheat,         label: 'Nutrition',    color: '#FF9E2C' },
   { to: '/register',   icon: FileEdit,      label: 'Register',     color: '#6C757D' },
   { to: '/tasks',      icon: CheckSquare,   label: 'Task Panel',   color: '#8E44AD' },
+  
   { to: '/marketplace',icon: ShoppingCart,  label: 'Marketplace',  color: '#359563' },
 ]
 

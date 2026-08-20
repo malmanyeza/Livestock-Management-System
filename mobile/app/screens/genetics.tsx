@@ -256,25 +256,25 @@ function GeneticsContent() {
   // 3. BCS Distribution
   const animalsWithBCS = animals.filter(a => a.bcs !== undefined);
   const totalWithBCS = animalsWithBCS.length;
-  let b1_2 = 0, b2_3 = 0, b3_4 = 0, b4_5 = 0;
+  let b1_2 = 0, b2_25 = 0, b25_35 = 0, b35_5 = 0;
   animalsWithBCS.forEach(a => {
     const score = a.bcs || 0;
     if (score >= 1.0 && score < 2.0) b1_2++;
-    else if (score >= 2.0 && score < 3.0) b2_3++;
-    else if (score >= 3.0 && score < 4.0) b3_4++;
-    else if (score >= 4.0 && score <= 5.0) b4_5++;
+    else if (score >= 2.0 && score < 2.5) b2_25++;
+    else if (score >= 2.5 && score <= 3.5) b25_35++;
+    else if (score > 3.5 && score <= 5.0) b35_5++;
   });
   
   const bcsDistribution = totalWithBCS > 0 ? [
-    { score: '1-2', percentage: Math.round((b1_2 / totalWithBCS) * 100) },
-    { score: '2-3', percentage: Math.round((b2_3 / totalWithBCS) * 100) },
-    { score: '3-4', percentage: Math.round((b3_4 / totalWithBCS) * 100) },
-    { score: '4-5', percentage: Math.round((b4_5 / totalWithBCS) * 100) },
+    { score: '1.0-2.0', percentage: Math.round((b1_2 / totalWithBCS) * 100), color: Colors.error[500] },
+    { score: '2.0-2.5', percentage: Math.round((b2_25 / totalWithBCS) * 100), color: Colors.warning[500] },
+    { score: '2.5-3.5', percentage: Math.round((b25_35 / totalWithBCS) * 100), color: Colors.success[500] },
+    { score: '3.5-5.0', percentage: Math.round((b35_5 / totalWithBCS) * 100), color: Colors.error[500] },
   ] : [
-    { score: '1-2', percentage: 0 },
-    { score: '2-3', percentage: 0 },
-    { score: '3-4', percentage: 0 },
-    { score: '4-5', percentage: 0 },
+    { score: '1.0-2.0', percentage: 0, color: Colors.error[500] },
+    { score: '2.0-2.5', percentage: 0, color: Colors.warning[500] },
+    { score: '2.5-3.5', percentage: 0, color: Colors.success[500] },
+    { score: '3.5-5.0', percentage: 0, color: Colors.error[500] },
   ];
 
   // 4. Pregnancy Statistics
@@ -321,7 +321,13 @@ function GeneticsContent() {
               <Text variant="body2" color="neutral.600">
                 Average BCS
               </Text>
-              <Text variant="h3" weight="bold" color="primary.500">
+              <Text variant="h3" weight="bold" color={(() => {
+                const avg = farmInspection?.herdBcs ? farmInspection.herdBcs : parseFloat(metrics.averageHerdBCS || '0');
+                if (avg === 0) return "neutral.500";
+                if (avg >= 2.5 && avg <= 3.5) return "success.500";
+                if (avg >= 2.0 && avg < 2.5) return "warning.500";
+                return "error.500";
+              })()}>
                 {farmInspection?.herdBcs ? farmInspection.herdBcs.toFixed(1) : metrics.averageHerdBCS}
               </Text>
             </View>
@@ -330,7 +336,7 @@ function GeneticsContent() {
                 Target Range
               </Text>
               <Text variant="h5" weight="medium" color="success.500">
-                2.0 - 4.0
+                2.5 - 3.5
               </Text>
             </View>
           </View>
@@ -347,7 +353,7 @@ function GeneticsContent() {
                     value={item.percentage}
                     max={100}
                     size="sm"
-                    color={Colors.primary[500]}
+                    color={item.color}
                     showHeader={false}
                     style={{ marginVertical: 0 }}
                   />

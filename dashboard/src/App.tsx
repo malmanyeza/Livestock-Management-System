@@ -11,6 +11,7 @@ import Marketplace from './pages/Marketplace'
 import LivestockPro from './pages/LivestockPro'
 import Profile from './pages/Profile'
 import Tasks from './pages/Tasks'
+
 import Login from './pages/Login'
 import Workers from './pages/Workers'
 import { AuthProvider, useAuth } from './context/AuthContext'
@@ -34,6 +35,7 @@ function ProtectedRoutes() {
         <Route path="/nutrition" element={<Nutrition />} />
         <Route path="/register" element={<Register />} />
         <Route path="/tasks" element={<Tasks />} />
+        
         <Route 
           path="/marketplace" 
           element={profile?.role === 'worker' ? <Navigate to="/" replace /> : <Marketplace />} 

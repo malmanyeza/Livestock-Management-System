@@ -1,6 +1,9 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
+import { useAuth } from '../context/AuthContext'
 import { X, Calendar, Activity, Weight, Heart, Dna, ArrowRight } from 'lucide-react'
+import ExportButton from './pdf/ExportButton'
+import AnimalProfilePDF from './pdf/AnimalProfilePDF'
 
 interface Animal {
   id: string
@@ -36,6 +39,7 @@ export default function AnimalProfileModal({
   animal: Animal
   onClose: () => void
 }) {
+  const { farmers } = useAuth()
   const [loading, setLoading] = useState(true)
   const [timeline, setTimeline] = useState<TimelineEvent[]>([])
   const [pedigree, setPedigree] = useState({
@@ -701,7 +705,21 @@ export default function AnimalProfileModal({
         </div>
 
         {/* Footer */}
-        <div className="px-6 py-4 border-t border-gray-100 bg-gray-50 flex justify-end">
+        <div className="px-6 py-4 border-t border-gray-100 bg-gray-50 flex justify-end gap-3">
+          {!loading && (() => {
+            const farmer = farmers.find(f => f.id === animal.user_id)
+            const farmerDetails = farmer ? {
+              name: farmer.full_name || farmer.email,
+              farm: farmer.farm_name,
+              phone: farmer.phone || farmer.phone_number || ''
+            } : null;
+            return (
+              <ExportButton 
+                document={<AnimalProfilePDF animal={animal} pedigree={pedigree} timeline={timeline} farmer={farmerDetails} />} 
+                fileName={`Profile_${animal.tag}.pdf`} 
+              />
+            )
+          })()}
           <button onClick={onClose} className="px-5 py-2.5 rounded-xl text-sm font-semibold bg-gray-900 text-white hover:opacity-90 transition-all shadow-sm">
             Close Profile
           </button>

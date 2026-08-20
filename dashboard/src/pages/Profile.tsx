@@ -32,7 +32,15 @@ export default function Profile() {
     try {
       const { error } = await supabase
         .from('profiles')
-        .update(editingProfile)
+        .update({
+          owner_first_name: editingProfile.owner_first_name,
+          owner_last_name: editingProfile.owner_last_name,
+          farm_name: editingProfile.farm_name,
+          phone_number: editingProfile.phone_number,
+          address: editingProfile.address,
+          location: editingProfile.location,
+          province: editingProfile.province,
+        })
         .eq('id', profile.id)
       
       if (error) throw error

@@ -405,6 +405,7 @@ interface FarmDataContextProps {
   updateBreedingRecord: (id: string, updates: Partial<BreedingRecord>) => Promise<void>;
   updatePregnancyRecord: (id: string, updates: Partial<PregnancyRecord>) => Promise<void>;
   updateMortalityRecord: (id: string, updates: Partial<MortalityRecord>) => Promise<void>;
+  deleteMortalityRecord: (id: string) => Promise<void>;
   updateTransaction: (id: string, updates: Partial<TransactionRecord>) => Promise<void>;
   deleteTransaction: (id: string) => Promise<void>;
 
@@ -1345,6 +1346,38 @@ export const FarmDataProvider: React.FC<{ children: ReactNode }> = ({ children }
     }
   };
 
+  const syncPregnancyRecord = async (breedingData: Omit<BreedingRecord, 'id'>) => {
+    if (breedingData.breedingStatus !== 'Confirmed Pregnant') return;
+    if (!supabase || !targetUserId) return;
+
+    // Check if one already exists
+    const dateToCheck = breedingData.servicedDate || breedingData.heatDetectionDate;
+    const existing = pregnancyRecords.find(p => p.cowEarTag === breedingData.earTagNumber && p.lastServiceDate === dateToCheck);
+    if (existing) return;
+
+    const pregnancyPayload = {
+      user_id: targetUserId,
+      cow_ear_tag: breedingData.earTagNumber,
+      body_condition_score: breedingData.bodyConditionScore || null,
+      last_service_date: dateToCheck,
+      first_trimester_pd: 'Not Tested',
+      second_trimester_pd: 'Not Tested',
+      third_trimester_pd: 'Not Tested',
+      gestation_period: 283,
+      average_bcs: breedingData.bodyConditionScore || null,
+      production_year: selectedProductionYear
+    };
+
+    try {
+      const { data, error } = await supabase.from('pregnancy_records').insert(pregnancyPayload).select().single();
+      if (!error && data) {
+        setPregnancyRecords(prev => [...prev, mapPregnancyFromDb(data)]);
+      }
+    } catch (e) {
+      console.error('Failed to sync pregnancy record:', e);
+    }
+  };
+
   const addBreedingRecord = async (record: Omit<BreedingRecord, 'id'>) => {
     if (!supabase) {
       const newId = (breedingRecords.length + 1).toString();
@@ -1382,6 +1415,10 @@ export const FarmDataProvider: React.FC<{ children: ReactNode }> = ({ children }
     if (error) throw error;
     if (data) {
       setBreedingRecords(prev => [...prev, mapBreedingFromDb(data)]);
+    }
+
+    if (record.breedingStatus === 'Confirmed Pregnant') {
+      await syncPregnancyRecord(record);
     }
   };
 
@@ -1848,6 +1885,14 @@ export const FarmDataProvider: React.FC<{ children: ReactNode }> = ({ children }
       console.error('Error updating breeding record in Supabase:', error);
       setBreedingRecords(prev => prev.map(b => b.id === id ? { ...b, ...updates } : b));
     }
+    
+    // Sync if confirmed pregnant
+    if (updates.breedingStatus === 'Confirmed Pregnant') {
+      const currentRecord = breedingRecords.find(b => b.id === id);
+      if (currentRecord) {
+        await syncPregnancyRecord({ ...currentRecord, ...updates });
+      }
+    }
   };
 
   const updatePregnancyRecord = async (id: string, updates: Partial<PregnancyRecord>) => {
@@ -1914,6 +1959,22 @@ export const FarmDataProvider: React.FC<{ children: ReactNode }> = ({ children }
     } catch (error) {
       console.error('Error updating mortality record in Supabase:', error);
       setMortalityRecords(prev => prev.map(m => m.id === id ? { ...m, ...updates } : m));
+    }
+  };
+
+  const deleteMortalityRecord = async (id: string) => {
+    try {
+      if (!supabase) throw new Error("Supabase client is not initialized");
+      const { error } = await supabase
+        .from('mortality_records')
+        .delete()
+        .eq('id', id);
+
+      if (error) throw error;
+      setMortalityRecords(prev => prev.filter(m => m.id !== id));
+    } catch (error) {
+      console.error('Error deleting mortality record in Supabase:', error);
+      setMortalityRecords(prev => prev.filter(m => m.id !== id));
     }
   };
 
@@ -2434,12 +2495,35 @@ export const FarmDataProvider: React.FC<{ children: ReactNode }> = ({ children }
 
       if (error) throw error;
       if (data) {
-        setAnimals(prev => prev.map(a => a.tag.toLowerCase() === tag.toLowerCase() ? mapAnimalFromDb(data) : a));
+        if (updates.preWeaningMortality === true) {
+          const exists = mortalityRecords.find(m => m.animalId === tag);
+          if (!exists) {
+            const mortPayload = {
+              user_id: targetUserId,
+              animal_tag: tag,
+              date: new Date().toISOString().split('T')[0],
+              cause: 'Pre-weaning Mortality',
+              is_pre_weaning: true,
+              production_year: selectedProductionYear
+            };
+            const { data: mortData, error: mortErr } = await supabase.from('mortality_records').insert(mortPayload).select().single();
+            if (!mortErr && mortData) {
+              setMortalityRecords(prev => [mapMortalityFromDb(mortData), ...prev]);
+            }
+          }
+          setAnimals(prev => prev.filter(a => a.tag.toLowerCase() !== tag.toLowerCase()));
+        } else {
+          setAnimals(prev => prev.map(a => a.tag.toLowerCase() === tag.toLowerCase() ? mapAnimalFromDb(data) : a));
+        }
       }
     } catch (error) {
       console.error('Error updating animal in Supabase:', error);
       // Fallback
-      setAnimals(prev => prev.map(a => a.tag.toLowerCase() === tag.toLowerCase() ? { ...a, ...updates } : a));
+      if (updates.preWeaningMortality === true) {
+        setAnimals(prev => prev.filter(a => a.tag.toLowerCase() !== tag.toLowerCase()));
+      } else {
+        setAnimals(prev => prev.map(a => a.tag.toLowerCase() === tag.toLowerCase() ? { ...a, ...updates } : a));
+      }
     }
   };
 
@@ -2617,7 +2701,6 @@ export const FarmDataProvider: React.FC<{ children: ReactNode }> = ({ children }
     
     const weanedCalves = calves.filter(a => a.calfStatus === 'Replacement' || a.calfStatus === 'Sold' || Number(a.weaningWeight || 0) > 0);
     const weaningPercentage = eligibleCows.length > 0 ? (weanedCalves.length / eligibleCows.length) * 100 : 0;
-    const weaningRate = calves.length > 0 ? (weanedCalves.length / calves.length) * 100 : 0;
 
     let preWeaningSum = 0; let preWeaningCount = 0;
     let postWeaningSum = 0; let postWeaningCount = 0;
@@ -2627,8 +2710,17 @@ export const FarmDataProvider: React.FC<{ children: ReactNode }> = ({ children }
       const wean = Number(a.weaningWeight || 0);
       const w100 = Number(a.weight100day || 0);
       const w30 = Number(a.weight30day || 0);
+      
+      let preDays = 205; // Industry standard default
+      if (a.dateOfBirth && a.dateOfWeaning) {
+        const dob = new Date(a.dateOfBirth);
+        const dow = new Date(a.dateOfWeaning);
+        const diff = (dow.getTime() - dob.getTime()) / (1000 * 3600 * 24);
+        if (diff > 0) preDays = diff;
+      }
+
       if (wean > 0 && birth > 0) {
-        preWeaningSum += (wean - birth) / 205;
+        preWeaningSum += (wean - birth) / preDays;
         preWeaningCount++;
       } else if (w100 > 0 && birth > 0) {
         preWeaningSum += (w100 - birth) / 100;
@@ -2655,9 +2747,14 @@ export const FarmDataProvider: React.FC<{ children: ReactNode }> = ({ children }
     const preWeaningMortCount = mortalityRecords.filter(m => m.isPreWeaning).length;
     const postWeaningMortCount = mortalityRecords.filter(m => !m.isPreWeaning).length;
     
-    const preWeaningMortality = calves.length > 0 ? (preWeaningMortCount / calves.length) * 100 : 0;
-    const postWeaningMortality = weanedCalves.length > 0 ? (postWeaningMortCount / weanedCalves.length) * 100 : 0;
-    const herdMortality = aliveAnimals.length > 0 ? (mortalityRecords.length / (aliveAnimals.length + mortalityRecords.length)) * 100 : 0;
+    const totalCalvesBorn = calves.length + preWeaningMortCount;
+    const totalCalvesWeaned = weanedCalves.length + postWeaningMortCount;
+    const totalOpeningStockAndNewborns = aliveAnimals.length + mortalityRecords.length;
+    
+    const preWeaningMortality = totalCalvesBorn > 0 ? (preWeaningMortCount / totalCalvesBorn) * 100 : 0;
+    const postWeaningMortality = totalCalvesWeaned > 0 ? (postWeaningMortCount / totalCalvesWeaned) * 100 : 0;
+    const herdMortality = totalOpeningStockAndNewborns > 0 ? (mortalityRecords.length / totalOpeningStockAndNewborns) * 100 : 0;
+    const weaningRate = totalCalvesBorn > 0 ? (weanedCalves.length / totalCalvesBorn) * 100 : 0;
 
     return {
       weaningPercentage,
@@ -2916,6 +3013,7 @@ export const FarmDataProvider: React.FC<{ children: ReactNode }> = ({ children }
         updateBreedingRecord,
         updatePregnancyRecord,
         updateMortalityRecord,
+        deleteMortalityRecord,
         updateTransaction,
         deleteTransaction,
         farmEvents,

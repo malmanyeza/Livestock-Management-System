@@ -194,8 +194,17 @@ export default function Production() {
     const wean = Number(a.weaning_weight || 0);
     const w100 = Number(a.weight_100day || 0);
     const w30 = Number(a.weight_30day || 0);
+    
+    let preDays = 205; // Industry standard default
+    if (a.date_of_birth && a.date_of_weaning) {
+      const dob = new Date(a.date_of_birth);
+      const dow = new Date(a.date_of_weaning);
+      const diff = (dow.getTime() - dob.getTime()) / (1000 * 3600 * 24);
+      if (diff > 0) preDays = diff;
+    }
+
     if (wean > 0 && birth > 0) {
-      preWeaningSum += (wean - birth) / 205;
+      preWeaningSum += (wean - birth) / preDays;
       preWeaningCount++;
     } else if (w100 > 0 && birth > 0) {
       preWeaningSum += (w100 - birth) / 100;
@@ -221,10 +230,12 @@ export default function Production() {
 
   const herdMortality = animals.length > 0 ? (mortalityRecords.length / (animals.length + mortalityRecords.length)) * 100 : 0;
   const weaningPercentage = eligibleCows.length > 0 ? (weanedCalves.length / eligibleCows.length) * 100 : 0;
-  const weaningRate = calves.length > 0 ? (weanedCalves.length / calves.length) * 100 : 0;
   
   const preWeaningMortCount = mortalityRecords.filter(m => m.is_pre_weaning).length;
-  const preWeaningMortality = calves.length > 0 ? (preWeaningMortCount / calves.length) * 100 : 0;
+  const totalCalvesBorn = calves.length + preWeaningMortCount;
+  
+  const weaningRate = totalCalvesBorn > 0 ? (weanedCalves.length / totalCalvesBorn) * 100 : 0;
+  const preWeaningMortality = totalCalvesBorn > 0 ? (preWeaningMortCount / totalCalvesBorn) * 100 : 0;
 
   const productionMetrics: ProductionMetric[] = [
     { key: 'weaning',             title: 'Calf Crop % (Weaning %)',    value: weaningPercentage, target: targets.weaning,            unit: '%',     description: TARGET_DESCRIPTIONS.weaning },

@@ -10,6 +10,9 @@ import {
   ResponsiveContainer, AreaChart, Area, BarChart, Bar,
   XAxis, YAxis, Tooltip, CartesianGrid
 } from 'recharts'
+import ExportButton from '../components/pdf/ExportButton'
+import VetReportPDF from '../components/pdf/VetReportPDF'
+import GenericReportPDF from '../components/pdf/GenericReportPDF'
 
 // ─── Color tokens ─────────────────────────────────────────────────────────────
 const C = {
@@ -39,13 +42,14 @@ interface Mission {
   created_at: string
 }
 
-type Tab = 'missions' | 'coverage' | 'reminders' | 'reports'
+type Tab = 'missions' | 'coverage' | 'reminders' | 'reports' | 'saved_reports'
 
 const TABS: { key: Tab; label: string; icon: any }[] = [
   { key: 'missions', label: 'Missions Register', icon: Layers },
   { key: 'coverage',  label: 'Coverage Analysis',  icon: BarChart3 },
   { key: 'reminders', label: 'Disease & Reminders',  icon: Bell },
   { key: 'reports', label: 'Generate Reports', icon: FileText },
+  { key: 'saved_reports', label: 'Report History', icon: FileText },
 ]
 
 export default function LivestockPro() {
@@ -91,6 +95,14 @@ export default function LivestockPro() {
   const [reminderPriority, setReminderPriority] = useState<'low' | 'medium' | 'high'>('medium')
   const [sendingReminder, setSendingReminder] = useState(false)
 
+  // Saved Reports states
+  const [savedReports, setSavedReports] = useState<any[]>([])
+  const [loadingReports, setLoadingReports] = useState(false)
+  const [reportFarmerId, setReportFarmerId] = useState('all')
+  const [reportStartDate, setReportStartDate] = useState('')
+  const [reportEndDate, setReportEndDate] = useState('')
+  const [viewReportData, setViewReportData] = useState<{title: string, data: any} | null>(null)
+
   // Fetch data
   const fetchData = async () => {
     setLoading(true)
@@ -109,9 +121,81 @@ export default function LivestockPro() {
     }
   }
 
+  const fetchSavedReports = async () => {
+    setLoadingReports(true)
+    try {
+      // Build base queries
+      let qLab = supabase.from('vet_lab_reports').select('*')
+      let qConsult = supabase.from('vet_consultation_reports').select('*')
+      let qPostMortem = supabase.from('vet_post_mortem_reports').select('*')
+      let qAI = supabase.from('vet_ai_reports').select('*')
+      let qPregnancy = supabase.from('vet_pregnancy_reports').select('*')
+      let qSpecial = supabase.from('vet_special_consult_reports').select('*')
+
+      // Apply farmer filter if not 'all'
+      if (reportFarmerId !== 'all') {
+        qLab = qLab.eq('user_id', reportFarmerId)
+        qConsult = qConsult.eq('user_id', reportFarmerId)
+        qPostMortem = qPostMortem.eq('user_id', reportFarmerId)
+        qAI = qAI.eq('user_id', reportFarmerId)
+        qPregnancy = qPregnancy.eq('user_id', reportFarmerId)
+        qSpecial = qSpecial.eq('user_id', reportFarmerId)
+      }
+
+      // Apply start date filter
+      if (reportStartDate) {
+        qLab = qLab.gte('report_date', reportStartDate)
+        qConsult = qConsult.gte('report_date', reportStartDate)
+        qPostMortem = qPostMortem.gte('report_date', reportStartDate)
+        qAI = qAI.gte('record_date', reportStartDate)
+        qPregnancy = qPregnancy.gte('report_date', reportStartDate)
+        qSpecial = qSpecial.gte('report_date', reportStartDate)
+      }
+
+      // Apply end date filter
+      if (reportEndDate) {
+        qLab = qLab.lte('report_date', reportEndDate)
+        qConsult = qConsult.lte('report_date', reportEndDate)
+        qPostMortem = qPostMortem.lte('report_date', reportEndDate)
+        qAI = qAI.lte('record_date', reportEndDate)
+        qPregnancy = qPregnancy.lte('report_date', reportEndDate)
+        qSpecial = qSpecial.lte('report_date', reportEndDate)
+      }
+
+      const [rLab, rConsult, rPostMortem, rAI, rPregnancy, rSpecial] = await Promise.all([
+        qLab, qConsult, qPostMortem, qAI, qPregnancy, qSpecial
+      ])
+
+      // Combine and format results
+      const combined = [
+        ...(rLab.data || []).map(r => ({ id: r.id, type: 'Laboratory Diagnostic', date: r.report_date, user_id: r.user_id, data: r })),
+        ...(rConsult.data || []).map(r => ({ id: r.id, type: 'Consultation', date: r.report_date, user_id: r.user_id, data: r })),
+        ...(rPostMortem.data || []).map(r => ({ id: r.id, type: 'Post-Mortem Examination', date: r.report_date, user_id: r.user_id, data: r })),
+        ...(rAI.data || []).map(r => ({ id: r.id, type: 'Artificial Insemination', date: r.record_date, user_id: r.user_id, data: r })),
+        ...(rPregnancy.data || []).map(r => ({ id: r.id, type: 'Pregnancy Diagnosis', date: r.report_date, user_id: r.user_id, data: r })),
+        ...(rSpecial.data || []).map(r => ({ id: r.id, type: 'Special Consultation', date: r.report_date, user_id: r.user_id, data: r }))
+      ]
+
+      // Sort by date descending
+      combined.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+
+      setSavedReports(combined)
+    } catch (e) {
+      console.error("Error fetching saved reports:", e)
+    } finally {
+      setLoadingReports(false)
+    }
+  }
+
   useEffect(() => {
     fetchData()
   }, [])
+
+  useEffect(() => {
+    if (activeTab === 'saved_reports') {
+      fetchSavedReports()
+    }
+  }, [activeTab, reportFarmerId, reportStartDate, reportEndDate])
 
   // Auto-generate mission number when modal opens
   const openAddModal = () => {
@@ -864,6 +948,101 @@ export default function LivestockPro() {
         </>
       )}
 
+      {/* ── Tab E: Report History (Saved Reports) ────────────────────────────── */}
+      {activeTab === 'saved_reports' && (
+        <div className="space-y-6">
+          <div className="flex flex-col md:flex-row gap-4 items-end mb-4">
+            <div className="w-full md:w-64">
+              <label className="block text-xs font-bold uppercase mb-1.5" style={{ color: C.neutral500 }}>Target Farmer</label>
+              <select
+                value={reportFarmerId}
+                onChange={e => setReportFarmerId(e.target.value)}
+                className="w-full text-xs rounded-xl px-3 py-2 border outline-none bg-white cursor-pointer"
+                style={{ borderColor: C.neutral200, color: C.neutral700 }}
+              >
+                <option value="all">All Farmers</option>
+                {farmers.map(f => (
+                  <option key={f.id} value={f.id}>{f.full_name || f.email} {f.farm_name ? `(${f.farm_name})` : ''}</option>
+                ))}
+              </select>
+            </div>
+            <div className="w-full md:w-48">
+              <label className="block text-xs font-bold uppercase mb-1.5" style={{ color: C.neutral500 }}>Start Date</label>
+              <input
+                type="date"
+                value={reportStartDate}
+                onChange={e => setReportStartDate(e.target.value)}
+                className="w-full text-xs rounded-xl px-3 py-2 border outline-none bg-white cursor-pointer"
+                style={{ borderColor: C.neutral200, color: C.neutral700 }}
+              />
+            </div>
+            <div className="w-full md:w-48">
+              <label className="block text-xs font-bold uppercase mb-1.5" style={{ color: C.neutral500 }}>End Date</label>
+              <input
+                type="date"
+                value={reportEndDate}
+                onChange={e => setReportEndDate(e.target.value)}
+                className="w-full text-xs rounded-xl px-3 py-2 border outline-none bg-white cursor-pointer"
+                style={{ borderColor: C.neutral200, color: C.neutral700 }}
+              />
+            </div>
+          </div>
+
+          <div className="card p-0 overflow-hidden shadow-sm hover:shadow-md transition-shadow">
+            <div className="px-6 py-4 border-b font-semibold text-sm bg-neutral-50/50 flex justify-between items-center" style={{ borderColor: C.neutral100 }}>
+              <span style={{ color: C.neutral900 }}>Saved Reports ({savedReports.length})</span>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full data-table" style={{ minWidth: '800px' }}>
+                <thead>
+                  <tr>
+                    <th style={{ width: '60px' }}>No.</th>
+                    <th>Report Type</th>
+                    <th>Date Generated</th>
+                    <th>Farmer / Client</th>
+                    <th style={{ width: '90px' }} className="text-center">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {loadingReports ? (
+                    <tr>
+                      <td colSpan={5} className="text-center py-12" style={{ color: C.neutral400 }}>
+                        Loading reports...
+                      </td>
+                    </tr>
+                  ) : savedReports.length === 0 ? (
+                    <tr>
+                      <td colSpan={5} className="text-center py-12" style={{ color: C.neutral400 }}>
+                        No saved reports found.
+                      </td>
+                    </tr>
+                  ) : (
+                    savedReports.map((row, index) => {
+                      const farmer = farmers.find(f => f.id === row.user_id)
+                      const farmerName = farmer ? (farmer.full_name || farmer.email) : 'Unknown'
+                      
+                      return (
+                        <tr key={`${row.type}-${row.id}`}>
+                          <td className="text-center font-medium" style={{ color: C.neutral500 }}>{index + 1}</td>
+                          <td className="font-semibold" style={{ color: C.neutral900 }}>{row.type}</td>
+                          <td style={{ color: C.neutral600 }}>{row.date}</td>
+                          <td className="font-bold" style={{ color: C.neutral700 }}>{farmerName}</td>
+                          <td className="text-center">
+                            <button onClick={() => setViewReportData({ title: row.type, data: row.data })} className="px-3 py-1 bg-neutral-100 hover:bg-neutral-200 text-neutral-700 text-xs font-bold rounded-lg transition-colors">
+                              View
+                            </button>
+                          </td>
+                        </tr>
+                      )
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Log Mission Modal Dialog */}
       {isAddModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4"
@@ -1134,6 +1313,58 @@ export default function LivestockPro() {
           </div>
         </div>
       )}
+      {/* View Saved Report Data Modal */}
+      {viewReportData && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
+          <div className="w-full max-w-2xl bg-white rounded-2xl shadow-2xl flex flex-col overflow-hidden max-h-[90vh]">
+            <div className="flex items-center justify-between px-6 py-4 border-b" style={{ borderColor: C.neutral200 }}>
+              <h2 className="text-xl font-bold" style={{ color: C.neutral900 }}>{viewReportData.title} Details</h2>
+              <button onClick={() => setViewReportData(null)} className="p-2 hover:bg-neutral-100 rounded-lg transition-colors">
+                <X size={20} style={{ color: C.neutral500 }} />
+              </button>
+            </div>
+            
+            <div className="flex-1 overflow-y-auto p-6 bg-neutral-50">
+              <div className="bg-white rounded-xl border shadow-sm p-4 space-y-3" style={{ borderColor: C.neutral200 }}>
+                {Object.entries(viewReportData.data).map(([key, value]) => {
+                  if (key === 'id' || key === 'user_id' || key === 'created_at' || value === null || value === '') return null
+                  return (
+                    <div key={key} className="flex flex-col sm:flex-row sm:items-start border-b pb-2 last:border-0 last:pb-0" style={{ borderColor: C.neutral100 }}>
+                      <span className="text-xs font-bold uppercase w-1/3 pt-1 text-neutral-500">
+                        {key.replace(/_/g, ' ')}
+                      </span>
+                      <span className="text-sm text-neutral-900 w-2/3 break-words">
+                        {String(value)}
+                      </span>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+
+            <div className="px-6 py-4 border-t flex justify-end gap-3 bg-white" style={{ borderColor: C.neutral200 }}>
+              {(() => {
+                const farmer = farmers.find(f => f.id === viewReportData.data.user_id);
+                const farmerDetails = farmer ? {
+                  name: farmer.full_name || farmer.email,
+                  farm: farmer.farm_name,
+                  phone: farmer.phone || farmer.phone_number || ''
+                } : null;
+
+                return viewReportData.title === 'Consultation' ? (
+                  <ExportButton document={<VetReportPDF data={viewReportData.data} farmer={farmerDetails} />} fileName={`Consultation_Report_${viewReportData.data.report_date || 'Download'}.pdf`} />
+                ) : (
+                  <ExportButton document={<GenericReportPDF title={viewReportData.title} data={viewReportData.data} farmer={farmerDetails} />} fileName={`${viewReportData.title.replace(/\s+/g, '_')}_Report.pdf`} />
+                );
+              })()}
+              <button type="button" onClick={() => setViewReportData(null)} className="px-6 py-2 rounded-xl text-sm font-bold text-white shadow-sm hover:opacity-90 transition-all" style={{ backgroundColor: C.primary600 }}>
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   )
 }

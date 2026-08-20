@@ -2,7 +2,7 @@ import { useEffect, useState, useMemo } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import {
-  Plus, Search, X, Database, ClipboardList, Heart, Dna, ShieldAlert, Scale, ChevronDown, Package, DollarSign, Edit, Trash2
+  Plus, Search, X, Database, ClipboardList, Heart, Dna, ShieldAlert, Scale, ChevronDown, Package, DollarSign, Edit, Trash2, RotateCcw
 } from 'lucide-react'
 import { useSearchParams } from 'react-router-dom'
 import AnimalProfileModal from '../components/AnimalProfileModal'
@@ -2175,7 +2175,28 @@ export default function Register() {
     if (!session || !targetUserId || !editingCalf) return
     const { data, error } = await supabase.from('animals').update(d).eq('id', editingCalf.id).select().single()
     if (error) throw error
-    setAnimals(prev => prev.map(a => a.id === editingCalf.id ? data : a))
+
+    if (d.pre_weaning_mortality === true) {
+      const exists = mortalityRecords.find(m => m.animal_tag === editingCalf.tag);
+      if (!exists) {
+        const mortPayload = {
+          user_id: targetUserId,
+          animal_tag: editingCalf.tag,
+          date: new Date().toISOString().split('T')[0],
+          cause: 'Pre-weaning Mortality',
+          is_pre_weaning: true,
+          production_year: selectedProductionYear
+        };
+        const { data: mortData, error: mortErr } = await supabase.from('mortality_records').insert(mortPayload).select().single();
+        if (!mortErr && mortData) {
+          setMortality(prev => [mortData, ...prev]);
+        }
+      }
+      setAnimals(prev => prev.filter(a => a.id !== editingCalf.id));
+    } else {
+      setAnimals(prev => prev.map(a => a.id === editingCalf.id ? data : a));
+    }
+    
     setEditingCalf(null)
   }
 
@@ -2213,6 +2234,37 @@ export default function Register() {
     setEditingHealth(null)
   }
 
+  const syncPregnancyRecord = async (breedingPayload: any) => {
+    // If not Confirmed Pregnant, we do nothing
+    if (breedingPayload.breeding_status !== 'Confirmed Pregnant') return;
+
+    // Check if a pregnancy record already exists for this cow (and date)
+    const existing = pregnancyRecords.find(p => p.cow_ear_tag === breedingPayload.ear_tag_number && (p.last_service_date === breedingPayload.serviced_date || p.last_service_date === breedingPayload.heat_detection_date));
+    if (existing) return;
+
+    const pregnancyPayload = {
+      user_id: targetUserId,
+      cow_ear_tag: breedingPayload.ear_tag_number,
+      body_condition_score: breedingPayload.body_condition_score,
+      last_service_date: breedingPayload.serviced_date || breedingPayload.heat_detection_date,
+      first_trimester_pd: 'Not Tested',
+      second_trimester_pd: 'Not Tested',
+      third_trimester_pd: 'Not Tested',
+      gestation_period: 283, // default for cattle
+      average_bcs: breedingPayload.body_condition_score,
+      production_year: selectedProductionYear
+    };
+
+    try {
+      const { data, error } = await supabase.from('pregnancy_records').insert(pregnancyPayload).select().single()
+      if (!error && data) {
+        setPregnancyRecords(prev => [...prev, data])
+      }
+    } catch (e) {
+      console.error('Failed to sync pregnancy record:', e);
+    }
+  }
+
   const addBreedingRecord = async (d: any) => {
     if (!session || !targetUserId) return
     const dbPayload = {
@@ -2240,6 +2292,10 @@ export default function Register() {
     if (error) throw error
     setBreeding(prev => [...prev, data])
     setShowAddBreeding(false)
+
+    if (dbPayload.breeding_status === 'Confirmed Pregnant') {
+      await syncPregnancyRecord(dbPayload);
+    }
   }
 
   const saveEditedBreeding = async (d: any) => {
@@ -2267,6 +2323,10 @@ export default function Register() {
     if (error) throw error
     setBreeding(prev => prev.map(item => item.id === editingBreeding.id ? data : item))
     setEditingBreeding(null)
+
+    if (dbPayload.breeding_status === 'Confirmed Pregnant') {
+      await syncPregnancyRecord(dbPayload);
+    }
   }
 
   const addPregnancyRecord = async (d: any) => {
@@ -2388,6 +2448,17 @@ export default function Register() {
     if (error) throw error
     setMortality(prev => prev.map((item: any) => item.id === editingMortality.id ? data : item))
     setEditingMortality(null)
+  }
+
+  const deleteMortality = async (id: string) => {
+    if (!window.confirm("Are you sure you want to undo this mortality? This will restore the animal to the active herd with all its information intact.")) return;
+    const { error } = await supabase.from('mortality_records').delete().eq('id', id);
+    if (error) {
+      alert("Error deleting record: " + error.message);
+      return;
+    }
+    setMortality(prev => prev.filter((item: any) => item.id !== id));
+    setEditingMortality(null);
   }
 
   const saveEditedWeight = async (d: any) => {
@@ -2955,9 +3026,14 @@ export default function Register() {
                   label: 'Actions',
                   align: 'center',
                   render: (_, row) => (
-                    <button onClick={() => setEditingMortality(row)} className="p-1.5 text-neutral-500 hover:text-neutral-900 hover:bg-neutral-100 rounded-lg transition-colors">
-                      <Edit size={14} />
-                    </button>
+                    <div className="flex gap-2 justify-center">
+                      <button onClick={() => setEditingMortality(row)} className="p-1.5 text-neutral-500 hover:text-neutral-900 hover:bg-neutral-100 rounded-lg transition-colors">
+                        <Edit size={14} />
+                      </button>
+                      <button onClick={() => deleteMortality(row.id)} className="p-1.5 text-neutral-500 hover:text-neutral-700 hover:bg-neutral-100 rounded-lg transition-colors" title="Undo Mortality">
+                        <RotateCcw size={14} />
+                      </button>
+                    </div>
                   )
                 }
               ]} />
