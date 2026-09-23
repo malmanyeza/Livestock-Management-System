@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, StyleSheet, ScrollView, Dimensions, Modal, TextInput, TouchableOpacity, Platform, KeyboardAvoidingView, Alert, TouchableWithoutFeedback } from 'react-native';
+import { View, StyleSheet, ScrollView, Dimensions, Modal, TextInput, TouchableOpacity, Platform, KeyboardAvoidingView, Alert, TouchableWithoutFeedback, Switch } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { Calendar } from 'react-native-calendars';
 import { Text } from '../../components/typography/Text';
@@ -839,7 +839,8 @@ function RegisterContent() {
     animalId: '',
     cause: '',
     description: '',
-    observer: ''
+    observer: '',
+    stage: 'adult' as 'pre_weaning' | 'post_weaning' | 'adult'
   });
   const [newDrug, setNewDrug] = useState<Omit<DrugData, 'id'>>({ 
     drugClass: '',
@@ -904,20 +905,30 @@ function RegisterContent() {
     // --- Submit ---
     setIsSubmitting(true);
     try {
+      const isPre = newMortality.stage === 'pre_weaning';
+      let desc = newMortality.description || '';
+      if (newMortality.stage === 'post_weaning' && !desc.includes('[Post-weaning]')) {
+        desc = desc ? `[Post-weaning] ${desc}` : '[Post-weaning]';
+      }
+      const causeText = newMortality.stage === 'post_weaning' && !newMortality.cause.toLowerCase().includes('post-weaning')
+        ? `${newMortality.cause} (Post-weaning)`
+        : newMortality.cause;
+
       await addMortalityRecord({
         animalId: newMortality.animalId,
         date: newMortality.date,
-        cause: newMortality.cause,
-        description: newMortality.description,
+        cause: causeText,
+        description: desc,
         observer: newMortality.observer,
-        isPreWeaning: false,
+        isPreWeaning: isPre,
       });
       setNewMortality({
         date: new Date().toISOString().split('T')[0],
         animalId: '',
         cause: '',
         description: '',
-        observer: ''
+        observer: '',
+        stage: 'adult'
       });
       setIsAddMortalityModalVisible(false);
     } catch (error: any) {
@@ -973,7 +984,18 @@ function RegisterContent() {
                 <Picker
                   label="Select Animal"
                   value={newMortality.animalId}
-                  onValueChange={(value) => setNewMortality({...newMortality, animalId: value})}
+                  onValueChange={(value) => {
+                    const a = herdRegisterData.find(item => item.tag === value);
+                    let st: 'pre_weaning' | 'post_weaning' | 'adult' = 'adult';
+                    if (a) {
+                      const isCalf = ['Calve', 'Calf', 'Kid', 'Lamb', 'Piglet'].includes(a.stockType);
+                      if (isCalf) {
+                        const isWeaned = Boolean(a.dateOfWeaning) || a.calfStatus === 'Replacement' || a.calfStatus === 'Sold' || Number(a.weaningWeight || 0) > 0;
+                        st = isWeaned ? 'post_weaning' : 'pre_weaning';
+                      }
+                    }
+                    setNewMortality({ ...newMortality, animalId: value, stage: st });
+                  }}
                   items={[
                     { label: 'Select an animal...', value: '' },
                     ...herdRegisterData.map(animal => ({
@@ -982,6 +1004,45 @@ function RegisterContent() {
                     }))
                   ]}
                 />
+              </View>
+
+              <View style={styles.formGroup}>
+                <Text variant="body2" style={styles.label}>Mortality Category</Text>
+                <View style={{ flexDirection: 'row', gap: 8, marginTop: 4 }}>
+                  <TouchableOpacity
+                    style={[
+                      { flex: 1, paddingVertical: 8, borderRadius: 8, borderWidth: 1, alignItems: 'center' },
+                      newMortality.stage === 'pre_weaning'
+                        ? { borderColor: Colors.primary[600], backgroundColor: Colors.primary[50] }
+                        : { borderColor: Colors.neutral[300], backgroundColor: Colors.neutral[50] }
+                    ]}
+                    onPress={() => setNewMortality(prev => ({ ...prev, stage: 'pre_weaning' }))}
+                  >
+                    <Text variant="caption" weight={newMortality.stage === 'pre_weaning' ? 'bold' : 'regular'} color={newMortality.stage === 'pre_weaning' ? 'primary.700' : 'neutral.700'}>Pre-weaning</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[
+                      { flex: 1, paddingVertical: 8, borderRadius: 8, borderWidth: 1, alignItems: 'center' },
+                      newMortality.stage === 'post_weaning'
+                        ? { borderColor: Colors.primary[600], backgroundColor: Colors.primary[50] }
+                        : { borderColor: Colors.neutral[300], backgroundColor: Colors.neutral[50] }
+                    ]}
+                    onPress={() => setNewMortality(prev => ({ ...prev, stage: 'post_weaning' }))}
+                  >
+                    <Text variant="caption" weight={newMortality.stage === 'post_weaning' ? 'bold' : 'regular'} color={newMortality.stage === 'post_weaning' ? 'primary.700' : 'neutral.700'}>Post-weaning</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[
+                      { flex: 1, paddingVertical: 8, borderRadius: 8, borderWidth: 1, alignItems: 'center' },
+                      newMortality.stage === 'adult'
+                        ? { borderColor: Colors.primary[600], backgroundColor: Colors.primary[50] }
+                        : { borderColor: Colors.neutral[300], backgroundColor: Colors.neutral[50] }
+                    ]}
+                    onPress={() => setNewMortality(prev => ({ ...prev, stage: 'adult' }))}
+                  >
+                    <Text variant="caption" weight={newMortality.stage === 'adult' ? 'bold' : 'regular'} color={newMortality.stage === 'adult' ? 'primary.700' : 'neutral.700'}>Adult Herd</Text>
+                  </TouchableOpacity>
+                </View>
               </View>
               
               <View style={styles.formGroup}>
@@ -1552,21 +1613,20 @@ function RegisterContent() {
     dec: ''
   });
 
-  const [isAddFeedModalVisible, setIsAddFeedModalVisible] = useState(false);
-  const [isEditCalfModalVisible, setIsEditCalfModalVisible] = useState(false);
+  const [isAddFeedModalVisible, setIsAddFeedModalVisible] = useState(false);  const [isEditCalfModalVisible, setIsEditCalfModalVisible] = useState(false);
   const [editingCalf, setEditingCalf] = useState<AnimalData | null>(null);
+  const [isEditCalfWeaned, setIsEditCalfWeaned] = useState(false);
 
-
-  
   // Function to handle editing a calf record
   const handleEditCalf = (calf: AnimalData) => {
-    // Set default values if they don't exists
+    // Set default values if they don't exist
     const calfWithDefaults = {
       observer: '',
       birthWeight: '',
       deliveryType: 'Natural',
       ...calf
     };
+    setIsEditCalfWeaned(Boolean(calf.dateOfWeaning));
     setEditingCalf(calfWithDefaults as AnimalData);
     setIsEditCalfModalVisible(true);
   };
@@ -1574,6 +1634,10 @@ function RegisterContent() {
   // Function to save edited calf record
   const handleSaveCalf = () => {
     if (!editingCalf) return;
+    if (isEditCalfWeaned && !editingCalf.dateOfWeaning) {
+      alert('Please select a Date of Weaning for this weaned calf.');
+      return;
+    }
     
     updateAnimal(editingCalf.tag, {
       observer: editingCalf.observer,
@@ -1586,8 +1650,8 @@ function RegisterContent() {
       source: editingCalf.source as 'Born' | 'Purchased',
       sire: editingCalf.sire,
       dam: editingCalf.dam,
-      dateOfWeaning: editingCalf.dateOfWeaning || undefined,
-      weaningWeight: editingCalf.weaningWeight !== undefined && editingCalf.weaningWeight !== '' ? Number(editingCalf.weaningWeight) : undefined,
+      dateOfWeaning: isEditCalfWeaned ? (editingCalf.dateOfWeaning || undefined) : undefined,
+      weaningWeight: isEditCalfWeaned && editingCalf.weaningWeight !== undefined && editingCalf.weaningWeight !== '' ? Number(editingCalf.weaningWeight) : undefined,
       weight30day: editingCalf.weight30day !== undefined && (editingCalf.weight30day as any) !== '' ? Number(editingCalf.weight30day) : undefined,
       weight100day: editingCalf.weight100day !== undefined && (editingCalf.weight100day as any) !== '' ? Number(editingCalf.weight100day) : undefined,
       weight1weekPostWeaning: editingCalf.weight1weekPostWeaning !== undefined && (editingCalf.weight1weekPostWeaning as any) !== '' ? Number(editingCalf.weight1weekPostWeaning) : undefined,
@@ -1601,7 +1665,7 @@ function RegisterContent() {
     
     // Show success message
     alert('Calf details updated successfully');
-  };
+  };;
 
   // Function to handle editing an animal record
   const handleEditAnimal = (animal: AnimalData) => {
@@ -2134,9 +2198,11 @@ function RegisterContent() {
     status: 'In Stock'
   });
 
-  // Function to identify calves (animals younger than 1 year)
+  // Function to identify calves (animals younger than 1 year or stockType Calve/Calf)
   const getCalves = () => {
     return herdRegisterData.filter(animal => {
+      if (animal.stockType === 'Calve' || animal.stockType === 'Calf') return true;
+      if (!animal.age) return false;
       // Check if age is less than 1 year (assuming format like '6m' or '11m' for months)
       const ageMatch = animal.age.match(/(\d+)([ym])/);
       if (!ageMatch) return false;
@@ -3630,36 +3696,65 @@ function RegisterContent() {
                 />
               </View>
 
-              {/* Date of Weaning */}
-              <View style={styles.formGroup}>
-                <Text variant="body2" style={styles.label}>Date of Weaning</Text>
-                <TouchableOpacity 
-                  style={styles.input}
-                  onPress={() => setShowEditCalfWeaningDatePicker(true)}
-                >
-                  <Text style={editingCalf?.dateOfWeaning ? {} : {color: '#999'}}>
-                    {editingCalf?.dateOfWeaning || 'Select weaning date'}
+              {/* Weaning Switch */}
+              <View style={[styles.formGroup, { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 10, paddingHorizontal: 14, backgroundColor: isEditCalfWeaned ? '#F2FAE8' : '#F8F9FA', borderRadius: 12, borderWidth: 1, borderColor: isEditCalfWeaned ? '#C3E39D' : '#E9ECEF', marginVertical: 6 }]}>
+                <View>
+                  <Text variant="body2" style={{ fontWeight: 'bold', color: isEditCalfWeaned ? '#639A34' : '#333' }}>
+                    Weaned: {isEditCalfWeaned ? 'Yes' : 'No'}
                   </Text>
-                </TouchableOpacity>
-                {renderAdaptiveDatePicker(
-                  showEditCalfWeaningDatePicker,
-                  editingCalf?.dateOfWeaning,
-                  () => setShowEditCalfWeaningDatePicker(false),
-                  (formattedDate) => editingCalf && setEditingCalf({ ...editingCalf, dateOfWeaning: formattedDate })
-                )}
-              </View>
-
-              {/* Weaning Weight */}
-              <View style={styles.formGroup}>
-                <Text variant="body2" style={styles.label}>Weaning Weight (kg)</Text>
-                <TextInput
-                  style={styles.input}
-                  value={editingCalf?.weaningWeight != null ? String(editingCalf.weaningWeight) : ''}
-                  onChangeText={(text) => editingCalf && setEditingCalf({...editingCalf, weaningWeight: text})}
-                  placeholder="e.g. 180"
-                  keyboardType="numeric"
+                  <Text variant="caption" style={{ color: '#666', fontSize: 11 }}>
+                    {isEditCalfWeaned ? 'Calf is weaned (remains for this year)' : 'Toggle ON when calf is weaned'}
+                  </Text>
+                </View>
+                <Switch
+                  value={isEditCalfWeaned}
+                  onValueChange={(val) => {
+                    setIsEditCalfWeaned(val);
+                    if (val && editingCalf && !editingCalf.dateOfWeaning) {
+                      setEditingCalf({ ...editingCalf, dateOfWeaning: new Date().toISOString().split('T')[0] });
+                    } else if (!val && editingCalf) {
+                      setEditingCalf({ ...editingCalf, dateOfWeaning: '', weaningWeight: undefined });
+                    }
+                  }}
+                  trackColor={{ false: '#DEE2E6', true: '#7AC142' }}
+                  thumbColor="#FFFFFF"
                 />
               </View>
+
+              {isEditCalfWeaned && (
+                <>
+                  {/* Date of Weaning */}
+                  <View style={styles.formGroup}>
+                    <Text variant="body2" style={styles.label}>Date of Weaning *</Text>
+                    <TouchableOpacity 
+                      style={[styles.input, !editingCalf?.dateOfWeaning && { borderColor: '#E74C3C' }]}
+                      onPress={() => setShowEditCalfWeaningDatePicker(true)}
+                    >
+                      <Text style={editingCalf?.dateOfWeaning ? {} : {color: '#999'}}>
+                        {editingCalf?.dateOfWeaning || 'Select weaning date *'}
+                      </Text>
+                    </TouchableOpacity>
+                    {renderAdaptiveDatePicker(
+                      showEditCalfWeaningDatePicker,
+                      editingCalf?.dateOfWeaning,
+                      () => setShowEditCalfWeaningDatePicker(false),
+                      (formattedDate) => editingCalf && setEditingCalf({ ...editingCalf, dateOfWeaning: formattedDate })
+                    )}
+                  </View>
+
+                  {/* Weaning Weight */}
+                  <View style={styles.formGroup}>
+                    <Text variant="body2" style={styles.label}>Weaning Weight (kg)</Text>
+                    <TextInput
+                      style={styles.input}
+                      value={editingCalf?.weaningWeight != null ? String(editingCalf.weaningWeight) : ''}
+                      onChangeText={(text) => editingCalf && setEditingCalf({...editingCalf, weaningWeight: text})}
+                      placeholder="e.g. 180"
+                      keyboardType="numeric"
+                    />
+                  </View>
+                </>
+              )}
 
               {/* 1-Week Post Weaning Weight */}
               <View style={styles.formGroup}>
@@ -6807,15 +6902,30 @@ function RegisterContent() {
             style={styles.card}
             headerRight={
               <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                <Text variant="body2" style={{ marginRight: 8, color: Colors.neutral[600] }}>
-                  {getCalves().length} calves
+                <Text variant="caption" style={{ color: Colors.neutral[600] }}>
+                  {getCalves().length} total ({getCalves().filter(c => Boolean(c.dateOfWeaning)).length} weaned faint)
                 </Text>
               </View>
             }
           >
             <DataTable
+              rowStyle={(row: any) => row.dateOfWeaning ? { opacity: 0.55, backgroundColor: '#F8F9FA' } : undefined}
               columns={[
-                { key: 'tag', title: 'Calf ID', width: 120, render: (value: string) => <Text>{value}</Text> },
+                { 
+                  key: 'tag', 
+                  title: 'Calf ID', 
+                  width: 130, 
+                  render: (value: string, row: any) => (
+                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                      <Text style={row?.dateOfWeaning ? { color: Colors.neutral[500] } : {}}>{value}</Text>
+                      {Boolean(row?.dateOfWeaning) && (
+                        <View style={{ marginLeft: 4, backgroundColor: Colors.neutral[200], paddingHorizontal: 4, paddingVertical: 1, borderRadius: 4 }}>
+                          <Text style={{ fontSize: 9, color: Colors.neutral[600], fontWeight: 'bold' }}>Weaned</Text>
+                        </View>
+                      )}
+                    </View>
+                  )
+                },
                 { key: 'sire', title: 'Sire ID', width: 100, render: (value: string) => <Text>{value || '-'}</Text> },
                 { key: 'dam', title: 'Dam ID', width: 100, render: (value: string) => <Text>{value || '-'}</Text> },
                 { key: 'sex', title: 'Sex', width: 70, render: (value: string) => (
@@ -6825,7 +6935,16 @@ function RegisterContent() {
                 { key: 'birthWeight', title: 'Birth Wt', width: 100, render: (value: string) => <Text>{value ? `${value} kg` : '-'}</Text> },
                 { key: 'weight30day', title: '30d Wt', width: 90, render: (value: any) => <Text>{value ? `${value} kg` : '-'}</Text> },
                 { key: 'weight100day', title: '100d Wt', width: 100, render: (value: any) => <Text>{value ? `${value} kg` : '-'}</Text> },
-                { key: 'dateOfWeaning', title: 'Wean Date', width: 110, render: (value: string) => <Text>{value || '-'}</Text> },
+                { 
+                  key: 'dateOfWeaning', 
+                  title: 'Wean Date', 
+                  width: 110, 
+                  render: (value: string) => (
+                    <Text style={value ? { color: '#117A65', fontWeight: 'bold' } : {}}>
+                      {value ? `✓ ${value}` : '-'}
+                    </Text>
+                  )
+                },
                 { key: 'weaningWeight', title: 'Wean Wt', width: 90, render: (value: any) => <Text>{value ? `${value} kg` : '-'}</Text> },
                 { key: 'weight1weekPostWeaning', title: '1w Post Wean', width: 110, render: (value: any) => <Text>{value ? `${value} kg` : '-'}</Text> },
                 { key: 'weight6monthsPostWeaning', title: '6m Post Wean', width: 110, render: (value: any) => <Text>{value ? `${value} kg` : '-'}</Text> },

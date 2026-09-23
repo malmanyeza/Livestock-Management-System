@@ -2580,32 +2580,79 @@ export const FarmDataProvider: React.FC<{ children: ReactNode }> = ({ children }
     const counts = { goats: 0, cattle: 0, sheep: 0, pigs: 0, chickens: 0 };
     const months: (keyof AnimalWeight)[] = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
 
-    animalWeights.forEach(row => {
-      const animal = aliveAnimals.find(a => a.tag === row.animalTag);
-      if (!animal) return;
+    const isValidWeight = (val: any, max = 1500): boolean => {
+      if (val === null || val === undefined || val === '') return false;
+      const n = Number(val);
+      return !isNaN(n) && n > 0 && n <= max;
+    };
 
+    aliveAnimals.forEach(animal => {
+      const row = animalWeights.find(w => w.animalTag === animal.tag);
+      let currentWeight: number | null = null;
       let lastWeight: number | null = null;
-      months.forEach(m => {
-        const val = row[m];
-        if (val !== null && val !== undefined && val !== '') {
-          const w = Number(val);
-          if (lastWeight !== null) {
-            const adg = (w - lastWeight) / 30; // approx 30 days per month
-            if (animal.stockType === 'Goat') {
+
+      if (row) {
+        const recorded: number[] = [];
+        months.forEach(m => {
+          const val = row[m];
+          if (isValidWeight(val, 1500)) {
+            recorded.push(Number(val));
+          }
+        });
+        if (recorded.length >= 2) {
+          currentWeight = recorded[recorded.length - 1];
+          lastWeight = recorded[recorded.length - 2];
+        } else if (recorded.length === 1) {
+          currentWeight = recorded[0];
+          if (isValidWeight(animal.previousWeight, 1500)) {
+            lastWeight = Number(animal.previousWeight);
+          } else if (isValidWeight(animal.birthWeight, 120)) {
+            lastWeight = Number(animal.birthWeight);
+          }
+        }
+      }
+
+      if (currentWeight === null || lastWeight === null) {
+        if (isValidWeight(animal.weight, 1500) && isValidWeight(animal.previousWeight, 1500)) {
+          currentWeight = Number(animal.weight);
+          lastWeight = Number(animal.previousWeight);
+        } else if (isValidWeight(animal.weaningWeight, 600) && isValidWeight(animal.birthWeight, 120)) {
+          currentWeight = Number(animal.weaningWeight);
+          lastWeight = Number(animal.birthWeight);
+        }
+      }
+
+      if (currentWeight !== null && lastWeight !== null) {
+        let ageInDays = 0;
+        if (animal.dateOfBirth) {
+          const dob = new Date(animal.dateOfBirth);
+          ageInDays = Math.round((new Date().getTime() - dob.getTime()) / (1000 * 3600 * 24));
+        } else if (animal.age) {
+          const y = animal.age.match(/(\d+)\s*y/);
+          const m = animal.age.match(/(\d+)\s*m/);
+          const d = animal.age.match(/(\d+)\s*d/);
+          ageInDays = (y ? parseInt(y[1]) * 365 : 0) + (m ? parseInt(m[1]) * 30.4 : 0) + (d ? parseInt(d[1]) : 0);
+        }
+
+        if (ageInDays > 0) {
+          const adg = (currentWeight - lastWeight) / ageInDays;
+          // Biological livestock outlier filter: daily gain must be realistically between -5.0 and +5.0 kg/day
+          if (adg >= -5 && adg <= 5) {
+            const sType = animal.stockType;
+            if (sType === 'Goat') {
               totals.goats += adg; counts.goats++;
-            } else if (['Cow', 'Bull', 'Steer', 'Heifer', 'Bullying Heifer', 'Calve', 'Calf'].includes(animal.stockType)) {
+            } else if (['Cow', 'Bull', 'Steer', 'Heifer', 'Bullying Heifer', 'Calve', 'Calf'].includes(sType)) {
               totals.cattle += adg; counts.cattle++;
-            } else if (animal.stockType === 'Sheep') {
+            } else if (sType === 'Sheep') {
               totals.sheep += adg; counts.sheep++;
-            } else if (animal.stockType === 'Pig') {
+            } else if (sType === 'Pig') {
               totals.pigs += adg; counts.pigs++;
-            } else if (animal.stockType === 'Chicken') {
+            } else if (sType === 'Chicken') {
               totals.chickens += adg; counts.chickens++;
             }
           }
-          lastWeight = w;
         }
-      });
+      }
     });
 
     return {
@@ -2695,65 +2742,133 @@ export const FarmDataProvider: React.FC<{ children: ReactNode }> = ({ children }
   };
 
   // C. PRODUCTION CALCULATIONS
-  const calculateProductionMetrics = (aliveAnimals: Animal[]) => {
-    const calves = aliveAnimals.filter(a => ['Calve', 'Calf'].includes(a.stockType));
+  const YOUNG_STOCK_TYPES = ['Calve', 'Calf', 'Kid', 'Lamb', 'Piglet'];
+  const isOffspringAnimal = (a: Animal) => {
+    if (a.stockType && YOUNG_STOCK_TYPES.includes(a.stockType)) return true;
+    if (!a.age) return false;
+    const match = a.age.match(/(\d+)\s*([ymd])/i);
+    if (!match) return false;
+    const [_, val, u] = match;
+    if (u.toLowerCase() === 'd') return true;
+    return (u.toLowerCase() === 'm' && parseInt(val) < 12) || (u.toLowerCase() === 'y' && parseInt(val) === 0);
+  };
+
+  const calculateProductionMetrics = (aliveAnimals: Animal[], animalWeights: AnimalWeight[] = []) => {
+    const calves = aliveAnimals.filter(isOffspringAnimal);
     const eligibleCows = aliveAnimals.filter(a => a.stockType === 'Cow' || (a.stockType === 'Heifer' && a.isBreedingCow));
     
-    const weanedCalves = calves.filter(a => a.calfStatus === 'Replacement' || a.calfStatus === 'Sold' || Number(a.weaningWeight || 0) > 0);
+    const weanedCalves = calves.filter(a => Boolean(a.dateOfWeaning) || a.calfStatus === 'Replacement' || a.calfStatus === 'Sold' || Number(a.weaningWeight || 0) > 0);
+    const unweanedCalves = calves.filter(a => !Boolean(a.dateOfWeaning) && a.calfStatus !== 'Replacement' && a.calfStatus !== 'Sold' && !(Number(a.weaningWeight || 0) > 0));
     const weaningPercentage = eligibleCows.length > 0 ? (weanedCalves.length / eligibleCows.length) * 100 : 0;
 
-    let preWeaningSum = 0; let preWeaningCount = 0;
-    let postWeaningSum = 0; let postWeaningCount = 0;
+    const months: (keyof AnimalWeight)[] = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
+    const isValidWeight = (val: any, max = 1500): boolean => {
+      if (val === null || val === undefined || val === '') return false;
+      const n = Number(val);
+      return !isNaN(n) && n > 0 && n <= max;
+    };
 
-    calves.forEach(a => {
-      const birth = Number(a.birthWeight || 0);
-      const wean = Number(a.weaningWeight || 0);
-      const w100 = Number(a.weight100day || 0);
-      const w30 = Number(a.weight30day || 0);
-      
-      let preDays = 205; // Industry standard default
-      if (a.dateOfBirth && a.dateOfWeaning) {
-        const dob = new Date(a.dateOfBirth);
-        const dow = new Date(a.dateOfWeaning);
-        const diff = (dow.getTime() - dob.getTime()) / (1000 * 3600 * 24);
-        if (diff > 0) preDays = diff;
+    const getAnimalADG = (animal: Animal): number | null => {
+      const row = animalWeights.find(w => w.animalTag === animal.tag);
+      let currentWeight: number | null = null;
+      let lastWeight: number | null = null;
+
+      if (row) {
+        const recorded: number[] = [];
+        months.forEach(m => {
+          const val = row[m];
+          if (isValidWeight(val, 1500)) {
+            recorded.push(Number(val));
+          }
+        });
+        if (recorded.length >= 2) {
+          currentWeight = recorded[recorded.length - 1];
+          lastWeight = recorded[recorded.length - 2];
+        } else if (recorded.length === 1) {
+          currentWeight = recorded[0];
+          if (isValidWeight(animal.previousWeight, 1500)) {
+            lastWeight = Number(animal.previousWeight);
+          } else if (isValidWeight(animal.birthWeight, 120)) {
+            lastWeight = Number(animal.birthWeight);
+          }
+        }
       }
 
-      if (wean > 0 && birth > 0) {
-        preWeaningSum += (wean - birth) / preDays;
-        preWeaningCount++;
-      } else if (w100 > 0 && birth > 0) {
-        preWeaningSum += (w100 - birth) / 100;
-        preWeaningCount++;
-      } else if (w30 > 0 && birth > 0) {
-        preWeaningSum += (w30 - birth) / 30;
-        preWeaningCount++;
+      if (currentWeight === null || lastWeight === null) {
+        if (isValidWeight(animal.weight, 1500) && isValidWeight(animal.previousWeight, 1500)) {
+          currentWeight = Number(animal.weight);
+          lastWeight = Number(animal.previousWeight);
+        } else if (isValidWeight(animal.weaningWeight, 600) && isValidWeight(animal.birthWeight, 120)) {
+          currentWeight = Number(animal.weaningWeight);
+          lastWeight = Number(animal.birthWeight);
+        }
       }
 
-      const post6m = Number(a.weight6monthsPostWeaning || 0);
-      const post1w = Number(a.weight1weekPostWeaning || 0);
-      if (post6m > 0 && wean > 0) {
-        postWeaningSum += (post6m - wean) / 180;
-        postWeaningCount++;
-      } else if (post1w > 0 && wean > 0) {
-        postWeaningSum += (post1w - wean) / 7;
+      if (currentWeight !== null && lastWeight !== null) {
+        let ageInDays = 0;
+        if (animal.dateOfBirth) {
+          const dob = new Date(animal.dateOfBirth);
+          ageInDays = Math.round((new Date().getTime() - dob.getTime()) / (1000 * 3600 * 24));
+        } else if (animal.age) {
+          const y = animal.age.match(/(\d+)\s*y/);
+          const m = animal.age.match(/(\d+)\s*m/);
+          const d = animal.age.match(/(\d+)\s*d/);
+          ageInDays = (y ? parseInt(y[1]) * 365 : 0) + (m ? parseInt(m[1]) * 30.4 : 0) + (d ? parseInt(d[1]) : 0);
+        }
+
+        if (ageInDays > 0) {
+          const adg = (currentWeight - lastWeight) / ageInDays;
+          if (adg >= -5 && adg <= 5) {
+            return adg;
+          }
+        }
+      }
+      return null;
+    };
+
+    // Pre-weaning DLWG: ADG of unweaned calves
+    let preWeaningSum = 0; 
+    let preWeaningCount = 0;
+    unweanedCalves.forEach(a => {
+      const val = getAnimalADG(a);
+      if (val !== null) {
+        preWeaningSum += val;
+        preWeaningCount++;
+      }
+    });
+    const preWeaningDLWG = preWeaningCount > 0 ? Number((preWeaningSum / preWeaningCount).toFixed(3)) : 0;
+
+    // Post-weaning DLWG: ADG of weaned calves
+    let postWeaningSum = 0; 
+    let postWeaningCount = 0;
+    weanedCalves.forEach(a => {
+      const val = getAnimalADG(a);
+      if (val !== null) {
+        postWeaningSum += val;
         postWeaningCount++;
       }
     });
-
-    const preWeaningDLWG = preWeaningCount > 0 ? Number((preWeaningSum / preWeaningCount).toFixed(3)) : 0;
     const postWeaningDLWG = postWeaningCount > 0 ? Number((postWeaningSum / postWeaningCount).toFixed(3)) : 0;
 
-    const preWeaningMortCount = mortalityRecords.filter(m => m.isPreWeaning).length;
-    const postWeaningMortCount = mortalityRecords.filter(m => !m.isPreWeaning).length;
-    
+    // a. Pre-weaning Mortality: (Calves that died prior to weaning) ÷ (Total calves born) * 100
+    const preWeaningMortCount = mortalityRecords.filter(m => m.isPreWeaning || m.cause === 'Pre-weaning Mortality' || m.description?.toLowerCase().includes('pre-weaning')).length;
     const totalCalvesBorn = calves.length + preWeaningMortCount;
-    const totalCalvesWeaned = weanedCalves.length + postWeaningMortCount;
-    const totalOpeningStockAndNewborns = aliveAnimals.length + mortalityRecords.length;
-    
     const preWeaningMortality = totalCalvesBorn > 0 ? (preWeaningMortCount / totalCalvesBorn) * 100 : 0;
+
+    // b. Post-weaning Mortality: (Calves that died post weaning) ÷ (Total calves weaned) * 100
+    const postWeaningMortCount = mortalityRecords.filter(m => !m.isPreWeaning && (m.cause?.toLowerCase().includes('post-weaning') || m.description?.toLowerCase().includes('post-weaning'))).length;
+    const totalCalvesWeaned = weanedCalves.length + postWeaningMortCount;
     const postWeaningMortality = totalCalvesWeaned > 0 ? (postWeaningMortCount / totalCalvesWeaned) * 100 : 0;
-    const herdMortality = totalOpeningStockAndNewborns > 0 ? (mortalityRecords.length / totalOpeningStockAndNewborns) * 100 : 0;
+
+    // c. Herd Mortality: number of deaths / (opening stock + number of newborns) x 100
+    const totalDeaths = mortalityRecords.length;
+    const adultAnimalsInHerd = aliveAnimals.filter(a => !isOffspringAnimal(a)).length;
+    const adultDeaths = Math.max(0, totalDeaths - preWeaningMortCount);
+    const openingStock = adultAnimalsInHerd + adultDeaths;
+    const totalOpeningStockAndNewborns = openingStock + totalCalvesBorn;
+    const herdMortality = totalOpeningStockAndNewborns > 0 ? (totalDeaths / totalOpeningStockAndNewborns) * 100 : 0;
+
+    // d. Weaning Rate: (Total calves weaned) ÷ (Total calves born) * 100
     const weaningRate = totalCalvesBorn > 0 ? (weanedCalves.length / totalCalvesBorn) * 100 : 0;
 
     return {
@@ -2921,9 +3036,9 @@ export const FarmDataProvider: React.FC<{ children: ReactNode }> = ({ children }
   const fcr = calculateFCR();
   const bcs = calculateBCS(aliveAnimals);
   const repro = calculateReproductionMetrics(aliveAnimals);
-  const prod = calculateProductionMetrics(aliveAnimals);
+  const prod = calculateProductionMetrics(aliveAnimals, animalWeights);
   
-  const scores = calculateCategoryScores(adg, fcr, bcs, repro, prod, aliveAnimals);
+  const scores = calculateCategoryScores(adg, fcr, bcs, repro, prod);
 
   const updateProfile = async (updates: Partial<Profile>) => {
     if (!profile) return;

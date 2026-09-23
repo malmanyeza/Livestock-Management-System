@@ -14,18 +14,20 @@ const DEFAULT_TARGETS: Record<string, number> = {
   preWeaningDLWG:     0.7,
   postWeaningDLWG:    0.9,
   preWeaningMortality:5.0,
+  postWeaningMortality:3.0,
   herdMortality:      5.0,
   weaningRate:        75,
 }
 
 const TARGET_DESCRIPTIONS: Record<string, string> = {
-  weaning:             'Industry benchmark: ≥ 94%',
-  adg:                 'Industry benchmark: 0.9 – 1.13 kg/day',
-  preWeaningDLWG:      'Industry benchmark: > 0.7 kg/day',
-  postWeaningDLWG:     'Industry benchmark: 0.8 – 1.0 kg/day',
-  preWeaningMortality: 'Industry benchmark: < 5% (lower is better)',
-  herdMortality:       'Industry benchmark: < 5% (lower is better)',
-  weaningRate:         'Industry benchmark: 70 – 80%',
+  weaning:              'Industry benchmark: ≥ 94%',
+  adg:                  'Industry benchmark: 0.9 – 1.13 kg/day',
+  preWeaningDLWG:       'Industry benchmark: > 0.7 kg/day',
+  postWeaningDLWG:      'Industry benchmark: 0.8 – 1.0 kg/day',
+  preWeaningMortality:  'Industry benchmark: < 5% (lower is better)',
+  postWeaningMortality: 'Industry benchmark: < 3% (lower is better)',
+  herdMortality:        'Industry benchmark: < 5% (lower is better)',
+  weaningRate:          'Industry benchmark: 70 – 80%',
 }
 
 const C = {
@@ -70,13 +72,17 @@ function getPercentage(value: number, target: number, isMortality: boolean): num
   return (value / target) * 100
 }
 
+const YOUNG_STOCK_TYPES = ['Calve', 'Calf', 'Kid', 'Lamb', 'Piglet']
+
 const isCalf = (age: string | null | undefined, stockType?: string | null) => {
-  if (stockType === 'Calve' || stockType === 'Calf') return true
+  if (stockType && YOUNG_STOCK_TYPES.includes(stockType)) return true
   if (!age) return false
-  const ageMatch = age.match(/(\d+)([ym])/)
+  const ageMatch = age.match(/(\d+)\s*([ymd])/i)
   if (!ageMatch) return false
   const [_, value, unit] = ageMatch
-  return (unit === 'm' && parseInt(value) < 12) || (unit === 'y' && parseInt(value) === 0)
+  const u = unit.toLowerCase()
+  if (u === 'd') return true
+  return (u === 'm' && parseInt(value) < 12) || (u === 'y' && parseInt(value) === 0)
 }
 
 // ─── Metric Card ─────────────────────────────────────────────────────────────
@@ -118,9 +124,15 @@ function ProductionMetricCard({
         </div>
         <div className="h-2.5 rounded-full" style={{ backgroundColor: C.neutral100 }}>
           <div className="h-2.5 rounded-full transition-all duration-500"
-            style={{ width: `${Math.min(100, pct)}%`, backgroundColor: color }} />
+            style={{ width: `${Math.min(100, Math.max(0, pct))}%`, backgroundColor: color }} />
         </div>
       </div>
+
+      {metric.description && (
+        <p className="text-[11px] mt-2.5 pt-2 border-t line-clamp-2" style={{ borderColor: C.neutral100, color: C.neutral500 }}>
+          {metric.description}
+        </p>
+      )}
 
       {/* Admin: Set Target button — same style as mobile setTargetBtn */}
       {isAdmin && (
@@ -143,6 +155,7 @@ export default function Production() {
   const [animals, setAnimals]   = useState<any[]>([])
   const [mortalityRecords, setMortalityRecords] = useState<any[]>([])
   const [animalWeights, setAnimalWeights] = useState<any[]>([])
+  const [breedingRecords, setBreedingRecords] = useState<any[]>([])
   const [loading, setLoading]   = useState(true)
   const [targets, setTargets]   = useState({ ...DEFAULT_TARGETS })
 
@@ -154,97 +167,224 @@ export default function Production() {
     if (!targetUserId) return
     setLoading(true)
     Promise.all([
-      supabase.from('animals').select('weight,previous_weight,days_between_weights,stock_type,age,calf_status,weaning_weight,is_breeding_cow').eq('user_id', targetUserId).eq('production_year', selectedProductionYear),
-      supabase.from('mortality_records').select('id,is_pre_weaning', { count: 'exact' }).eq('user_id', targetUserId).eq('production_year', selectedProductionYear),
+      supabase.from('animals').select('*').eq('user_id', targetUserId).eq('production_year', selectedProductionYear),
+      supabase.from('mortality_records').select('*').eq('user_id', targetUserId).eq('production_year', selectedProductionYear),
       supabase.from('animal_weights').select('*').eq('user_id', targetUserId).eq('production_year', selectedProductionYear),
-    ]).then(([{ data: a }, { data: m, count }, { data: w }]) => {
+      supabase.from('breeding_records').select('ear_tag_number').eq('user_id', targetUserId).eq('production_year', selectedProductionYear),
+    ]).then(([{ data: a }, { data: m, count }, { data: w }, { data: b }]) => {
       setAnimals(a ?? [])
       setMortalityRecords(m ?? [])
       setAnimalWeights(w ?? [])
+      setBreedingRecords(b ?? [])
       setLoading(false)
     })
   }, [targetUserId, selectedProductionYear])
 
-  // Derived metrics — same formulas as FarmDataContext
+  // Helper for sanity-checking weights (avoids test gibberish like 88858885 kg)
+  const isValidWeight = (val: any, max = 1500): boolean => {
+    if (val === null || val === undefined || val === '') return false;
+    const n = Number(val);
+    return !isNaN(n) && n > 0 && n <= max;
+  };
+
+  // Derived metrics — Calf Crop formula: (Number of Calves Weaned) ÷ (Number of Exposed Females) * 100
   const calves = animals.filter(a => isCalf(a.age, a.stock_type))
-  const weanedCalves = calves.filter(a => a.calf_status === 'Replacement' || a.calf_status === 'Sold' || Number(a.weaning_weight || 0) > 0)
-  const eligibleCows = animals.filter(a => a.stock_type === 'Cow' || (a.stock_type === 'Heifer' && a.is_breeding_cow))
+  const weanedCalves = calves.filter(a => Boolean(a.date_of_weaning) || a.calf_status === 'Replacement' || a.calf_status === 'Sold' || Number(a.weaning_weight || 0) > 0)
+  
+  // Exposed females recorded for that year:
+  // 1) Females with breeding records in that year
+  // 2) Fallback to eligible breeding females recorded in herd (Cows, Bullying Heifers, or breeding-flagged Heifers)
+  const breedingFemalesCount = new Set((breedingRecords || []).map(b => b.ear_tag_number).filter(Boolean)).size
+  const herdEligibleFemalesCount = animals.filter(a => (a.sex === 'Female' || !a.sex) && (a.stock_type === 'Cow' || a.stock_type === 'Bullying Heifer' || (a.stock_type === 'Heifer' && a.is_breeding_cow) || a.is_breeding_cow)).length
+  const exposedFemalesCount = breedingFemalesCount > 0 ? breedingFemalesCount : herdEligibleFemalesCount
+
+  const weaningPercentage = exposedFemalesCount > 0 ? (weanedCalves.length / exposedFemalesCount) * 100 : 0
+
+  // Helper for computing individual animal ADG: (current recorded weight - last recorded weight) ÷ age in days
+  const weightMonths = ['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec'];
+  const getAnimalADG = (a: any): number | null => {
+    let currentWeight: number | null = null;
+    let lastWeight: number | null = null;
+
+    // Check animal_weights table for this animal's tag
+    const weightRow = animalWeights.find(w => w.animal_tag === a.tag);
+    if (weightRow) {
+      const recorded: number[] = [];
+      weightMonths.forEach(m => {
+        if (isValidWeight(weightRow[m], 1500)) {
+          recorded.push(Number(weightRow[m]));
+        }
+      });
+      if (recorded.length >= 2) {
+        currentWeight = recorded[recorded.length - 1];
+        lastWeight = recorded[recorded.length - 2];
+      } else if (recorded.length === 1) {
+        currentWeight = recorded[0];
+        if (isValidWeight(a.previous_weight, 1500)) {
+          lastWeight = Number(a.previous_weight);
+        } else if (isValidWeight(a.birth_weight, 120)) {
+          lastWeight = Number(a.birth_weight);
+        }
+      }
+    }
+
+    // Fallback to animal record fields (weight & previous_weight, or weaning_weight & birth_weight)
+    if (currentWeight === null || lastWeight === null) {
+      if (isValidWeight(a.weight, 1500) && isValidWeight(a.previous_weight, 1500)) {
+        currentWeight = Number(a.weight);
+        lastWeight = Number(a.previous_weight);
+      } else if (isValidWeight(a.weaning_weight, 600) && isValidWeight(a.birth_weight, 120)) {
+        currentWeight = Number(a.weaning_weight);
+        lastWeight = Number(a.birth_weight);
+      }
+    }
+
+    if (currentWeight !== null && lastWeight !== null) {
+      let ageInDays = 0;
+      if (a.date_of_birth) {
+        const dob = new Date(a.date_of_birth);
+        ageInDays = Math.round((new Date().getTime() - dob.getTime()) / (1000 * 3600 * 24));
+      } else if (a.age) {
+        const y = a.age.match(/(\d+)\s*y/);
+        const m = a.age.match(/(\d+)\s*m/);
+        const d = a.age.match(/(\d+)\s*d/);
+        ageInDays = (y ? parseInt(y[1]) * 365 : 0) + (m ? parseInt(m[1]) * 30.4 : 0) + (d ? parseInt(d[1]) : 0);
+      }
+
+      if (ageInDays > 0) {
+        const animalAdg = (currentWeight - lastWeight) / ageInDays;
+        // Biological livestock outlier filter: daily gain must be realistically between -5.0 and +5.0 kg/day
+        if (animalAdg >= -5 && animalAdg <= 5) {
+          return animalAdg;
+        }
+      }
+    }
+    return null;
+  };
+
+  // 1. Herd ADG
   let totalAdg = 0;
   let countAdg = 0;
-  const months = ['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec'];
-  animalWeights.forEach(row => {
-    let lastWeight: number | null = null;
-    months.forEach(m => {
-      if (row[m] !== null && row[m] !== undefined && row[m] !== '') {
-        const w = Number(row[m]);
-        if (lastWeight !== null) {
-          totalAdg += (w - lastWeight) / 30; // approximate ADG per month (30 days)
-          countAdg++;
-        }
-        lastWeight = w;
-      }
-    });
+  animals.forEach(a => {
+    const val = getAnimalADG(a);
+    if (val !== null) {
+      totalAdg += val;
+      countAdg++;
+    }
   });
   const adg = countAdg > 0 ? Number((totalAdg / countAdg).toFixed(3)) : 0;
-  let preWeaningSum = 0; let preWeaningCount = 0;
-  let postWeaningSum = 0; let postWeaningCount = 0;
 
-  calves.forEach(a => {
-    const birth = Number(a.birth_weight || 0);
-    const wean = Number(a.weaning_weight || 0);
-    const w100 = Number(a.weight_100day || 0);
-    const w30 = Number(a.weight_30day || 0);
-    
-    let preDays = 205; // Industry standard default
-    if (a.date_of_birth && a.date_of_weaning) {
-      const dob = new Date(a.date_of_birth);
-      const dow = new Date(a.date_of_weaning);
-      const diff = (dow.getTime() - dob.getTime()) / (1000 * 3600 * 24);
-      if (diff > 0) preDays = diff;
-    }
-
-    if (wean > 0 && birth > 0) {
-      preWeaningSum += (wean - birth) / preDays;
-      preWeaningCount++;
-    } else if (w100 > 0 && birth > 0) {
-      preWeaningSum += (w100 - birth) / 100;
-      preWeaningCount++;
-    } else if (w30 > 0 && birth > 0) {
-      preWeaningSum += (w30 - birth) / 30;
+  // 2. Pre-weaning DLWG: ADG for unweaned calves recorded for that year
+  const unweanedCalves = calves.filter(a => !Boolean(a.date_of_weaning) && a.calf_status !== 'Replacement' && a.calf_status !== 'Sold' && !(Number(a.weaning_weight || 0) > 0));
+  let preWeaningSum = 0; 
+  let preWeaningCount = 0;
+  unweanedCalves.forEach(a => {
+    const val = getAnimalADG(a);
+    if (val !== null) {
+      preWeaningSum += val;
       preWeaningCount++;
     }
+  });
+  const preWeaningDLWG = preWeaningCount > 0 ? Number((preWeaningSum / preWeaningCount).toFixed(3)) : 0;
 
-    const post6m = Number(a.weight_6months_post_weaning || 0);
-    const post1w = Number(a.weight_1week_post_weaning || 0);
-    if (post6m > 0 && wean > 0) {
-      postWeaningSum += (post6m - wean) / 180;
-      postWeaningCount++;
-    } else if (post1w > 0 && wean > 0) {
-      postWeaningSum += (post1w - wean) / 7;
+  // 3. Post-weaning DLWG: ADG for weaned calves recorded for that year
+  let postWeaningSum = 0; 
+  let postWeaningCount = 0;
+  weanedCalves.forEach(a => {
+    const val = getAnimalADG(a);
+    if (val !== null) {
+      postWeaningSum += val;
       postWeaningCount++;
     }
   });
-
-  const preWeaningDLWG = preWeaningCount > 0 ? Number((preWeaningSum / preWeaningCount).toFixed(3)) : 0;
   const postWeaningDLWG = postWeaningCount > 0 ? Number((postWeaningSum / postWeaningCount).toFixed(3)) : 0;
 
-  const herdMortality = animals.length > 0 ? (mortalityRecords.length / (animals.length + mortalityRecords.length)) * 100 : 0;
-  const weaningPercentage = eligibleCows.length > 0 ? (weanedCalves.length / eligibleCows.length) * 100 : 0;
-  
-  const preWeaningMortCount = mortalityRecords.filter(m => m.is_pre_weaning).length;
+  // a. Pre-weaning Mortality: (Calves that died prior to weaning) ÷ (Total calves born) * 100
+  const preWeaningMortCount = mortalityRecords.filter(m => m.is_pre_weaning || m.cause === 'Pre-weaning Mortality' || m.description?.toLowerCase().includes('pre-weaning')).length;
   const totalCalvesBorn = calves.length + preWeaningMortCount;
-  
-  const weaningRate = totalCalvesBorn > 0 ? (weanedCalves.length / totalCalvesBorn) * 100 : 0;
-  const preWeaningMortality = totalCalvesBorn > 0 ? (preWeaningMortCount / totalCalvesBorn) * 100 : 0;
+  const preWeaningMortality = totalCalvesBorn > 0 ? Number(((preWeaningMortCount / totalCalvesBorn) * 100).toFixed(2)) : 0;
+
+  // b. Post-weaning Mortality: (Calves that died post weaning) ÷ (Total calves weaned) * 100
+  const postWeaningMortCount = mortalityRecords.filter(m => !m.is_pre_weaning && (m.cause?.toLowerCase().includes('post-weaning') || m.description?.toLowerCase().includes('post-weaning'))).length;
+  const totalCalvesWeaned = weanedCalves.length + postWeaningMortCount;
+  const postWeaningMortality = totalCalvesWeaned > 0 ? Number(((postWeaningMortCount / totalCalvesWeaned) * 100).toFixed(2)) : 0;
+
+  // c. Herd Mortality: number of deaths / (opening stock + number of newborns) x 100
+  const totalDeaths = mortalityRecords.length;
+  const adultAnimalsInHerd = animals.filter(a => !isCalf(a.age, a.stock_type)).length;
+  const adultDeaths = Math.max(0, totalDeaths - preWeaningMortCount);
+  const openingStock = adultAnimalsInHerd + adultDeaths;
+  const totalHerdExposed = openingStock + totalCalvesBorn;
+  const herdMortality = totalHerdExposed > 0 ? Number(((totalDeaths / totalHerdExposed) * 100).toFixed(2)) : 0;
+
+  // d. Weaning Rate: (Total calves weaned) ÷ (Total calves born) * 100
+  const weaningRate = totalCalvesBorn > 0 ? Number(((weanedCalves.length / totalCalvesBorn) * 100).toFixed(2)) : 0;
 
   const productionMetrics: ProductionMetric[] = [
-    { key: 'weaning',             title: 'Calf Crop % (Weaning %)',    value: weaningPercentage, target: targets.weaning,            unit: '%',     description: TARGET_DESCRIPTIONS.weaning },
-    { key: 'adg',                 title: 'Average Daily Gain (ADG)',   value: adg,               target: targets.adg,                unit: 'kg/day', description: TARGET_DESCRIPTIONS.adg },
-    { key: 'preWeaningDLWG',      title: 'Pre-weaning DLWG',          value: preWeaningDLWG,    target: targets.preWeaningDLWG,     unit: 'kg/day', description: TARGET_DESCRIPTIONS.preWeaningDLWG },
-    { key: 'postWeaningDLWG',     title: 'Post-weaning DLWG',         value: postWeaningDLWG,   target: targets.postWeaningDLWG,    unit: 'kg/day', description: TARGET_DESCRIPTIONS.postWeaningDLWG },
-    { key: 'preWeaningMortality', title: 'Pre-weaning Mortality Rate', value: preWeaningMortality, target: targets.preWeaningMortality, unit: '%', description: TARGET_DESCRIPTIONS.preWeaningMortality },
-    { key: 'herdMortality',       title: 'Herd Mortality Rate',        value: herdMortality,     target: targets.herdMortality,      unit: '%',     description: TARGET_DESCRIPTIONS.herdMortality },
-    { key: 'weaningRate',         title: 'Weaning Rate',               value: weaningRate,       target: targets.weaningRate,        unit: '%',     description: TARGET_DESCRIPTIONS.weaningRate },
+    { 
+      key: 'weaning',             
+      title: 'Calf Crop % (Weaning %)',    
+      value: weaningPercentage, 
+      target: targets.weaning,            
+      unit: '%',     
+      description: `Formula: (${weanedCalves.length} weaned ÷ ${exposedFemalesCount} exposed females) × 100` 
+    },
+    { 
+      key: 'adg',                 
+      title: 'Average Daily Gain (ADG)',   
+      value: adg,               
+      target: targets.adg,                
+      unit: 'kg/day', 
+      description: `Benchmark: 0.9 – 1.13 kg/day • Formula: (Current Wt - Last Wt) ÷ Age (days) • (${countAdg} animals evaluated)` 
+    },
+    { 
+      key: 'preWeaningDLWG',      
+      title: 'Pre-weaning DLWG',          
+      value: preWeaningDLWG,    
+      target: targets.preWeaningDLWG,     
+      unit: 'kg/day', 
+      description: `Benchmark: > 0.7 kg/day • ADG of unweaned calves • (${preWeaningCount} evaluated)` 
+    },
+    { 
+      key: 'postWeaningDLWG',     
+      title: 'Post-weaning DLWG',         
+      value: postWeaningDLWG,   
+      target: targets.postWeaningDLWG,    
+      unit: 'kg/day', 
+      description: `Benchmark: 0.8 – 1.0 kg/day • ADG of weaned calves • (${postWeaningCount} evaluated)` 
+    },
+    { 
+      key: 'preWeaningMortality', 
+      title: 'Pre-weaning Mortality Rate', 
+      value: preWeaningMortality, 
+      target: targets.preWeaningMortality, 
+      unit: '%', 
+      description: `Benchmark: < 5% • Formula: (${preWeaningMortCount} pre-weaning deaths ÷ ${totalCalvesBorn} calves born) × 100` 
+    },
+    { 
+      key: 'postWeaningMortality', 
+      title: 'Post-weaning Mortality Rate', 
+      value: postWeaningMortality, 
+      target: targets.postWeaningMortality, 
+      unit: '%', 
+      description: `Benchmark: < 3% • Formula: (${postWeaningMortCount} post-weaning deaths ÷ ${totalCalvesWeaned} weaned) × 100` 
+    },
+    { 
+      key: 'herdMortality',       
+      title: 'Herd Mortality Rate',        
+      value: herdMortality,     
+      target: targets.herdMortality,      
+      unit: '%',     
+      description: `Benchmark: < 5% • Formula: ${totalDeaths} deaths ÷ (${openingStock} opening stock + ${totalCalvesBorn} newborns) × 100` 
+    },
+    { 
+      key: 'weaningRate',         
+      title: 'Weaning Rate',               
+      value: weaningRate,       
+      target: targets.weaningRate,        
+      unit: '%',     
+      description: `Benchmark: 70 – 80% • Formula: (${weanedCalves.length} weaned ÷ ${totalCalvesBorn} born) × 100` 
+    },
   ]
 
   const openEdit = (m: ProductionMetric) => { setEditingKey(m.key); setDraftValue(String(m.target)) }

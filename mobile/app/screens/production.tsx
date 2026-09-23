@@ -23,6 +23,7 @@ const DEFAULT_TARGETS: Record<string, number> = {
   preWeaningDLWG: 0.7,
   postWeaningDLWG: 0.9,
   preWeaningMortality: 5.0,
+  postWeaningMortality: 3.0,
   herdMortality: 5.0,
   weaningRate: 75,
 };
@@ -33,6 +34,7 @@ const TARGET_DESCRIPTIONS: Record<string, string> = {
   preWeaningDLWG: 'Industry benchmark: > 0.7 kg/day',
   postWeaningDLWG: 'Industry benchmark: 0.8 – 1.0 kg/day',
   preWeaningMortality: 'Industry benchmark: < 5% (lower is better)',
+  postWeaningMortality: 'Industry benchmark: < 3% (lower is better)',
   herdMortality: 'Industry benchmark: < 5% (lower is better)',
   weaningRate: 'Industry benchmark: 70 – 80%',
 };
@@ -96,6 +98,14 @@ function ProductionContent() {
       target: targets['preWeaningMortality'],
       unit: '%',
       description: TARGET_DESCRIPTIONS['preWeaningMortality'],
+    },
+    {
+      key: 'postWeaningMortality',
+      title: 'Post-weaning Mortality Rate',
+      value: metrics.mortalityRates.postWeaning,
+      target: targets['postWeaningMortality'],
+      unit: '%',
+      description: TARGET_DESCRIPTIONS['postWeaningMortality'],
     },
     {
       key: 'herdMortality',

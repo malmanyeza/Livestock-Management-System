@@ -113,7 +113,17 @@ interface ColDef {
   align?: 'left' | 'center' | 'right'
 }
 
-function Table({ data, cols }: { data: any[]; cols: ColDef[] }) {
+function Table({ 
+  data, 
+  cols, 
+  rowClassName, 
+  rowStyle 
+}: { 
+  data: any[]; 
+  cols: ColDef[]; 
+  rowClassName?: (row: any) => string; 
+  rowStyle?: (row: any) => React.CSSProperties; 
+}) {
   const minWidth = cols.length > 10 ? '1200px' : cols.length > 6 ? '900px' : '800px'
   return (
     <div className="w-full overflow-x-auto">
@@ -135,7 +145,11 @@ function Table({ data, cols }: { data: any[]; cols: ColDef[] }) {
             </tr>
           ) : (
             data.map((row, i) => (
-              <tr key={i}>
+              <tr 
+                key={i} 
+                className={rowClassName ? rowClassName(row) : undefined} 
+                style={rowStyle ? rowStyle(row) : undefined}
+              >
                 {cols.map(c => (
                   <td key={c.key} style={{ textAlign: c.align || 'left' }}>
                     {c.render ? c.render(row[c.key], row) : (row[c.key] ?? '—')}
@@ -292,14 +306,32 @@ function AddMortalityModal({ animals, onClose, onSave, editingMortality }: { ani
     description: editingMortality?.description || '',
     observer: editingMortality?.observer || ''
   })
+  const [stage, setStage] = useState<'pre_weaning' | 'post_weaning' | 'adult'>(() => {
+    if (editingMortality?.is_pre_weaning) return 'pre_weaning'
+    if (editingMortality?.cause?.toLowerCase().includes('post-weaning') || editingMortality?.description?.toLowerCase().includes('post-weaning')) return 'post_weaning'
+    return 'adult'
+  })
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+
+  const handleAnimalSelect = (tag: string) => {
+    setForm(p => ({ ...p, animalId: tag }))
+    const a = animals.find(item => item.tag === tag)
+    if (a) {
+      if (isCalf(a.age, a.stock_type)) {
+        const isWeaned = Boolean(a.date_of_weaning) || a.calf_status === 'Weaned' || a.calf_status === 'Replacement' || a.calf_status === 'Sold' || Number(a.weaning_weight || 0) > 0
+        setStage(isWeaned ? 'post_weaning' : 'pre_weaning')
+      } else {
+        setStage('adult')
+      }
+    }
+  }
 
   const handleSave = async () => {
     if (!form.animalId) { setError('Please select an animal.'); return }
     if (!form.cause.trim()) { setError('Please enter the cause of death.'); return }
     setError(''); setSaving(true)
-    try { await onSave(form) } catch (e: any) { setError(e.message || 'Failed to save') } finally { setSaving(false) }
+    try { await onSave({ ...form, stage }) } catch (e: any) { setError(e.message || 'Failed to save') } finally { setSaving(false) }
   }
 
   return (
@@ -320,7 +352,7 @@ function AddMortalityModal({ animals, onClose, onSave, editingMortality }: { ani
           <div>
             <label className="block text-xs font-semibold mb-1 uppercase tracking-wider" style={{ color: C.neutral500 }}>Select Animal</label>
             <div className="relative">
-              <select value={form.animalId} onChange={e => setForm(p => ({ ...p, animalId: e.target.value }))}
+              <select value={form.animalId} onChange={e => handleAnimalSelect(e.target.value)}
                 className="w-full rounded-xl px-4 py-2.5 text-sm outline-none border appearance-none cursor-pointer"
                 style={{ borderColor: C.neutral200, color: C.neutral900, backgroundColor: C.neutral50 }}>
                 <option value="">Select an animal…</option>
@@ -329,6 +361,25 @@ function AddMortalityModal({ animals, onClose, onSave, editingMortality }: { ani
               <ChevronDown size={14} className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: C.neutral500 }} />
             </div>
           </div>
+
+          <div>
+            <label className="block text-xs font-semibold mb-1.5 uppercase tracking-wider" style={{ color: C.neutral500 }}>Mortality Category</label>
+            <div className="grid grid-cols-3 gap-2">
+              <button type="button" onClick={() => setStage('pre_weaning')}
+                className={`py-2 px-2 text-xs font-semibold rounded-xl border transition-all text-center ${stage === 'pre_weaning' ? 'border-[#7AC142] bg-[#F0F9EB] text-[#639A34]' : 'border-neutral-200 bg-neutral-50 text-neutral-600'}`}>
+                Prior to Weaning
+              </button>
+              <button type="button" onClick={() => setStage('post_weaning')}
+                className={`py-2 px-2 text-xs font-semibold rounded-xl border transition-all text-center ${stage === 'post_weaning' ? 'border-[#7AC142] bg-[#F0F9EB] text-[#639A34]' : 'border-neutral-200 bg-neutral-50 text-neutral-600'}`}>
+                Post-Weaning
+              </button>
+              <button type="button" onClick={() => setStage('adult')}
+                className={`py-2 px-2 text-xs font-semibold rounded-xl border transition-all text-center ${stage === 'adult' ? 'border-[#7AC142] bg-[#F0F9EB] text-[#639A34]' : 'border-neutral-200 bg-neutral-50 text-neutral-600'}`}>
+                Adult Herd
+              </button>
+            </div>
+          </div>
+
           <div>
             <label className="block text-xs font-semibold mb-1 uppercase tracking-wider" style={{ color: C.neutral500 }}>Cause</label>
             <input value={form.cause} onChange={e => setForm(p => ({ ...p, cause: e.target.value }))}
@@ -638,13 +689,26 @@ function AddCalfModal({ editingCalf, onClose, onSave }: { editingCalf?: any; onC
     pre_weaning_mortality: editingCalf?.pre_weaning_mortality ? 'Yes' : 'No',
     description: editingCalf?.description || ''
   })
+  const [isWeaned, setIsWeaned] = useState<boolean>(Boolean(editingCalf?.date_of_weaning))
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+
+  const toggleWeaned = (val: boolean) => {
+    setIsWeaned(val)
+    if (val) {
+      if (!form.date_of_weaning) {
+        setForm(p => ({ ...p, date_of_weaning: new Date().toISOString().split('T')[0] }))
+      }
+    } else {
+      setForm(p => ({ ...p, date_of_weaning: '', weaning_weight: '' }))
+    }
+  }
 
   const handleSave = async () => {
     if (!form.tag.trim()) { setError('Please enter the Animal Tag.'); return }
     if (!form.date_of_birth) { setError('Please select the Date of Birth.'); return }
     if (!form.breed.trim()) { setError('Please enter the Breed.'); return }
+    if (isWeaned && !form.date_of_weaning) { setError('Please select a Weaning Date for this weaned calf.'); return }
 
     setError(''); setSaving(true)
     try {
@@ -671,8 +735,8 @@ function AddCalfModal({ editingCalf, onClose, onSave }: { editingCalf?: any; onC
         birth_weight: form.birth_weight.trim() || null,
         weight_30day: form.weight_30day ? Number(form.weight_30day) : null,
         weight_100day: form.weight_100day ? Number(form.weight_100day) : null,
-        date_of_weaning: form.date_of_weaning || null,
-        weaning_weight: form.weaning_weight ? Number(form.weaning_weight) : null,
+        date_of_weaning: isWeaned ? (form.date_of_weaning || null) : null,
+        weaning_weight: isWeaned && form.weaning_weight ? Number(form.weaning_weight) : null,
         weight_1week_post_weaning: form.weight_1week_post_weaning ? Number(form.weight_1week_post_weaning) : null,
         weight_6months_post_weaning: form.weight_6months_post_weaning ? Number(form.weight_6months_post_weaning) : null,
         calf_status: form.calf_status,
@@ -780,20 +844,52 @@ function AddCalfModal({ editingCalf, onClose, onSave }: { editingCalf?: any; onC
             </div>
           </div>
 
-          <div className="grid grid-cols-3 gap-4">
-            <div>
-              <label className="block text-xs font-semibold mb-1 uppercase tracking-wider" style={{ color: C.neutral500 }}>Wean Date</label>
-              <input type="date" value={form.date_of_weaning} onChange={e => setForm(p => ({ ...p, date_of_weaning: e.target.value }))}
-                className="w-full rounded-xl px-4 py-2.5 text-sm outline-none border transition-colors focus:border-[#7AC142]"
-                style={{ borderColor: C.neutral200, color: C.neutral900, backgroundColor: C.neutral50 }} />
+          {/* Weaning Section with Switch */}
+          <div className="p-4 rounded-xl border transition-all" style={{ borderColor: isWeaned ? '#C3E39D' : C.neutral200, backgroundColor: isWeaned ? '#F2FAE8' : C.neutral50 }}>
+            <div className="flex items-center justify-between">
+              <div>
+                <span className="text-xs font-bold uppercase tracking-wider block" style={{ color: isWeaned ? C.primary600 : C.neutral700 }}>
+                  Weaning Status: {isWeaned ? 'Weaned' : 'Not Weaned'}
+                </span>
+                <span className="text-xs" style={{ color: C.neutral500 }}>
+                  {isWeaned ? 'Calf remains recorded for this year (marked as weaned)' : 'Toggle switch ON when this calf is weaned'}
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => toggleWeaned(!isWeaned)}
+                className="relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none"
+                style={{ backgroundColor: isWeaned ? C.primary600 : C.neutral300 }}
+              >
+                <span
+                  className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${isWeaned ? 'translate-x-5' : 'translate-x-0'}`}
+                />
+              </button>
             </div>
-            <div>
-              <label className="block text-xs font-semibold mb-1 uppercase tracking-wider" style={{ color: C.neutral500 }}>Wean Wt (kg)</label>
-              <input type="number" step="any" value={form.weaning_weight} onChange={e => setForm(p => ({ ...p, weaning_weight: e.target.value }))}
-                placeholder="e.g., 180"
-                className="w-full rounded-xl px-4 py-2.5 text-sm outline-none border transition-colors focus:border-[#7AC142]"
-                style={{ borderColor: C.neutral200, color: C.neutral900, backgroundColor: C.neutral50 }} />
-            </div>
+
+            {isWeaned && (
+              <div className="grid grid-cols-2 gap-4 mt-3 pt-3 border-t" style={{ borderColor: '#DCEFC5' }}>
+                <div>
+                  <label className="block text-xs font-semibold mb-1 uppercase tracking-wider" style={{ color: C.primary600 }}>Wean Date *</label>
+                  <input type="date" required value={form.date_of_weaning} onChange={e => setForm(p => ({ ...p, date_of_weaning: e.target.value }))}
+                    className="w-full rounded-xl px-4 py-2.5 text-sm outline-none border transition-colors focus:border-[#7AC142]"
+                    style={{ borderColor: !form.date_of_weaning ? C.error500 : C.primary400, color: C.neutral900, backgroundColor: C.white }} />
+                  {!form.date_of_weaning && (
+                    <span className="text-[11px] mt-1 block font-medium" style={{ color: C.error500 }}>Weaning date is required</span>
+                  )}
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold mb-1 uppercase tracking-wider" style={{ color: C.neutral500 }}>Wean Wt (kg)</label>
+                  <input type="number" step="any" value={form.weaning_weight} onChange={e => setForm(p => ({ ...p, weaning_weight: e.target.value }))}
+                    placeholder="e.g., 180"
+                    className="w-full rounded-xl px-4 py-2.5 text-sm outline-none border transition-colors focus:border-[#7AC142]"
+                    style={{ borderColor: C.neutral200, color: C.neutral900, backgroundColor: C.white }} />
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-semibold mb-1 uppercase tracking-wider" style={{ color: C.neutral500 }}>1w Post-Wean (kg)</label>
               <input type="number" step="any" value={form.weight_1week_post_weaning} onChange={e => setForm(p => ({ ...p, weight_1week_post_weaning: e.target.value }))}
@@ -801,9 +897,6 @@ function AddCalfModal({ editingCalf, onClose, onSave }: { editingCalf?: any; onC
                 className="w-full rounded-xl px-4 py-2.5 text-sm outline-none border transition-colors focus:border-[#7AC142]"
                 style={{ borderColor: C.neutral200, color: C.neutral900, backgroundColor: C.neutral50 }} />
             </div>
-          </div>
-
-          <div className="grid grid-cols-3 gap-4">
             <div>
               <label className="block text-xs font-semibold mb-1 uppercase tracking-wider" style={{ color: C.neutral500 }}>6m Post-Wean (kg)</label>
               <input type="number" step="any" value={form.weight_6months_post_weaning} onChange={e => setForm(p => ({ ...p, weight_6months_post_weaning: e.target.value }))}
@@ -811,6 +904,9 @@ function AddCalfModal({ editingCalf, onClose, onSave }: { editingCalf?: any; onC
                 className="w-full rounded-xl px-4 py-2.5 text-sm outline-none border transition-colors focus:border-[#7AC142]"
                 style={{ borderColor: C.neutral200, color: C.neutral900, backgroundColor: C.neutral50 }} />
             </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-semibold mb-1 uppercase tracking-wider" style={{ color: C.neutral500 }}>Status</label>
               <div className="relative">
@@ -2120,14 +2216,23 @@ export default function Register() {
 
   const addMortality = async (d: any) => {
     if (!session || !targetUserId) return
+    const isPreWeaning = d.stage === 'pre_weaning' || d.is_pre_weaning === true
+    let desc = d.description || ''
+    if (d.stage === 'post_weaning' && !desc.includes('[Post-weaning]')) {
+      desc = desc ? `[Post-weaning] ${desc}` : '[Post-weaning]'
+    }
+    const causeText = d.stage === 'post_weaning' && !d.cause.toLowerCase().includes('post-weaning')
+      ? `${d.cause} (Post-weaning)`
+      : d.cause
+
     const dbPayload = {
       user_id: targetUserId,
       animal_tag: d.animalId,
       date: d.date,
-      cause: d.cause,
-      description: d.description || null,
+      cause: causeText,
+      description: desc || null,
       observer: d.observer || null,
-      is_pre_weaning: false,
+      is_pre_weaning: isPreWeaning,
       production_year: selectedProductionYear
     }
     const { data, error } = await supabase.from('mortality_records').insert(dbPayload).select().single()
@@ -2791,41 +2896,87 @@ export default function Register() {
           )}
 
           {/* CALF REGISTER */}
-          {activeTab === 'calf' && (
-            <>
-              <div className="px-6 py-4 border-b font-bold text-sm bg-neutral-50/50" style={{ borderColor: C.neutral100, color: C.neutral900 }}>
-                Calf Register ({filteredCalves.length})
-              </div>
-              <Table data={filteredCalves.map((row, index) => ({ ...row, count: index + 1 }))} cols={[
-                { key: 'count',                      label: 'Count' },
-                { key: 'tag',                        label: 'Calf ID', render: tagBadge },
-                { key: 'sire',                       label: 'Sire ID' },
-                { key: 'dam',                        label: 'Dam ID' },
-                { key: 'sex',                        label: 'Sex', render: sexBadge },
-                { key: 'age',                        label: 'Age' },
-                { key: 'birth_weight',               label: 'Birth Wt', align: 'center', render: (v) => v ? `${v} kg` : '—' },
-                { key: 'weight_30day',               label: '30d Wt', align: 'center', render: (v) => v ? `${v} kg` : '—' },
-                { key: 'weight_100day',              label: '100d Wt', align: 'center', render: (v) => v ? `${v} kg` : '—' },
-                { key: 'date_of_weaning',            label: 'Wean Date' },
-                { key: 'weaning_weight',             label: 'Wean Wt', align: 'center', render: (v) => v ? `${v} kg` : '—' },
-                { key: 'weight_1week_post_weaning',   label: '1w Post Wean', align: 'center', render: (v) => v ? `${v} kg` : '—' },
-                { key: 'weight_6months_post_weaning', label: '6m Post Wean', align: 'center', render: (v) => v ? `${v} kg` : '—' },
-                { key: 'calf_status',                label: 'Status', render: statusBadge, align: 'center' },
-                { key: 'pre_weaning_mortality',      label: 'Mortality', render: (v) => pregnancyBadge(v ? 'Yes' : 'No'), align: 'center' },
-                { key: 'observer',                   label: 'Observer' },
-                {
-                  key: 'actions',
-                  label: 'Actions',
-                  align: 'center',
-                  render: (_, row) => (
-                    <button onClick={() => setEditingCalf(row)} className="p-1.5 text-neutral-500 hover:text-neutral-900 hover:bg-neutral-100 rounded-lg transition-colors">
-                      <Edit size={14} />
-                    </button>
-                  )
-                }
-              ]} />
-            </>
-          )}
+          {activeTab === 'calf' && (() => {
+            const weanedCount = filteredCalves.filter(c => Boolean(c.date_of_weaning)).length
+            const activeCount = filteredCalves.length - weanedCount
+            return (
+              <>
+                <div className="flex flex-wrap items-center justify-between gap-3 px-6 py-4 border-b bg-neutral-50/50" style={{ borderColor: C.neutral100 }}>
+                  <div className="flex items-center gap-3">
+                    <span className="font-bold text-sm" style={{ color: C.neutral900 }}>
+                      Calf Register ({filteredCalves.length})
+                    </span>
+                    <span className="text-xs px-2.5 py-0.5 rounded-full font-medium" style={{ backgroundColor: '#E6F9F1', color: '#27714B' }}>
+                      {activeCount} Active (Unweaned)
+                    </span>
+                    {weanedCount > 0 && (
+                      <span className="text-xs px-2.5 py-0.5 rounded-full font-medium border" style={{ backgroundColor: '#F8F9FA', color: '#6C757D', borderColor: '#DEE2E6' }}>
+                        {weanedCount} Weaned (faint)
+                      </span>
+                    )}
+                  </div>
+                  {weanedCount > 0 && (
+                    <span className="text-xs italic" style={{ color: C.neutral500 }}>
+                      * Weaned calves remain recorded for this year and are shown faint
+                    </span>
+                  )}
+                </div>
+                <Table 
+                  data={filteredCalves.map((row, index) => ({ ...row, count: index + 1 }))} 
+                  rowClassName={(row) => row.date_of_weaning ? 'opacity-60 bg-neutral-50/60 hover:opacity-95 transition-opacity' : ''}
+                  cols={[
+                    { key: 'count',                      label: 'Count' },
+                    { 
+                      key: 'tag',                        
+                      label: 'Calf ID', 
+                      render: (v, row) => (
+                        <div className="flex items-center gap-1.5">
+                          {tagBadge(v)}
+                          {row.date_of_weaning && (
+                            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded border" style={{ backgroundColor: '#E9ECEF', color: '#495057', borderColor: '#CED4DA' }}>
+                              Weaned
+                            </span>
+                          )}
+                        </div>
+                      )
+                    },
+                    { key: 'sire',                       label: 'Sire ID' },
+                    { key: 'dam',                        label: 'Dam ID' },
+                    { key: 'sex',                        label: 'Sex', render: sexBadge },
+                    { key: 'age',                        label: 'Age' },
+                    { key: 'birth_weight',               label: 'Birth Wt', align: 'center', render: (v) => v ? `${v} kg` : '—' },
+                    { key: 'weight_30day',               label: '30d Wt', align: 'center', render: (v) => v ? `${v} kg` : '—' },
+                    { key: 'weight_100day',              label: '100d Wt', align: 'center', render: (v) => v ? `${v} kg` : '—' },
+                    { 
+                      key: 'date_of_weaning',            
+                      label: 'Wean Date',
+                      render: (v) => v ? (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-semibold border" style={{ backgroundColor: '#E8F8F5', color: '#117A65', borderColor: '#A3E4D7' }}>
+                          ✓ {v}
+                        </span>
+                      ) : <span style={{ color: C.neutral400 }}>—</span>
+                    },
+                    { key: 'weaning_weight',             label: 'Wean Wt', align: 'center', render: (v) => v ? `${v} kg` : '—' },
+                    { key: 'weight_1week_post_weaning',   label: '1w Post Wean', align: 'center', render: (v) => v ? `${v} kg` : '—' },
+                    { key: 'weight_6months_post_weaning', label: '6m Post Wean', align: 'center', render: (v) => v ? `${v} kg` : '—' },
+                    { key: 'calf_status',                label: 'Status', render: statusBadge, align: 'center' },
+                    { key: 'pre_weaning_mortality',      label: 'Mortality', render: (v) => pregnancyBadge(v ? 'Yes' : 'No'), align: 'center' },
+                    { key: 'observer',                   label: 'Observer' },
+                    {
+                      key: 'actions',
+                      label: 'Actions',
+                      align: 'center',
+                      render: (_, row) => (
+                        <button onClick={() => setEditingCalf(row)} className="p-1.5 text-neutral-500 hover:text-neutral-900 hover:bg-neutral-100 rounded-lg transition-colors">
+                          <Edit size={14} />
+                        </button>
+                      )
+                    }
+                  ]} 
+                />
+              </>
+            )
+          })()}
 
           {/* DRUG REGISTER */}
           {activeTab === 'drugs' && (

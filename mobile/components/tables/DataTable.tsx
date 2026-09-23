@@ -16,9 +16,10 @@ interface DataTableProps {
   data: any[];
   emptyText?: string;
   emptyState?: React.ReactNode;
+  rowStyle?: (rowData: any) => any;
 }
 
-export function DataTable({ columns, data, emptyText = 'No data available', emptyState }: DataTableProps) {
+export function DataTable({ columns, data, emptyText = 'No data available', emptyState, rowStyle }: DataTableProps) {
   return (
     <View style={styles.container}>
       <ScrollView horizontal showsHorizontalScrollIndicator={false}>
@@ -34,7 +35,7 @@ export function DataTable({ columns, data, emptyText = 'No data available', empt
                   column.align ? { justifyContent: getAlignment(column.align) } : {},
                 ]}
               >
-                <Text variant="body2" weight="medium" color="neutral.600">
+                <Text variant="caption" weight="bold" color="neutral.500">
                   {column.title}
                 </Text>
               </View>
@@ -42,10 +43,17 @@ export function DataTable({ columns, data, emptyText = 'No data available', empt
           </View>
 
           {/* Data Rows */}
-          <View style={styles.dataRows}>
+          <View>
             {data.length > 0 ? (
               data.map((row, rowIndex) => (
-                <View key={rowIndex} style={styles.dataRow}>
+                <View
+                  key={row.id || rowIndex}
+                  style={[
+                    styles.dataRow,
+                    rowIndex === data.length - 1 && styles.lastDataRow,
+                    rowStyle ? rowStyle(row) : undefined,
+                  ]}
+                >
                   {columns.map((column) => (
                     <View
                       key={`${rowIndex}-${column.key}`}
@@ -121,6 +129,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     borderBottomWidth: 1,
     borderBottomColor: Colors.neutral[200],
+  },
+  lastDataRow: {
+    borderBottomWidth: 0,
   },
   dataCell: {
     paddingVertical: 12,
