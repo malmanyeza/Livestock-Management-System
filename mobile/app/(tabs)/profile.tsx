@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { View, StyleSheet, TouchableOpacity, ScrollView, Alert, Platform, Modal, TextInput, KeyboardAvoidingView, ActivityIndicator } from 'react-native';
-import { Settings, LogOut, HelpCircle, Bell, User, ShieldCheck, Trash2, Plus, X, Users } from 'lucide-react-native';
+import { Settings, LogOut, HelpCircle, Bell, User, ShieldCheck, Trash2, Plus, X, Users, Crown } from 'lucide-react-native';
 import { Text } from '../../components/typography/Text';
 import { ScreenContainer } from '../../components/layout/ScreenContainer';
 import Colors from '../../constants/Colors';
@@ -271,6 +271,12 @@ function ProfileContent() {
   };
 
   const menuItems = [
+    {
+      id: 'subscription',
+      title: 'Subscription Matrix & Plans',
+      icon: <Crown size={24} color="#D97706" />,
+      route: '/screens/subscription',
+    },
     {
       id: 'help',
       title: 'Help & Support',

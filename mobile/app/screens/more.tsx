@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { router } from 'expo-router';
-import { ClipboardList, ShoppingCart, CalendarDays, CirclePlus as PlusCircle, LifeBuoy, FileSpreadsheet, CircleHelp as HelpCircle } from 'lucide-react-native';
+import { ClipboardList, ShoppingCart, CalendarDays, CirclePlus as PlusCircle, LifeBuoy, FileSpreadsheet, CircleHelp as HelpCircle, Crown } from 'lucide-react-native';
 import { Text } from '@/components/typography/Text';
 import { ScreenContainer } from '@/components/layout/ScreenContainer';
 import { Header } from '@/components/layout/Header';
@@ -17,6 +17,13 @@ interface MenuItem {
 }
 
 const menuItems: MenuItem[] = [
+  {
+    id: 'subscription',
+    title: 'Subscription Matrix',
+    description: 'Interactive pricing packages & herd simulator',
+    icon: <Crown size={24} color="#D97706" />,
+    route: '/screens/subscription',
+  },
   {
     id: 'records',
     title: 'Records',

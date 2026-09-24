@@ -11,6 +11,7 @@ import Marketplace from './pages/Marketplace'
 import LivestockPro from './pages/LivestockPro'
 import Profile from './pages/Profile'
 import Tasks from './pages/Tasks'
+import Subscription from './pages/Subscription'
 
 import Login from './pages/Login'
 import Workers from './pages/Workers'
@@ -35,6 +36,7 @@ function ProtectedRoutes() {
         <Route path="/nutrition" element={<Nutrition />} />
         <Route path="/register" element={<Register />} />
         <Route path="/tasks" element={<Tasks />} />
+        <Route path="/subscription" element={<Subscription />} />
         
         <Route 
           path="/marketplace" 

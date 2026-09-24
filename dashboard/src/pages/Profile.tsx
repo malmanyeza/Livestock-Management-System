@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react'
-import { User, Save, Trash2, Shield, MapPin, Phone, Building } from 'lucide-react'
+import { User, Save, Trash2, Shield, MapPin, Phone, Building, Crown, ArrowRight } from 'lucide-react'
+import { Link } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
 
@@ -60,10 +61,6 @@ export default function Profile() {
     if (!window.confirm('Final confirmation: Delete account?')) return
     
     try {
-      // In Supabase, deleting the auth user will cascade delete the profile if set up that way,
-      // but usually requires an edge function or admin API for safety.
-      // We will try deleting from profiles which might cascade, or just sign out.
-      // (The mobile app uses a custom edge function or standard auth delete if permitted)
       const { error } = await supabase.rpc('delete_user')
       if (error) {
         alert("Your account must be deleted by an administrator or via the support team.")
@@ -88,9 +85,45 @@ export default function Profile() {
       <div className="max-w-3xl mx-auto space-y-6">
         
         {/* Header Section */}
-        <div>
-          <h1 className="text-2xl font-bold text-neutral-900 mb-2">My Profile</h1>
-          <p className="text-neutral-500 text-sm">Manage your account details and farm settings.</p>
+        <div className="flex items-center justify-between flex-wrap gap-4">
+          <div>
+            <h1 className="text-2xl font-bold text-neutral-900 mb-1">My Profile</h1>
+            <p className="text-neutral-500 text-sm">Manage your account details and farm settings.</p>
+          </div>
+
+          <Link
+            to="/subscription"
+            className="flex items-center gap-2 px-3.5 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-lg text-xs font-bold shadow-sm transition"
+          >
+            <Crown size={15} />
+            <span>Subscription & Pricing Matrix</span>
+          </Link>
+        </div>
+
+        {/* Subscription Tier Banner */}
+        <div className="bg-gradient-to-r from-amber-500 to-amber-600 rounded-xl p-5 text-white shadow-sm flex items-center justify-between flex-wrap gap-4">
+          <div className="flex items-center gap-3.5">
+            <div className="w-12 h-12 rounded-xl bg-white/20 flex items-center justify-center backdrop-blur-xs">
+              <Crown size={24} className="text-white" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="font-extrabold text-base tracking-wide">Kumusha Bronze Plan</span>
+                <span className="text-[10px] uppercase font-bold px-2 py-0.5 bg-white/25 rounded-full">Active Free Tier</span>
+              </div>
+              <p className="text-xs text-white/90 mt-0.5">
+                Up to 10 animals • Offline-first digital notebook & theft logs
+              </p>
+            </div>
+          </div>
+
+          <Link
+            to="/subscription"
+            className="px-4 py-2 bg-white text-amber-700 hover:bg-amber-50 rounded-lg text-xs font-bold transition flex items-center gap-1.5 shadow-sm"
+          >
+            <span>Upgrade / View Matrix</span>
+            <ArrowRight size={14} />
+          </Link>
         </div>
 
         {/* Profile Card */}
