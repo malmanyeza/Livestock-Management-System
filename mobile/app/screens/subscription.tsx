@@ -1,4 +1,4 @@
-import React, { useState, useRef, useMemo } from 'react';
+import React, { useState, useRef, useMemo, useEffect } from 'react';
 import {
   View,
   StyleSheet,
@@ -11,10 +11,12 @@ import {
   PanResponder,
 } from 'react-native';
 import { Stack, router } from 'expo-router';
+import * as Haptics from 'expo-haptics';
 import {
   ChevronLeft,
   Check,
   Minus,
+  Plus,
   Sparkles,
   Shield,
   HelpCircle,
@@ -323,8 +325,23 @@ export default function SubscriptionScreen() {
 
   // Interactive slider track width measurement
   const [sliderWidth, setSliderWidth] = useState(SCREEN_WIDTH - 64);
+  const trackRef = useRef<View>(null);
+  const trackPageXRef = useRef<number>(32);
+  const trackWidthRef = useRef<number>(SCREEN_WIDTH - 64);
+  const startRatioRef = useRef<number>(0);
+  const lastHapticTier = useRef<string>('bronze');
 
-  // Helper to convert herd size (1 to 600) to slider percentage (0 to 1)
+  // Trigger gentle haptic when crossing tiers
+  useEffect(() => {
+    if (recommendedTier.id !== lastHapticTier.current) {
+      lastHapticTier.current = recommendedTier.id;
+      try {
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      } catch {}
+    }
+  }, [recommendedTier.id]);
+
+  // Helper to convert herd size (1 to 1000) to slider percentage (0 to 1)
   const herdToRatio = (val: number) => {
     if (val <= 10) return (val / 10) * 0.25;
     if (val <= 100) return 0.25 + ((val - 10) / 90) * 0.25;
@@ -346,25 +363,38 @@ export default function SubscriptionScreen() {
     return Math.round(500 + ((clamped - 0.75) / 0.25) * 500);
   };
 
-  // PanResponder for touch sliding
-  const panResponder = useRef(
-    PanResponder.create({
-      onStartShouldSetPanResponder: () => true,
-      onMoveShouldSetPanResponder: () => true,
-      onPanResponderGrant: (evt) => {
-        const touchX = evt.nativeEvent.locationX;
-        const newRatio = touchX / (sliderWidth || 1);
-        const newHerd = ratioToHerd(newRatio);
-        setSimulatedHerdSize(newHerd);
-      },
-      onPanResponderMove: (evt) => {
-        const touchX = evt.nativeEvent.locationX;
-        const newRatio = touchX / (sliderWidth || 1);
-        const newHerd = ratioToHerd(newRatio);
-        setSimulatedHerdSize(newHerd);
-      },
-    })
-  ).current;
+  // PanResponder for touch sliding - using dx for jitter-free, rock-solid dragging
+  const panResponder = useMemo(
+    () =>
+      PanResponder.create({
+        onStartShouldSetPanResponder: () => true,
+        onStartShouldSetPanResponderCapture: () => true,
+        onMoveShouldSetPanResponder: (_, gestureState) => Math.abs(gestureState.dx) > 1,
+        onMoveShouldSetPanResponderCapture: (_, gestureState) => Math.abs(gestureState.dx) > 1,
+        onPanResponderTerminationRequest: () => false,
+        onShouldBlockNativeResponder: () => true,
+        onPanResponderGrant: (evt) => {
+          trackRef.current?.measure((_x, _y, width, _height, pageX) => {
+            if (pageX != null && pageX > 0) trackPageXRef.current = pageX;
+            if (width != null && width > 0) trackWidthRef.current = width;
+          });
+          const touchPageX = evt.nativeEvent.pageX;
+          const currentTrackX = trackPageXRef.current || 32;
+          const currentWidth = trackWidthRef.current || SCREEN_WIDTH - 64;
+          const touchOffset = touchPageX - currentTrackX;
+          const initialRatio = Math.max(0, Math.min(1, touchOffset / currentWidth));
+          startRatioRef.current = initialRatio;
+          setSimulatedHerdSize(ratioToHerd(initialRatio));
+        },
+        onPanResponderMove: (_, gestureState) => {
+          const currentWidth = trackWidthRef.current || SCREEN_WIDTH - 64;
+          const deltaRatio = gestureState.dx / currentWidth;
+          const newRatio = Math.max(0, Math.min(1, startRatioRef.current + deltaRatio));
+          setSimulatedHerdSize(ratioToHerd(newRatio));
+        },
+      }),
+    []
+  );
 
   const handleSelectTier = (tier: PricingTier) => {
     setSelectedTierId(tier.id);
@@ -409,15 +439,13 @@ export default function SubscriptionScreen() {
       <Stack.Screen
         options={{
           title: 'Subscription Matrix',
+          headerTitleAlign: 'center',
           headerLeft: () => (
             <TouchableOpacity
               onPress={() => router.back()}
-              style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 8 }}
+              style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 8, paddingHorizontal: 4 }}
             >
               <ChevronLeft size={24} color={Colors.neutral[800]} />
-              <Text variant="body" weight="medium" color="neutral.800">
-                Back
-              </Text>
             </TouchableOpacity>
           ),
           headerRight: () => (
@@ -494,25 +522,60 @@ export default function SubscriptionScreen() {
 
         {/* Section 1: Simulate Your Herd Operational Size (Matching Image 1) */}
         <View style={styles.sectionHeaderRow}>
-          <Text variant="h6" weight="bold" color="neutral.900">
-            Simulate Your Herd Operational Size
+          <Text variant="h6" weight="bold" color="neutral.900" style={{ flex: 1, marginRight: 8 }}>
+            Simulate Herd Size
           </Text>
-          <View style={styles.headBadge}>
-            <Text variant="caption" weight="bold" color="neutral.800">
-              {simulatedHerdSize >= 1000 ? '1,000+ head' : `${simulatedHerdSize} head`}
-            </Text>
+          <View style={styles.badgeControlRow}>
+            <TouchableOpacity
+              style={styles.stepBtn}
+              onPress={() =>
+                setSimulatedHerdSize((prev) =>
+                  Math.max(1, prev - (prev > 100 ? 50 : prev > 10 ? 10 : 1))
+                )
+              }
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            >
+              <Minus size={14} color={Colors.neutral[700]} />
+            </TouchableOpacity>
+
+            <View style={styles.headBadge}>
+              <Text variant="caption" weight="bold" color="neutral.800">
+                {simulatedHerdSize >= 1000 ? '1,000+ head' : `${simulatedHerdSize} head`}
+              </Text>
+            </View>
+
+            <TouchableOpacity
+              style={styles.stepBtn}
+              onPress={() =>
+                setSimulatedHerdSize((prev) =>
+                  Math.min(1000, prev + (prev >= 100 ? 50 : 10))
+                )
+              }
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            >
+              <Plus size={14} color={Colors.neutral[700]} />
+            </TouchableOpacity>
           </View>
         </View>
 
         {/* Interactive Slider */}
         <View style={styles.sliderContainer}>
           <View
+            ref={trackRef}
             style={styles.sliderTouchArea}
-            onLayout={(e) => setSliderWidth(e.nativeEvent.layout.width)}
+            onLayout={(e) => {
+              const w = e.nativeEvent.layout.width;
+              setSliderWidth(w);
+              trackWidthRef.current = w;
+              trackRef.current?.measure((_x, _y, width, _height, pageX) => {
+                if (pageX != null && pageX > 0) trackPageXRef.current = pageX;
+                if (width != null && width > 0) trackWidthRef.current = width;
+              });
+            }}
             {...panResponder.panHandlers}
           >
             {/* Background Track */}
-            <View style={styles.sliderTrackBg}>
+            <View pointerEvents="none" style={styles.sliderTrackBg}>
               {/* Filled Track */}
               <View
                 style={[
@@ -524,6 +587,7 @@ export default function SubscriptionScreen() {
 
             {/* Draggable Thumb */}
             <View
+              pointerEvents="none"
               style={[
                 styles.sliderThumb,
                 {
@@ -531,7 +595,7 @@ export default function SubscriptionScreen() {
                     0,
                     Math.min(
                       sliderWidth - 24,
-                      herdToRatio(simulatedHerdSize) * sliderWidth - 12
+                      herdToRatio(simulatedHerdSize) * (sliderWidth - 24)
                     )
                   ),
                 },
@@ -1240,6 +1304,21 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     marginTop: 8,
     marginBottom: 8,
+  },
+  badgeControlRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  stepBtn: {
+    width: 26,
+    height: 26,
+    borderRadius: 6,
+    backgroundColor: '#F1F5F9',
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   headBadge: {
     backgroundColor: '#E2E8F0',
