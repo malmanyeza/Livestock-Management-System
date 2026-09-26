@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react'
+import React, { useState, useMemo, useEffect } from 'react'
 import {
   Check, Minus, Sparkles, Shield, Building2, PhoneCall,
   Printer, ArrowRight, Info, Users, Layers, Sliders, CheckCircle2,
@@ -276,6 +276,19 @@ export default function Subscription() {
     if (simulatedHerdSize <= 100) return TIERS[1]
     if (simulatedHerdSize <= 500) return TIERS[2]
     return TIERS[3]
+  }, [simulatedHerdSize])
+
+  // Automatically update active package as user moves herd slider
+  useEffect(() => {
+    let nextTier: 'bronze' | 'gold' | 'platinum' | 'enterprise' = 'bronze'
+    if (simulatedHerdSize <= 10) nextTier = 'bronze'
+    else if (simulatedHerdSize <= 100) nextTier = 'gold'
+    else if (simulatedHerdSize <= 500) nextTier = 'platinum'
+    else nextTier = 'enterprise'
+
+    if (nextTier !== selectedTierId) {
+      setSelectedTierId(nextTier)
+    }
   }, [simulatedHerdSize])
 
   const handleSelectTier = (tier: TierInfo) => {

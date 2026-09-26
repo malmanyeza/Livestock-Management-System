@@ -310,6 +310,14 @@ export default function SubscriptionScreen() {
   const [upgradeModalVisible, setUpgradeModalVisible] = useState(false);
   const [contactModalVisible, setContactModalVisible] = useState(false);
 
+  // Helper to determine tier from herd count
+  const getTierForHerdSize = (val: number): 'bronze' | 'gold' | 'platinum' | 'enterprise' => {
+    if (val <= 10) return 'bronze';
+    if (val <= 100) return 'gold';
+    if (val <= 500) return 'platinum';
+    return 'enterprise';
+  };
+
   // Selected Tier Object
   const selectedTier = useMemo(() => {
     return TIERS.find((t) => t.id === selectedTierId) || TIERS[0];
@@ -321,6 +329,14 @@ export default function SubscriptionScreen() {
     if (simulatedHerdSize <= 100) return TIERS[1]; // Gold
     if (simulatedHerdSize <= 500) return TIERS[2]; // Platinum
     return TIERS[3]; // Enterprise
+  }, [simulatedHerdSize]);
+
+  // Auto-sync active package tier as herd size changes
+  useEffect(() => {
+    const matchingTier = getTierForHerdSize(simulatedHerdSize);
+    if (matchingTier !== selectedTierId) {
+      setSelectedTierId(matchingTier);
+    }
   }, [simulatedHerdSize]);
 
   // Interactive slider track width measurement
@@ -384,13 +400,17 @@ export default function SubscriptionScreen() {
           const touchOffset = touchPageX - currentTrackX;
           const initialRatio = Math.max(0, Math.min(1, touchOffset / currentWidth));
           startRatioRef.current = initialRatio;
-          setSimulatedHerdSize(ratioToHerd(initialRatio));
+          const newHerd = ratioToHerd(initialRatio);
+          setSimulatedHerdSize(newHerd);
+          setSelectedTierId(getTierForHerdSize(newHerd));
         },
         onPanResponderMove: (_, gestureState) => {
           const currentWidth = trackWidthRef.current || SCREEN_WIDTH - 64;
           const deltaRatio = gestureState.dx / currentWidth;
           const newRatio = Math.max(0, Math.min(1, startRatioRef.current + deltaRatio));
-          setSimulatedHerdSize(ratioToHerd(newRatio));
+          const newHerd = ratioToHerd(newRatio);
+          setSimulatedHerdSize(newHerd);
+          setSelectedTierId(getTierForHerdSize(newHerd));
         },
       }),
     []
@@ -614,7 +634,10 @@ export default function SubscriptionScreen() {
                   styles.presetChip,
                   simulatedHerdSize === count && styles.presetChipActive,
                 ]}
-                onPress={() => setSimulatedHerdSize(count)}
+                onPress={() => {
+                  setSimulatedHerdSize(count);
+                  setSelectedTierId(getTierForHerdSize(count));
+                }}
               >
                 <Text
                   variant="caption"
@@ -630,23 +653,12 @@ export default function SubscriptionScreen() {
 
           {/* Dynamic recommendation alert */}
           <View style={styles.recommendationBox}>
-            <Sparkles size={16} color={recommendedTier.dotColor} style={{ marginRight: 6 }} />
+            <Sparkles size={16} color={selectedTier.dotColor} style={{ marginRight: 6 }} />
             <Text variant="caption" weight="medium" color="neutral.700" style={{ flex: 1 }}>
-              Recommended for your {simulatedHerdSize} head:{' '}
-              <Text variant="caption" weight="bold" style={{ color: recommendedTier.dotColor }}>
-                {recommendedTier.shortName} Plan
+              Active package for your {simulatedHerdSize >= 1000 ? '1,000+' : simulatedHerdSize} head:{' '}
+              <Text variant="caption" weight="bold" style={{ color: selectedTier.dotColor }}>
+                {selectedTier.shortName} Plan
               </Text>
-              {recommendedTier.id !== selectedTierId && (
-                <Text
-                  variant="caption"
-                  weight="bold"
-                  color="primary.600"
-                  onPress={() => handleSelectTier(recommendedTier)}
-                >
-                  {' '}
-                  (Switch)
-                </Text>
-              )}
             </Text>
           </View>
         </View>
