@@ -22,6 +22,69 @@ interface PieChartData {
   color: string;
 }
 
+const YOUNG_STOCK_TYPES = ['Calve', 'Calf', 'Kid', 'Lamb', 'Piglet'];
+
+const getAnimalAgeInMonths = (animal: any): number | null => {
+  if (!animal) return null;
+  const dobStr = animal.date_of_birth || animal.dateOfBirth;
+  if (dobStr) {
+    const dob = new Date(dobStr);
+    if (!isNaN(dob.getTime())) {
+      const now = new Date();
+      let months = (now.getFullYear() - dob.getFullYear()) * 12 + (now.getMonth() - dob.getMonth());
+      if (now.getDate() < dob.getDate()) months -= 1;
+      return Math.max(0, months);
+    }
+  }
+
+  const ageStr = animal.age || (typeof animal === 'string' ? animal : '');
+  if (ageStr) {
+    let totalMonths = 0;
+    let matched = false;
+    const yMatch = ageStr.match(/(\d+)\s*y/i);
+    const mMatch = ageStr.match(/(\d+)\s*m/i);
+    const dMatch = ageStr.match(/(\d+)\s*d/i);
+    if (yMatch) {
+      totalMonths += parseInt(yMatch[1], 10) * 12;
+      matched = true;
+    }
+    if (mMatch) {
+      totalMonths += parseInt(mMatch[1], 10);
+      matched = true;
+    }
+    if (dMatch && !yMatch && !mMatch) {
+      totalMonths += parseInt(dMatch[1], 10) / 30.4375;
+      matched = true;
+    }
+    if (matched) return totalMonths;
+  }
+
+  return null;
+};
+
+const determineAnimalStage = (animal: any): 'pre_weaning' | 'post_weaning' | 'adult' => {
+  if (!animal) return 'adult';
+  const ageMonths = getAnimalAgeInMonths(animal);
+  if (ageMonths !== null) {
+    if (ageMonths < 6) return 'pre_weaning';
+    if (ageMonths < 12) return 'post_weaning';
+    return 'adult';
+  }
+
+  const stockType = animal.stock_type || animal.stockType || '';
+  const isYoungStock = YOUNG_STOCK_TYPES.includes(stockType);
+  if (isYoungStock) {
+    const isWeaned = Boolean(animal.date_of_weaning || animal.dateOfWeaning) ||
+      animal.calf_status === 'Weaned' || animal.calfStatus === 'Weaned' ||
+      animal.calf_status === 'Replacement' || animal.calfStatus === 'Replacement' ||
+      animal.calf_status === 'Sold' || animal.calfStatus === 'Sold' ||
+      Number(animal.weaning_weight || animal.weaningWeight || 0) > 0;
+    return isWeaned ? 'post_weaning' : 'pre_weaning';
+  }
+
+  return 'adult';
+};
+
 // Sample data for tables
 const herdRegisterData: AnimalData[] = [
   { id: '1', unitNo: 'B001', tag: 'TAG123', age: '4y 2m', dateOfBirth: '2020-01-01', breed: 'Mashona', sex: 'Male', stockType: 'Bull', source: 'Born' },
@@ -347,6 +410,7 @@ interface DrugData {
   withdrawalPeriod: string;
   pregnancySafe: 'Yes' | 'No';
   stockStatus: 'In Stock' | 'Low Stock' | 'Out of Stock';
+  expiryDate?: string;
 }
 
 // Sample data for herd register
@@ -986,20 +1050,13 @@ function RegisterContent() {
                   value={newMortality.animalId}
                   onValueChange={(value) => {
                     const a = herdRegisterData.find(item => item.tag === value);
-                    let st: 'pre_weaning' | 'post_weaning' | 'adult' = 'adult';
-                    if (a) {
-                      const isCalf = ['Calve', 'Calf', 'Kid', 'Lamb', 'Piglet'].includes(a.stockType);
-                      if (isCalf) {
-                        const isWeaned = Boolean(a.dateOfWeaning) || a.calfStatus === 'Replacement' || a.calfStatus === 'Sold' || Number(a.weaningWeight || 0) > 0;
-                        st = isWeaned ? 'post_weaning' : 'pre_weaning';
-                      }
-                    }
+                    const st = a ? determineAnimalStage(a) : 'adult';
                     setNewMortality({ ...newMortality, animalId: value, stage: st });
                   }}
                   items={[
                     { label: 'Select an animal...', value: '' },
                     ...herdRegisterData.map(animal => ({
-                      label: `${animal.tag} (${animal.breed} ${animal.stockType})`,
+                      label: `${animal.tag} (${animal.breed} ${animal.stockType}${animal.age ? ` - ${animal.age}` : ''})`,
                       value: animal.tag
                     }))
                   ]}
@@ -1007,7 +1064,14 @@ function RegisterContent() {
               </View>
 
               <View style={styles.formGroup}>
-                <Text variant="body2" style={styles.label}>Mortality Category</Text>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <Text variant="body2" style={styles.label}>Mortality Category</Text>
+                  {Boolean(newMortality.animalId) && (
+                    <Text variant="caption" color="primary.700" weight="bold">
+                      Auto-detected: {newMortality.stage === 'pre_weaning' ? 'Pre-weaning (<6m)' : newMortality.stage === 'post_weaning' ? 'Post-weaning (6-12m)' : 'Adult (12m+)'}
+                    </Text>
+                  )}
+                </View>
                 <View style={{ flexDirection: 'row', gap: 8, marginTop: 4 }}>
                   <TouchableOpacity
                     style={[
@@ -1018,7 +1082,7 @@ function RegisterContent() {
                     ]}
                     onPress={() => setNewMortality(prev => ({ ...prev, stage: 'pre_weaning' }))}
                   >
-                    <Text variant="caption" weight={newMortality.stage === 'pre_weaning' ? 'bold' : 'regular'} color={newMortality.stage === 'pre_weaning' ? 'primary.700' : 'neutral.700'}>Pre-weaning</Text>
+                    <Text variant="caption" weight={newMortality.stage === 'pre_weaning' ? 'bold' : 'regular'} color={newMortality.stage === 'pre_weaning' ? 'primary.700' : 'neutral.700'}>Prior (&lt;6m)</Text>
                   </TouchableOpacity>
                   <TouchableOpacity
                     style={[
@@ -1029,7 +1093,7 @@ function RegisterContent() {
                     ]}
                     onPress={() => setNewMortality(prev => ({ ...prev, stage: 'post_weaning' }))}
                   >
-                    <Text variant="caption" weight={newMortality.stage === 'post_weaning' ? 'bold' : 'regular'} color={newMortality.stage === 'post_weaning' ? 'primary.700' : 'neutral.700'}>Post-weaning</Text>
+                    <Text variant="caption" weight={newMortality.stage === 'post_weaning' ? 'bold' : 'regular'} color={newMortality.stage === 'post_weaning' ? 'primary.700' : 'neutral.700'}>Post (6–12m)</Text>
                   </TouchableOpacity>
                   <TouchableOpacity
                     style={[
@@ -1040,7 +1104,7 @@ function RegisterContent() {
                     ]}
                     onPress={() => setNewMortality(prev => ({ ...prev, stage: 'adult' }))}
                   >
-                    <Text variant="caption" weight={newMortality.stage === 'adult' ? 'bold' : 'regular'} color={newMortality.stage === 'adult' ? 'primary.700' : 'neutral.700'}>Adult Herd</Text>
+                    <Text variant="caption" weight={newMortality.stage === 'adult' ? 'bold' : 'regular'} color={newMortality.stage === 'adult' ? 'primary.700' : 'neutral.700'}>Adult (12m+)</Text>
                   </TouchableOpacity>
                 </View>
               </View>
@@ -1551,21 +1615,23 @@ function RegisterContent() {
         const animal = aliveAnimals.find(a => a.tag.toLowerCase() === w.animalTag.toLowerCase());
         return {
           id: w.animalTag, // used by DataTable as unique key
+          animalTag: w.animalTag,
+          weightId: w.id,
           year: w.year,
           stockType: animal ? animal.stockType : 'Cow',
           age: animal ? animal.age : '',
-          jan: w.jan || '',
-          feb: w.feb || '',
-          mar: w.mar || '',
-          apr: w.apr || '',
-          may: w.may || '',
-          jun: w.jun || '',
-          jul: w.jul || '',
-          aug: w.aug || '',
-          sep: w.sep || '',
-          oct: w.oct || '',
-          nov: w.nov || '',
-          dec: w.dec || '',
+          jan: w.jan != null ? String(w.jan) : '',
+          feb: w.feb != null ? String(w.feb) : '',
+          mar: w.mar != null ? String(w.mar) : '',
+          apr: w.apr != null ? String(w.apr) : '',
+          may: w.may != null ? String(w.may) : '',
+          jun: w.jun != null ? String(w.jun) : '',
+          jul: w.jul != null ? String(w.jul) : '',
+          aug: w.aug != null ? String(w.aug) : '',
+          sep: w.sep != null ? String(w.sep) : '',
+          oct: w.oct != null ? String(w.oct) : '',
+          nov: w.nov != null ? String(w.nov) : '',
+          dec: w.dec != null ? String(w.dec) : '',
         };
       }));
     }
@@ -1931,16 +1997,37 @@ function RegisterContent() {
   };
 
   const handleEditWeightRecord = (record: any) => {
-    setEditingWeightRecord({ ...record });
+    setEditingWeightRecord({
+      ...record,
+      animalTag: record.animalTag || record.id,
+      year: record.year?.toString() || new Date().getFullYear().toString(),
+      jan: record.jan != null ? String(record.jan) : '',
+      feb: record.feb != null ? String(record.feb) : '',
+      mar: record.mar != null ? String(record.mar) : '',
+      apr: record.apr != null ? String(record.apr) : '',
+      may: record.may != null ? String(record.may) : '',
+      jun: record.jun != null ? String(record.jun) : '',
+      jul: record.jul != null ? String(record.jul) : '',
+      aug: record.aug != null ? String(record.aug) : '',
+      sep: record.sep != null ? String(record.sep) : '',
+      oct: record.oct != null ? String(record.oct) : '',
+      nov: record.nov != null ? String(record.nov) : '',
+      dec: record.dec != null ? String(record.dec) : '',
+    });
     setIsEditWeightRecordModalVisible(true);
   };
 
   const handleSaveWeightRecord = async () => {
     if (!editingWeightRecord) return;
+    const tag = editingWeightRecord.animalTag || editingWeightRecord.id;
+    if (!tag) {
+      alert('Animal tag is missing.');
+      return;
+    }
     setIsSubmitting(true);
     try {
       await saveAnimalWeight({
-        animalTag: editingWeightRecord.animalTag,
+        animalTag: tag,
         year: Number(editingWeightRecord.year),
         jan: editingWeightRecord.jan,
         feb: editingWeightRecord.feb,
@@ -2198,32 +2285,17 @@ function RegisterContent() {
     status: 'In Stock'
   });
 
-  // Function to identify calves (animals younger than 1 year or stockType Calve/Calf)
+  // Function to identify calves (animals younger than 6 months / pre-weaning)
   const getCalves = () => {
     return herdRegisterData.filter(animal => {
-      if (animal.stockType === 'Calve' || animal.stockType === 'Calf') return true;
-      if (!animal.age) return false;
-      // Check if age is less than 1 year (assuming format like '6m' or '11m' for months)
-      const ageMatch = animal.age.match(/(\d+)([ym])/);
-      if (!ageMatch) return false;
-      
-      const [_, value, unit] = ageMatch;
-      return (unit === 'm' && parseInt(value) < 12) || 
-             (unit === 'y' && parseInt(value) === 0);
+      return determineAnimalStage(animal) === 'pre_weaning';
     });
   };
 
-  // Function to identify mature herd animals (excluding calves)
+  // Function to identify mature herd animals (excluding calves < 6 months)
   const getHerdAnimals = () => {
     return herdRegisterData.filter(animal => {
-      if (animal.stockType === 'Calve' || animal.stockType === 'Calf') return false;
-      const ageMatch = animal.age.match(/(\d+)([ym])/);
-      if (!ageMatch) return true;
-      
-      const [_, value, unit] = ageMatch;
-      const isCalf = (unit === 'm' && parseInt(value) < 12) || 
-                     (unit === 'y' && parseInt(value) === 0);
-      return !isCalf;
+      return determineAnimalStage(animal) !== 'pre_weaning';
     });
   };
 
@@ -2484,36 +2556,41 @@ function RegisterContent() {
 
   const handleAddWeightRecord = async () => {
     const tag = newWeightRecord.tag;
-    if (!tag) return;
-    if (weightRecords.some(r => r.id.trim().toLowerCase() === tag.trim().toLowerCase())) {
-      alert('A weight record for this animal already exists.');
+    if (!tag) {
+      alert('Please select an animal.');
       return;
     }
 
     setIsSubmitting(true);
     try {
-      await saveAnimalWeight({
+      const existing = (animalWeights || []).find(
+        (w: any) => (w.animalTag || w.animal_tag || w.id)?.trim().toLowerCase() === tag.trim().toLowerCase()
+      );
+
+      const mergedPayload: any = {
         animalTag: tag,
         year: new Date().getFullYear(),
-        jan: newWeightRecord.jan || '0',
-        feb: newWeightRecord.feb || '0',
-        mar: newWeightRecord.mar || '0',
-        apr: newWeightRecord.apr || '0',
-        may: newWeightRecord.may || '0',
-        jun: newWeightRecord.jun || '0',
-        jul: newWeightRecord.jul || '0',
-        aug: newWeightRecord.aug || '0',
-        sep: newWeightRecord.sep || '0',
-        oct: newWeightRecord.oct || '0',
-        nov: newWeightRecord.nov || '0',
-        dec: newWeightRecord.dec || '0',
-      });
+        jan: newWeightRecord.jan.trim() !== '' ? newWeightRecord.jan : (existing?.jan != null ? String(existing.jan) : undefined),
+        feb: newWeightRecord.feb.trim() !== '' ? newWeightRecord.feb : (existing?.feb != null ? String(existing.feb) : undefined),
+        mar: newWeightRecord.mar.trim() !== '' ? newWeightRecord.mar : (existing?.mar != null ? String(existing.mar) : undefined),
+        apr: newWeightRecord.apr.trim() !== '' ? newWeightRecord.apr : (existing?.apr != null ? String(existing.apr) : undefined),
+        may: newWeightRecord.may.trim() !== '' ? newWeightRecord.may : (existing?.may != null ? String(existing.may) : undefined),
+        jun: newWeightRecord.jun.trim() !== '' ? newWeightRecord.jun : (existing?.jun != null ? String(existing.jun) : undefined),
+        jul: newWeightRecord.jul.trim() !== '' ? newWeightRecord.jul : (existing?.jul != null ? String(existing.jul) : undefined),
+        aug: newWeightRecord.aug.trim() !== '' ? newWeightRecord.aug : (existing?.aug != null ? String(existing.aug) : undefined),
+        sep: newWeightRecord.sep.trim() !== '' ? newWeightRecord.sep : (existing?.sep != null ? String(existing.sep) : undefined),
+        oct: newWeightRecord.oct.trim() !== '' ? newWeightRecord.oct : (existing?.oct != null ? String(existing.oct) : undefined),
+        nov: newWeightRecord.nov.trim() !== '' ? newWeightRecord.nov : (existing?.nov != null ? String(existing.nov) : undefined),
+        dec: newWeightRecord.dec.trim() !== '' ? newWeightRecord.dec : (existing?.dec != null ? String(existing.dec) : undefined),
+      };
+
+      await saveAnimalWeight(mergedPayload);
 
       // Find the latest weights to update context FCR/ADG
       const months = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
       const weights: number[] = [];
       months.forEach(m => {
-        const val = parseFloat(newWeightRecord[m as keyof typeof newWeightRecord]);
+        const val = parseFloat(mergedPayload[m]);
         if (!isNaN(val) && val > 0) {
           weights.push(val);
         }
@@ -2544,6 +2621,7 @@ function RegisterContent() {
       });
       setWeightAnimalSearchQuery('');
       setIsAddWeightRecordModalVisible(false);
+      alert('Weight record saved successfully.');
     } catch (error: any) {
       alert('Error saving weight record: ' + error.message);
     } finally {
@@ -4232,19 +4310,44 @@ function RegisterContent() {
                   value={newWeightRecord.tag}
                   onValueChange={(value) => {
                     const selectedAnimal = herdRegisterData.find(animal => animal.tag === value);
+                    const existingWeight = (animalWeights || []).find((w: any) => (w.animalTag || w.animal_tag || w.id)?.trim().toLowerCase() === value?.trim().toLowerCase());
                     if (selectedAnimal) {
                       setNewWeightRecord({
                         ...newWeightRecord,
                         tag: value,
                         stockType: selectedAnimal.stockType,
-                        age: selectedAnimal.age
+                        age: selectedAnimal.age,
+                        jan: existingWeight?.jan != null ? String(existingWeight.jan) : '',
+                        feb: existingWeight?.feb != null ? String(existingWeight.feb) : '',
+                        mar: existingWeight?.mar != null ? String(existingWeight.mar) : '',
+                        apr: existingWeight?.apr != null ? String(existingWeight.apr) : '',
+                        may: existingWeight?.may != null ? String(existingWeight.may) : '',
+                        jun: existingWeight?.jun != null ? String(existingWeight.jun) : '',
+                        jul: existingWeight?.jul != null ? String(existingWeight.jul) : '',
+                        aug: existingWeight?.aug != null ? String(existingWeight.aug) : '',
+                        sep: existingWeight?.sep != null ? String(existingWeight.sep) : '',
+                        oct: existingWeight?.oct != null ? String(existingWeight.oct) : '',
+                        nov: existingWeight?.nov != null ? String(existingWeight.nov) : '',
+                        dec: existingWeight?.dec != null ? String(existingWeight.dec) : '',
                       });
                     } else {
                       setNewWeightRecord({
                         ...newWeightRecord,
                         tag: value,
                         stockType: '',
-                        age: ''
+                        age: '',
+                        jan: '',
+                        feb: '',
+                        mar: '',
+                        apr: '',
+                        may: '',
+                        jun: '',
+                        jul: '',
+                        aug: '',
+                        sep: '',
+                        oct: '',
+                        nov: '',
+                        dec: ''
                       });
                     }
                   }}
@@ -7684,6 +7787,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'flex-end',
     marginTop: 16,
+  },
+  actionButton: {
+    minWidth: 110,
   },
   cancelButton: {
     marginRight: 10,

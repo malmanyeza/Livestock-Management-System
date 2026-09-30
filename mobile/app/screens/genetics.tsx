@@ -322,7 +322,7 @@ function GeneticsContent() {
                 Average BCS
               </Text>
               <Text variant="h3" weight="bold" color={(() => {
-                const avg = farmInspection?.herdBcs ? farmInspection.herdBcs : parseFloat(metrics.averageHerdBCS || '0');
+                const avg = farmInspection?.herdBcs ? Number(farmInspection.herdBcs) : parseFloat(String(metrics.averageHerdBCS || '0'));
                 if (avg === 0) return "neutral.500";
                 if (avg >= 2.5 && avg <= 3.5) return "success.500";
                 if (avg >= 2.0 && avg < 2.5) return "warning.500";
@@ -1147,10 +1147,16 @@ function GeneticsContent() {
 
               <View style={styles.modalActions}>
                 <TouchableOpacity
-                  style={[styles.modalBtn, { backgroundColor: Colors.primary[600] }]}
+                  style={styles.cancelButton}
+                  onPress={() => setIsTargetsModalOpen(false)}
+                >
+                  <Text style={styles.cancelButtonText}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.saveButton}
                   onPress={handleSaveTargets}
                 >
-                  <Text variant="button" color="white">Save</Text>
+                  <Text style={styles.saveButtonText}>Save Targets</Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -1179,17 +1185,21 @@ function GeneticsContent() {
               </View>
 
               <ScrollView style={styles.modalScrollView} showsVerticalScrollIndicator={false}>
-                <View style={styles.modalSection}>
-                  <Text variant="subtitle1" weight="bold" color="neutral.700" style={styles.sectionTitle}>Calving Interval</Text>
-                  <View style={styles.modalRow}>
-                    <View style={styles.modalInputGroup}>
-                      <Text variant="caption" weight="medium" color="neutral.500" style={styles.modalLabel}>Interval</Text>
-                      <TextInput
-                        style={styles.modalInput}
-                        value={calvingForm.interval}
-                        onChangeText={(t) => setCalvingForm(prev => ({ ...prev, interval: t }))}
-                        placeholder="e.g. 365 days"
-                      />
+                <View style={{ paddingVertical: 8 }}>
+                  <View style={styles.metricRow}>
+                    <Text variant="body2" weight="medium" color={Colors.neutral[700]} style={styles.metricLabel}>
+                      Calving Interval
+                    </Text>
+                    <View style={styles.inputsRow}>
+                      <View style={[styles.inputContainer, { width: 140 }]}>
+                        <Text variant="caption" color={Colors.neutral[400]}>Interval</Text>
+                        <TextInput
+                          style={[styles.textInput, { width: 140 }]}
+                          value={calvingForm.interval}
+                          onChangeText={(t) => setCalvingForm(prev => ({ ...prev, interval: t }))}
+                          placeholder="e.g. 365 days"
+                        />
+                      </View>
                     </View>
                   </View>
                 </View>
@@ -1197,10 +1207,16 @@ function GeneticsContent() {
 
               <View style={styles.modalActions}>
                 <TouchableOpacity
-                  style={[styles.modalBtn, { backgroundColor: Colors.primary[600] }]}
+                  style={styles.cancelButton}
+                  onPress={() => setIsCalvingModalOpen(false)}
+                >
+                  <Text style={styles.cancelButtonText}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.saveButton}
                   onPress={handleSaveCalving}
                 >
-                  <Text variant="button" color="white">Save</Text>
+                  <Text style={styles.saveButtonText}>Save Changes</Text>
                 </TouchableOpacity>
               </View>
             </View>

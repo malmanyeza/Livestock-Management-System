@@ -460,7 +460,7 @@ export default function Dashboard() {
         const ageMatch = age.match(/(\d+)([ym])/)
         if (!ageMatch) return false
         const [_, value, unit] = ageMatch
-        return (unit === 'm' && parseInt(value) < 12) || (unit === 'y' && parseInt(value) === 0)
+        return (unit === 'm' && parseInt(value) < 6) || (unit === 'y' && parseInt(value) === 0)
       }
       const calvesWithWeight = aliveAnimalsData.filter((a: any) => isCalfLocal(a.age, a.stock_type) && Number(a.weaning_weight || 0) > 0)
       const avgWeaning = calvesWithWeight.length > 0 ? calvesWithWeight.reduce((sum, a) => sum + Number(a.weaning_weight), 0) / calvesWithWeight.length : 0

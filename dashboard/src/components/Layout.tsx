@@ -88,7 +88,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         const ageMatch = age.match(/(\d+)([ym])/)
         if (!ageMatch) return false
         const [_, value, unit] = ageMatch
-        return (unit === 'm' && parseInt(value) < 12) || (unit === 'y' && parseInt(value) === 0)
+        return (unit === 'm' && parseInt(value) < 6) || (unit === 'y' && parseInt(value) === 0)
       }
 
       // 1. Conception Rate

@@ -96,13 +96,79 @@ const methodBadge = (v: string | null | undefined) => {
   )
 }
 
-const isCalf = (age: string | null | undefined, stockType?: string | null) => {
+export const getAnimalAgeInMonths = (animal: any): number | null => {
+  if (!animal) return null
+  const dobStr = animal.date_of_birth || animal.dateOfBirth
+  if (dobStr) {
+    const dob = new Date(dobStr)
+    if (!isNaN(dob.getTime())) {
+      const now = new Date()
+      let months = (now.getFullYear() - dob.getFullYear()) * 12 + (now.getMonth() - dob.getMonth())
+      if (now.getDate() < dob.getDate()) {
+        months -= 1
+      }
+      return Math.max(0, months)
+    }
+  }
+
+  const ageStr = animal.age || (typeof animal === 'string' ? animal : '')
+  if (ageStr) {
+    let totalMonths = 0
+    let matched = false
+    const yMatch = ageStr.match(/(\d+)\s*y/i)
+    const mMatch = ageStr.match(/(\d+)\s*m/i)
+    const dMatch = ageStr.match(/(\d+)\s*d/i)
+    if (yMatch) {
+      totalMonths += parseInt(yMatch[1], 10) * 12
+      matched = true
+    }
+    if (mMatch) {
+      totalMonths += parseInt(mMatch[1], 10)
+      matched = true
+    }
+    if (dMatch && !yMatch && !mMatch) {
+      totalMonths += parseInt(dMatch[1], 10) / 30.4375
+      matched = true
+    }
+    if (matched) return totalMonths
+  }
+
+  return null
+}
+
+export const determineAnimalStage = (animal: any): 'pre_weaning' | 'post_weaning' | 'adult' => {
+  if (!animal) return 'adult'
+  const ageMonths = getAnimalAgeInMonths(animal)
+  if (ageMonths !== null) {
+    if (ageMonths < 6) return 'pre_weaning'
+    if (ageMonths < 12) return 'post_weaning'
+    return 'adult'
+  }
+
+  const stockType = animal.stock_type || animal.stockType || ''
+  const isYoungStock = ['Calve', 'Calf', 'Kid', 'Lamb', 'Piglet'].includes(stockType)
+  if (isYoungStock) {
+    const isWeaned = Boolean(animal.date_of_weaning || animal.dateOfWeaning) ||
+      animal.calf_status === 'Weaned' || animal.calfStatus === 'Weaned' ||
+      animal.calf_status === 'Replacement' || animal.calfStatus === 'Replacement' ||
+      animal.calf_status === 'Sold' || animal.calfStatus === 'Sold' ||
+      Number(animal.weaning_weight || animal.weaningWeight || 0) > 0
+    return isWeaned ? 'post_weaning' : 'pre_weaning'
+  }
+
+  return 'adult'
+}
+
+const isCalf = (animalOrAge: any, stockType?: string | null) => {
+  if (animalOrAge && typeof animalOrAge === 'object') {
+    return determineAnimalStage(animalOrAge) === 'pre_weaning'
+  }
+  const ageMonths = getAnimalAgeInMonths({ age: animalOrAge })
+  if (ageMonths !== null) {
+    return ageMonths < 6
+  }
   if (stockType === 'Calve' || stockType === 'Calf') return true
-  if (!age) return false
-  const ageMatch = age.match(/(\d+)([ym])/)
-  if (!ageMatch) return false
-  const [_, value, unit] = ageMatch
-  return (unit === 'm' && parseInt(value) < 12) || (unit === 'y' && parseInt(value) === 0)
+  return false
 }
 
 // ─── Simple data table ────────────────────────────────────────────────────────
@@ -309,6 +375,10 @@ function AddMortalityModal({ animals, onClose, onSave, editingMortality }: { ani
   const [stage, setStage] = useState<'pre_weaning' | 'post_weaning' | 'adult'>(() => {
     if (editingMortality?.is_pre_weaning) return 'pre_weaning'
     if (editingMortality?.cause?.toLowerCase().includes('post-weaning') || editingMortality?.description?.toLowerCase().includes('post-weaning')) return 'post_weaning'
+    if (editingMortality?.animal_tag) {
+      const a = animals.find(item => item.tag === editingMortality.animal_tag)
+      if (a) return determineAnimalStage(a)
+    }
     return 'adult'
   })
   const [saving, setSaving] = useState(false)
@@ -318,12 +388,8 @@ function AddMortalityModal({ animals, onClose, onSave, editingMortality }: { ani
     setForm(p => ({ ...p, animalId: tag }))
     const a = animals.find(item => item.tag === tag)
     if (a) {
-      if (isCalf(a.age, a.stock_type)) {
-        const isWeaned = Boolean(a.date_of_weaning) || a.calf_status === 'Weaned' || a.calf_status === 'Replacement' || a.calf_status === 'Sold' || Number(a.weaning_weight || 0) > 0
-        setStage(isWeaned ? 'post_weaning' : 'pre_weaning')
-      } else {
-        setStage('adult')
-      }
+      const autoStage = determineAnimalStage(a)
+      setStage(autoStage)
     }
   }
 
@@ -333,6 +399,8 @@ function AddMortalityModal({ animals, onClose, onSave, editingMortality }: { ani
     setError(''); setSaving(true)
     try { await onSave({ ...form, stage }) } catch (e: any) { setError(e.message || 'Failed to save') } finally { setSaving(false) }
   }
+
+  const selectedAnimal = animals.find(a => a.tag === form.animalId)
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ backgroundColor: 'rgba(0,0,0,0.45)' }}>
@@ -356,26 +424,33 @@ function AddMortalityModal({ animals, onClose, onSave, editingMortality }: { ani
                 className="w-full rounded-xl px-4 py-2.5 text-sm outline-none border appearance-none cursor-pointer"
                 style={{ borderColor: C.neutral200, color: C.neutral900, backgroundColor: C.neutral50 }}>
                 <option value="">Select an animal…</option>
-                {animals.map(a => <option key={a.id} value={a.tag}>{a.tag} ({a.breed} {a.stock_type})</option>)}
+                {animals.map(a => <option key={a.id} value={a.tag}>{a.tag} ({a.breed} {a.stock_type} - {a.age || 'Age N/A'})</option>)}
               </select>
               <ChevronDown size={14} className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: C.neutral500 }} />
             </div>
           </div>
 
           <div>
-            <label className="block text-xs font-semibold mb-1.5 uppercase tracking-wider" style={{ color: C.neutral500 }}>Mortality Category</label>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="block text-xs font-semibold uppercase tracking-wider" style={{ color: C.neutral500 }}>Mortality Category</label>
+              {selectedAnimal && (
+                <span className="text-[11px] font-medium text-[#639A34] bg-[#F0F9EB] px-2 py-0.5 rounded-md">
+                  Auto-detected: {stage === 'pre_weaning' ? 'Pre-weaning (<6m)' : stage === 'post_weaning' ? 'Post-weaning (6-12m)' : 'Adult (12m+)'}
+                </span>
+              )}
+            </div>
             <div className="grid grid-cols-3 gap-2">
               <button type="button" onClick={() => setStage('pre_weaning')}
                 className={`py-2 px-2 text-xs font-semibold rounded-xl border transition-all text-center ${stage === 'pre_weaning' ? 'border-[#7AC142] bg-[#F0F9EB] text-[#639A34]' : 'border-neutral-200 bg-neutral-50 text-neutral-600'}`}>
-                Prior to Weaning
+                Prior to Weaning (&lt;6m)
               </button>
               <button type="button" onClick={() => setStage('post_weaning')}
                 className={`py-2 px-2 text-xs font-semibold rounded-xl border transition-all text-center ${stage === 'post_weaning' ? 'border-[#7AC142] bg-[#F0F9EB] text-[#639A34]' : 'border-neutral-200 bg-neutral-50 text-neutral-600'}`}>
-                Post-Weaning
+                Post-Weaning (6–12m)
               </button>
               <button type="button" onClick={() => setStage('adult')}
                 className={`py-2 px-2 text-xs font-semibold rounded-xl border transition-all text-center ${stage === 'adult' ? 'border-[#7AC142] bg-[#F0F9EB] text-[#639A34]' : 'border-neutral-200 bg-neutral-50 text-neutral-600'}`}>
-                Adult Herd
+                Adult Herd (12m+)
               </button>
             </div>
           </div>
@@ -1701,15 +1776,98 @@ function AddBullModal({ animals, editingBull, onClose, onSave }: { animals: any[
 }
 
 // ─── Add Weight Modal ────────────────────────────────────────────────────────
-function AddWeightModal({ animals, onClose, onSave, editingWeight }: { animals: any[]; onClose: () => void; onSave: (d: any) => Promise<void>; editingWeight?: any }) {
-  const [form, setForm] = useState({
-    animalTag: '',
-    year: new Date().getFullYear().toString(),
-    jan: '', feb: '', mar: '', apr: '', may: '', jun: '',
-    jul: '', aug: '', sep: '', oct: '', nov: '', dec: ''
-  })
+function AddWeightModal({ animals, onClose, onSave, editingWeight, existingWeights }: { animals: any[]; onClose: () => void; onSave: (d: any) => Promise<void>; editingWeight?: any; existingWeights?: any[] }) {
+  const [form, setForm] = useState(() => ({
+    animalTag: editingWeight?.animal_tag || '',
+    year: editingWeight?.year ? String(editingWeight.year) : new Date().getFullYear().toString(),
+    jan: editingWeight?.jan != null ? String(editingWeight.jan) : '',
+    feb: editingWeight?.feb != null ? String(editingWeight.feb) : '',
+    mar: editingWeight?.mar != null ? String(editingWeight.mar) : '',
+    apr: editingWeight?.apr != null ? String(editingWeight.apr) : '',
+    may: editingWeight?.may != null ? String(editingWeight.may) : '',
+    jun: editingWeight?.jun != null ? String(editingWeight.jun) : '',
+    jul: editingWeight?.jul != null ? String(editingWeight.jul) : '',
+    aug: editingWeight?.aug != null ? String(editingWeight.aug) : '',
+    sep: editingWeight?.sep != null ? String(editingWeight.sep) : '',
+    oct: editingWeight?.oct != null ? String(editingWeight.oct) : '',
+    nov: editingWeight?.nov != null ? String(editingWeight.nov) : '',
+    dec: editingWeight?.dec != null ? String(editingWeight.dec) : ''
+  }))
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+
+  useEffect(() => {
+    if (editingWeight) {
+      setForm({
+        animalTag: editingWeight.animal_tag || '',
+        year: editingWeight.year ? String(editingWeight.year) : new Date().getFullYear().toString(),
+        jan: editingWeight.jan != null ? String(editingWeight.jan) : '',
+        feb: editingWeight.feb != null ? String(editingWeight.feb) : '',
+        mar: editingWeight.mar != null ? String(editingWeight.mar) : '',
+        apr: editingWeight.apr != null ? String(editingWeight.apr) : '',
+        may: editingWeight.may != null ? String(editingWeight.may) : '',
+        jun: editingWeight.jun != null ? String(editingWeight.jun) : '',
+        jul: editingWeight.jul != null ? String(editingWeight.jul) : '',
+        aug: editingWeight.aug != null ? String(editingWeight.aug) : '',
+        sep: editingWeight.sep != null ? String(editingWeight.sep) : '',
+        oct: editingWeight.oct != null ? String(editingWeight.oct) : '',
+        nov: editingWeight.nov != null ? String(editingWeight.nov) : '',
+        dec: editingWeight.dec != null ? String(editingWeight.dec) : ''
+      })
+    }
+  }, [editingWeight])
+
+  const handleSelectAnimal = (tag: string) => {
+    const existing = existingWeights?.find((w: any) => 
+      w.animal_tag?.toLowerCase() === tag.toLowerCase() && Number(w.year) === Number(form.year)
+    )
+    if (existing) {
+      setForm({
+        animalTag: tag,
+        year: form.year,
+        jan: existing.jan != null ? String(existing.jan) : '',
+        feb: existing.feb != null ? String(existing.feb) : '',
+        mar: existing.mar != null ? String(existing.mar) : '',
+        apr: existing.apr != null ? String(existing.apr) : '',
+        may: existing.may != null ? String(existing.may) : '',
+        jun: existing.jun != null ? String(existing.jun) : '',
+        jul: existing.jul != null ? String(existing.jul) : '',
+        aug: existing.aug != null ? String(existing.aug) : '',
+        sep: existing.sep != null ? String(existing.sep) : '',
+        oct: existing.oct != null ? String(existing.oct) : '',
+        nov: existing.nov != null ? String(existing.nov) : '',
+        dec: existing.dec != null ? String(existing.dec) : ''
+      })
+    } else {
+      setForm(p => ({ ...p, animalTag: tag }))
+    }
+  }
+
+  const handleYearChange = (yr: string) => {
+    const existing = existingWeights?.find((w: any) => 
+      w.animal_tag?.toLowerCase() === form.animalTag.toLowerCase() && Number(w.year) === Number(yr)
+    )
+    if (existing) {
+      setForm({
+        animalTag: form.animalTag,
+        year: yr,
+        jan: existing.jan != null ? String(existing.jan) : '',
+        feb: existing.feb != null ? String(existing.feb) : '',
+        mar: existing.mar != null ? String(existing.mar) : '',
+        apr: existing.apr != null ? String(existing.apr) : '',
+        may: existing.may != null ? String(existing.may) : '',
+        jun: existing.jun != null ? String(existing.jun) : '',
+        jul: existing.jul != null ? String(existing.jul) : '',
+        aug: existing.aug != null ? String(existing.aug) : '',
+        sep: existing.sep != null ? String(existing.sep) : '',
+        oct: existing.oct != null ? String(existing.oct) : '',
+        nov: existing.nov != null ? String(existing.nov) : '',
+        dec: existing.dec != null ? String(existing.dec) : ''
+      })
+    } else {
+      setForm(p => ({ ...p, year: yr }))
+    }
+  }
 
   const handleSave = async () => {
     if (!form.animalTag) { setError('Please select an animal.'); return }
@@ -1731,7 +1889,7 @@ function AddWeightModal({ animals, onClose, onSave, editingWeight }: { animals: 
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/55" style={{ backgroundColor: 'rgba(0,0,0,0.45)' }}>
       <div className="w-full max-w-lg rounded-2xl overflow-hidden flex flex-col shadow-2xl transition-all" style={{ backgroundColor: C.white, maxHeight: '90vh' }}>
         <div className="flex items-center justify-between px-6 py-5 border-b" style={{ borderColor: C.neutral100 }}>
-          <h3 className="text-lg font-bold" style={{ color: C.neutral900 }}>Add/Update Animal Weight Log</h3>
+          <h3 className="text-lg font-bold" style={{ color: C.neutral900 }}>{editingWeight ? `Edit Weight Log — ${editingWeight.animal_tag}` : 'Add/Update Animal Weight Log'}</h3>
           <button onClick={onClose} className="p-1 hover:bg-neutral-100 rounded-lg"><X size={18} style={{ color: C.neutral500 }} /></button>
         </div>
         <div className="overflow-y-auto flex-1 px-6 py-4 space-y-4">
@@ -1741,8 +1899,9 @@ function AddWeightModal({ animals, onClose, onSave, editingWeight }: { animals: 
             <div>
               <label className="block text-xs font-semibold mb-1 uppercase tracking-wider" style={{ color: C.neutral500 }}>Select Animal</label>
               <div className="relative">
-                <select value={form.animalTag} onChange={e => setForm(p => ({ ...p, animalTag: e.target.value }))}
-                  className="w-full rounded-xl px-4 py-2.5 text-sm outline-none border appearance-none cursor-pointer"
+                <select value={form.animalTag} onChange={e => handleSelectAnimal(e.target.value)}
+                  disabled={Boolean(editingWeight)}
+                  className="w-full rounded-xl px-4 py-2.5 text-sm outline-none border appearance-none cursor-pointer disabled:opacity-75 disabled:cursor-not-allowed"
                   style={{ borderColor: C.neutral200, color: C.neutral900, backgroundColor: C.neutral50 }}>
                   <option value="">Select animal…</option>
                   {animals.map(a => <option key={a.id} value={a.tag}>{a.tag} ({a.breed} {a.stock_type})</option>)}
@@ -1752,19 +1911,22 @@ function AddWeightModal({ animals, onClose, onSave, editingWeight }: { animals: 
             </div>
             <div>
               <label className="block text-xs font-semibold mb-1 uppercase tracking-wider" style={{ color: C.neutral500 }}>Year</label>
-              <input type="number" value={form.year} onChange={e => setForm(p => ({ ...p, year: e.target.value }))}
+              <input type="number" value={form.year} onChange={e => handleYearChange(e.target.value)}
                 className="w-full rounded-xl px-4 py-2.5 text-sm outline-none border transition-colors focus:border-[#7AC142]"
                 style={{ borderColor: C.neutral200, color: C.neutral900, backgroundColor: C.neutral50 }} />
             </div>
           </div>
 
           <div className="border-t pt-4">
-            <p className="text-xs font-bold text-neutral-500 uppercase tracking-wider mb-3">Monthly Weights (kg)</p>
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-xs font-bold text-neutral-500 uppercase tracking-wider">Monthly Weights (kg)</p>
+              <span className="text-[11px] text-neutral-400">Other months are preserved automatically</span>
+            </div>
             <div className="grid grid-cols-4 gap-3">
               {months.map(m => (
                 <div key={m}>
                   <label className="block text-xs font-semibold mb-1 uppercase tracking-wider" style={{ color: C.neutral500 }}>{m}</label>
-                  <input type="number" value={(form as any)[m]} onChange={e => setForm(p => ({ ...p, [m]: e.target.value }))}
+                  <input type="number" step="0.1" value={(form as any)[m]} onChange={e => setForm(p => ({ ...p, [m]: e.target.value }))}
                     placeholder="—"
                     className="w-full rounded-xl px-3 py-2 text-sm outline-none border transition-colors focus:border-[#7AC142]"
                     style={{ borderColor: C.neutral200, color: C.neutral900, backgroundColor: C.neutral50 }} />
@@ -1778,7 +1940,7 @@ function AddWeightModal({ animals, onClose, onSave, editingWeight }: { animals: 
             style={{ backgroundColor: C.neutral100, color: C.neutral700 }}>Cancel</button>
           <button onClick={handleSave} disabled={saving} className="flex-1 py-3 rounded-xl text-sm font-bold text-white shadow-sm hover:opacity-95 active:scale-[0.98] transition-all"
             style={{ backgroundColor: C.primary600, opacity: saving ? 0.7 : 1 }}>
-            {saving ? 'Saving…' : 'Save Record'}
+            {saving ? 'Saving…' : (editingWeight ? 'Save Changes' : 'Save Record')}
           </button>
         </div>
       </div>
@@ -2568,22 +2730,23 @@ export default function Register() {
 
   const saveEditedWeight = async (d: any) => {
     if (!session || !targetUserId || !editingWeight) return
+    const months = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec']
+    const monthUpdates: any = {}
+    months.forEach(m => {
+      if (d[m] !== undefined && d[m] !== '' && d[m] !== null) {
+        monthUpdates[m] = Number(d[m])
+      } else if (editingWeight[m] != null) {
+        monthUpdates[m] = editingWeight[m]
+      } else {
+        monthUpdates[m] = null
+      }
+    })
+
     const dbPayload = {
       user_id: targetUserId,
       animal_tag: d.animalTag,
       year: Number(d.year),
-      jan: d.jan ? Number(d.jan) : null,
-      feb: d.feb ? Number(d.feb) : null,
-      mar: d.mar ? Number(d.mar) : null,
-      apr: d.apr ? Number(d.apr) : null,
-      may: d.may ? Number(d.may) : null,
-      jun: d.jun ? Number(d.jun) : null,
-      jul: d.jul ? Number(d.jul) : null,
-      aug: d.aug ? Number(d.aug) : null,
-      sep: d.sep ? Number(d.sep) : null,
-      oct: d.oct ? Number(d.oct) : null,
-      nov: d.nov ? Number(d.nov) : null,
-      dec: d.dec ? Number(d.dec) : null,
+      ...monthUpdates,
       production_year: selectedProductionYear
     }
     const { data, error } = await supabase.from('animal_weights').update(dbPayload).eq('id', editingWeight.id).select().single()
@@ -2629,22 +2792,27 @@ export default function Register() {
 
   const addWeightRecord = async (d: any) => {
     if (!session || !targetUserId) return
+    const existing = weightRecords.find(w => 
+      w.animal_tag?.toLowerCase() === d.animalTag?.toLowerCase() && 
+      Number(w.year) === Number(d.year)
+    )
+    const months = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec']
+    const monthUpdates: any = {}
+    months.forEach(m => {
+      if (d[m] !== undefined && d[m] !== '' && d[m] !== null) {
+        monthUpdates[m] = Number(d[m])
+      } else if (existing && existing[m] != null) {
+        monthUpdates[m] = existing[m]
+      } else {
+        monthUpdates[m] = null
+      }
+    })
+
     const dbPayload = {
       user_id: targetUserId,
       animal_tag: d.animalTag,
       year: Number(d.year),
-      jan: d.jan ? Number(d.jan) : null,
-      feb: d.feb ? Number(d.feb) : null,
-      mar: d.mar ? Number(d.mar) : null,
-      apr: d.apr ? Number(d.apr) : null,
-      may: d.may ? Number(d.may) : null,
-      jun: d.jun ? Number(d.jun) : null,
-      jul: d.jul ? Number(d.jul) : null,
-      aug: d.aug ? Number(d.aug) : null,
-      sep: d.sep ? Number(d.sep) : null,
-      oct: d.oct ? Number(d.oct) : null,
-      nov: d.nov ? Number(d.nov) : null,
-      dec: d.dec ? Number(d.dec) : null,
+      ...monthUpdates,
       production_year: selectedProductionYear
     }
     const { data, error } = await supabase.from('animal_weights').upsert(dbPayload, { onConflict: 'user_id,animal_tag,year' }).select().single()
@@ -3204,7 +3372,23 @@ export default function Register() {
                   key: m, label: m.charAt(0).toUpperCase() + m.slice(1),
                   render: (v: any) => v ? <span className="font-bold text-neutral-800">{v}</span> : <span style={{ color: C.neutral300 }}>—</span>,
                   align: 'center' as const
-                }))
+                })),
+                {
+                  key: 'actions',
+                  label: 'Actions',
+                  align: 'center' as const,
+                  render: (_: any, row: any) => (
+                    <div className="flex gap-2 justify-center">
+                      <button
+                        onClick={() => setEditingWeight(row)}
+                        className="p-1.5 text-neutral-500 hover:text-neutral-900 hover:bg-neutral-100 rounded-lg transition-colors"
+                        title="Edit Weight Record"
+                      >
+                        <Edit size={14} />
+                      </button>
+                    </div>
+                  )
+                }
               ]} />
             </>
           )}
@@ -3283,7 +3467,7 @@ export default function Register() {
       {showAddBreeding && <AddBreedingModal animals={animals} onClose={() => setShowAddBreeding(false)} onSave={addBreedingRecord} />}
       {showAddPregnancy && <AddPregnancyModal animals={animals} onClose={() => setShowAddPregnancy(false)} onSave={addPregnancyRecord} />}
       {showAddBull     && <AddBullModal     animals={animals} onClose={() => setShowAddBull(false)} onSave={addBullRecord} />}
-      {showAddWeight   && <AddWeightModal   animals={animals} onClose={() => setShowAddWeight(false)} onSave={addWeightRecord} />}
+      {showAddWeight   && <AddWeightModal   animals={animals} existingWeights={weightRecords} onClose={() => setShowAddWeight(false)} onSave={addWeightRecord} />}
       {showAddFeed     && <AddFeedModal     onClose={() => setShowAddFeed(false)}     onSave={addFeedItem} />}
       {showAddTransaction && <AddTransactionModal animals={animals} onClose={() => setShowAddTransaction(false)} onSave={addTransaction} />}
       {editingAnimal   && <AddAnimalModal   editingAnimal={editingAnimal} onClose={() => setEditingAnimal(null)} onSave={saveEditedAnimal} />}
@@ -3294,7 +3478,7 @@ export default function Register() {
       {editingBull     && <AddBullModal     animals={animals} editingBull={editingBull} onClose={() => setEditingBull(null)} onSave={saveEditedBull} />}
       {editingPregnancy && <AddPregnancyModal animals={animals} editingPregnancy={editingPregnancy} onClose={() => setEditingPregnancy(null)} onSave={saveEditedPregnancy} />}
       {editingMortality && <AddMortalityModal animals={animals} editingMortality={editingMortality} onClose={() => setEditingMortality(null)} onSave={saveEditedMortality} />}
-      {editingWeight    && <AddWeightModal    animals={animals} editingWeight={editingWeight} onClose={() => setEditingWeight(null)} onSave={saveEditedWeight} />}
+      {editingWeight    && <AddWeightModal    animals={animals} editingWeight={editingWeight} existingWeights={weightRecords} onClose={() => setEditingWeight(null)} onSave={saveEditedWeight} />}
       {editingFeed      && <AddFeedModal      editingFeed={editingFeed} onClose={() => setEditingFeed(null)} onSave={saveEditedFeed} />}
 
       {selectedAnimalProfile && (

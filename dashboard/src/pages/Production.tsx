@@ -64,25 +64,93 @@ function getBorderColor(color: string): string {
 }
 
 function getPercentage(value: number, target: number, isMortality: boolean): number {
+  if (target === 0) return 0
   if (isMortality) {
-    if (value === 0)  return 100
-    if (target === 0) return 0
-    return Math.max(0, 100 - (value / target) * 100)
+    if (value <= 0) return 100
+    if (value <= target) {
+      // 100% at 0 deaths down to 70% at target
+      return Math.round(100 - (value / target) * 30)
+    }
+    const excessRatio = (value - target) / target
+    // Smoothly scale down from 70% to 10%
+    return Math.max(10, Math.round(70 - excessRatio * 60))
   }
-  return (value / target) * 100
+  return Math.min(100, (value / target) * 100)
 }
 
 const YOUNG_STOCK_TYPES = ['Calve', 'Calf', 'Kid', 'Lamb', 'Piglet']
 
-const isCalf = (age: string | null | undefined, stockType?: string | null) => {
+export const getAnimalAgeInMonths = (animal: any): number | null => {
+  if (!animal) return null
+  const dobStr = animal.date_of_birth || animal.dateOfBirth
+  if (dobStr) {
+    const dob = new Date(dobStr)
+    if (!isNaN(dob.getTime())) {
+      const now = new Date()
+      let months = (now.getFullYear() - dob.getFullYear()) * 12 + (now.getMonth() - dob.getMonth())
+      if (now.getDate() < dob.getDate()) months -= 1
+      return Math.max(0, months)
+    }
+  }
+
+  const ageStr = animal.age || (typeof animal === 'string' ? animal : '')
+  if (ageStr) {
+    let totalMonths = 0
+    let matched = false
+    const yMatch = ageStr.match(/(\d+)\s*y/i)
+    const mMatch = ageStr.match(/(\d+)\s*m/i)
+    const dMatch = ageStr.match(/(\d+)\s*d/i)
+    if (yMatch) {
+      totalMonths += parseInt(yMatch[1], 10) * 12
+      matched = true
+    }
+    if (mMatch) {
+      totalMonths += parseInt(mMatch[1], 10)
+      matched = true
+    }
+    if (dMatch && !yMatch && !mMatch) {
+      totalMonths += parseInt(dMatch[1], 10) / 30.4375
+      matched = true
+    }
+    if (matched) return totalMonths
+  }
+
+  return null
+}
+
+export const determineAnimalStage = (animal: any): 'pre_weaning' | 'post_weaning' | 'adult' => {
+  if (!animal) return 'adult'
+  const ageMonths = getAnimalAgeInMonths(animal)
+  if (ageMonths !== null) {
+    if (ageMonths < 6) return 'pre_weaning'
+    if (ageMonths < 12) return 'post_weaning'
+    return 'adult'
+  }
+
+  const stockType = animal.stock_type || animal.stockType || ''
+  const isYoungStock = YOUNG_STOCK_TYPES.includes(stockType)
+  if (isYoungStock) {
+    const isWeaned = Boolean(animal.date_of_weaning || animal.dateOfWeaning) ||
+      animal.calf_status === 'Weaned' || animal.calfStatus === 'Weaned' ||
+      animal.calf_status === 'Replacement' || animal.calfStatus === 'Replacement' ||
+      animal.calf_status === 'Sold' || animal.calfStatus === 'Sold' ||
+      Number(animal.weaning_weight || animal.weaningWeight || 0) > 0
+    return isWeaned ? 'post_weaning' : 'pre_weaning'
+  }
+
+  return 'adult'
+}
+
+const isCalf = (animalOrAge: any, stockType?: string | null) => {
+  if (animalOrAge && typeof animalOrAge === 'object') {
+    return determineAnimalStage(animalOrAge) === 'pre_weaning'
+  }
+  const ageMonths = getAnimalAgeInMonths({ age: animalOrAge })
+  if (ageMonths !== null) {
+    return ageMonths < 6
+  }
   if (stockType && YOUNG_STOCK_TYPES.includes(stockType)) return true
-  if (!age) return false
-  const ageMatch = age.match(/(\d+)\s*([ymd])/i)
-  if (!ageMatch) return false
-  const [_, value, unit] = ageMatch
-  const u = unit.toLowerCase()
-  if (u === 'd') return true
-  return (u === 'm' && parseInt(value) < 12) || (u === 'y' && parseInt(value) === 0)
+  return false
 }
 
 // ─── Metric Card ─────────────────────────────────────────────────────────────
@@ -300,19 +368,19 @@ export default function Production() {
   const postWeaningDLWG = postWeaningCount > 0 ? Number((postWeaningSum / postWeaningCount).toFixed(3)) : 0;
 
   // a. Pre-weaning Mortality: (Calves that died prior to weaning) ÷ (Total calves born) * 100
-  const preWeaningMortCount = mortalityRecords.filter(m => m.is_pre_weaning || m.cause === 'Pre-weaning Mortality' || m.description?.toLowerCase().includes('pre-weaning')).length;
+  const preWeaningMortCount = mortalityRecords.filter(m => m.is_pre_weaning || m.stage === 'pre_weaning' || m.cause === 'Pre-weaning Mortality' || m.description?.toLowerCase().includes('pre-weaning')).length;
   const totalCalvesBorn = calves.length + preWeaningMortCount;
   const preWeaningMortality = totalCalvesBorn > 0 ? Number(((preWeaningMortCount / totalCalvesBorn) * 100).toFixed(2)) : 0;
 
   // b. Post-weaning Mortality: (Calves that died post weaning) ÷ (Total calves weaned) * 100
-  const postWeaningMortCount = mortalityRecords.filter(m => !m.is_pre_weaning && (m.cause?.toLowerCase().includes('post-weaning') || m.description?.toLowerCase().includes('post-weaning'))).length;
+  const postWeaningMortCount = mortalityRecords.filter(m => (!m.is_pre_weaning && m.stage !== 'pre_weaning') && (m.stage === 'post_weaning' || m.cause?.toLowerCase().includes('post-weaning') || m.description?.toLowerCase().includes('post-weaning'))).length;
   const totalCalvesWeaned = weanedCalves.length + postWeaningMortCount;
   const postWeaningMortality = totalCalvesWeaned > 0 ? Number(((postWeaningMortCount / totalCalvesWeaned) * 100).toFixed(2)) : 0;
 
   // c. Herd Mortality: number of deaths / (opening stock + number of newborns) x 100
   const totalDeaths = mortalityRecords.length;
-  const adultAnimalsInHerd = animals.filter(a => !isCalf(a.age, a.stock_type)).length;
-  const adultDeaths = Math.max(0, totalDeaths - preWeaningMortCount);
+  const adultAnimalsInHerd = animals.filter(a => determineAnimalStage(a) === 'adult').length;
+  const adultDeaths = Math.max(0, totalDeaths - preWeaningMortCount - postWeaningMortCount);
   const openingStock = adultAnimalsInHerd + adultDeaths;
   const totalHerdExposed = openingStock + totalCalvesBorn;
   const herdMortality = totalHerdExposed > 0 ? Number(((totalDeaths / totalHerdExposed) * 100).toFixed(2)) : 0;

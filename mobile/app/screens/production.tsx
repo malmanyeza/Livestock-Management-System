@@ -248,9 +248,16 @@ function ProductionMetricCard({ metric, isAdmin, onEditTarget }: ProductionMetri
     if (isMortality) {
       if (metric.value === 0) return 100;
       if (metric.target === 0) return 0;
-      return Math.max(0, 100 - (metric.value / metric.target) * 100);
+      const ratio = metric.value / metric.target;
+      if (ratio <= 1) {
+        // e.g. 0% deaths -> 100%, exactly at target (e.g. 5%) -> 70%
+        return Math.round(100 - (ratio * 30));
+      } else {
+        // Exceeded target ceiling: drops from 70% down to 10%
+        return Math.max(10, Math.round(70 - ((ratio - 1) * 40)));
+      }
     }
-    return (metric.value / metric.target) * 100;
+    return Math.min(100, Math.round((metric.value / (metric.target || 1)) * 100));
   };
 
   const color = getColor();

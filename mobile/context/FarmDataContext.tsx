@@ -200,6 +200,7 @@ export interface PregnancyOverrides {
   firstTrimesterPD?: PregnancyMetricOverride;
   secondTrimesterPD?: PregnancyMetricOverride;
   thirdTrimesterPD?: PregnancyMetricOverride;
+  bcsAtService?: PregnancyMetricOverride;
   lastUpdated?: string;
 }
 
@@ -2243,35 +2244,82 @@ export const FarmDataProvider: React.FC<{ children: ReactNode }> = ({ children }
   };
 
   const saveAnimalWeight = async (record: Omit<AnimalWeight, 'id'>) => {
+    if (!record.animalTag) {
+      console.warn("saveAnimalWeight: animalTag is missing");
+      return;
+    }
+    const existing = animalWeights.find(w => 
+      w.animalTag.toLowerCase() === record.animalTag.toLowerCase() && 
+      Number(w.year) === Number(record.year)
+    );
+
+    const formatMonthStr = (newVal: any, existingVal: any): string | undefined => {
+      if (newVal !== undefined && newVal !== null && String(newVal).trim() !== '') {
+        return String(newVal).trim();
+      }
+      if (existingVal !== undefined && existingVal !== null && String(existingVal).trim() !== '') {
+        return String(existingVal).trim();
+      }
+      return undefined;
+    };
+
+    const parseMonthNum = (newVal: any, existingVal: any): number | null => {
+      if (newVal !== undefined && newVal !== null && String(newVal).trim() !== '') {
+        const n = Number(newVal);
+        return isNaN(n) ? null : n;
+      }
+      if (existingVal !== undefined && existingVal !== null && String(existingVal).trim() !== '') {
+        const n = Number(existingVal);
+        return isNaN(n) ? null : n;
+      }
+      return null;
+    };
+
     if (!supabase) {
       setAnimalWeights(prev => {
-        const index = prev.findIndex(w => w.animalTag.toLowerCase() === record.animalTag.toLowerCase() && w.year === record.year);
-        const newRecord = { ...record, id: (prev.length + 1).toString() };
+        const index = prev.findIndex(w => w.animalTag.toLowerCase() === record.animalTag.toLowerCase() && Number(w.year) === Number(record.year));
+        const mergedRecord: AnimalWeight = {
+          id: existing?.id || (prev.length + 1).toString(),
+          animalTag: record.animalTag,
+          year: Number(record.year),
+          jan: formatMonthStr(record.jan, existing?.jan),
+          feb: formatMonthStr(record.feb, existing?.feb),
+          mar: formatMonthStr(record.mar, existing?.mar),
+          apr: formatMonthStr(record.apr, existing?.apr),
+          may: formatMonthStr(record.may, existing?.may),
+          jun: formatMonthStr(record.jun, existing?.jun),
+          jul: formatMonthStr(record.jul, existing?.jul),
+          aug: formatMonthStr(record.aug, existing?.aug),
+          sep: formatMonthStr(record.sep, existing?.sep),
+          oct: formatMonthStr(record.oct, existing?.oct),
+          nov: formatMonthStr(record.nov, existing?.nov),
+          dec: formatMonthStr(record.dec, existing?.dec),
+        };
         if (index >= 0) {
           const copy = [...prev];
-          copy[index] = newRecord;
+          copy[index] = mergedRecord;
           return copy;
         }
-        return [...prev, newRecord];
+        return [...prev, mergedRecord];
       });
       return;
     }
     const dbData = {
       user_id: targetUserId,
       animal_tag: record.animalTag,
-      year: record.year,
-      jan: record.jan ? Number(record.jan) : null,
-      feb: record.feb ? Number(record.feb) : null,
-      mar: record.mar ? Number(record.mar) : null,
-      apr: record.apr ? Number(record.apr) : null,
-      may: record.may ? Number(record.may) : null,
-      jun: record.jun ? Number(record.jun) : null,
-      jul: record.jul ? Number(record.jul) : null,
-      aug: record.aug ? Number(record.aug) : null,
-      sep: record.sep ? Number(record.sep) : null,
-      oct: record.oct ? Number(record.oct) : null,
-      nov: record.nov ? Number(record.nov) : null,
-      dec: record.dec ? Number(record.dec) : null,
+      year: Number(record.year),
+      jan: parseMonthNum(record.jan, existing?.jan),
+      feb: parseMonthNum(record.feb, existing?.feb),
+      mar: parseMonthNum(record.mar, existing?.mar),
+      apr: parseMonthNum(record.apr, existing?.apr),
+      may: parseMonthNum(record.may, existing?.may),
+      jun: parseMonthNum(record.jun, existing?.jun),
+      jul: parseMonthNum(record.jul, existing?.jul),
+      aug: parseMonthNum(record.aug, existing?.aug),
+      sep: parseMonthNum(record.sep, existing?.sep),
+      oct: parseMonthNum(record.oct, existing?.oct),
+      nov: parseMonthNum(record.nov, existing?.nov),
+      dec: parseMonthNum(record.dec, existing?.dec),
       production_year: selectedProductionYear,
     };
 
@@ -2285,7 +2333,7 @@ export const FarmDataProvider: React.FC<{ children: ReactNode }> = ({ children }
     if (data) {
       const mapped = mapWeightFromDb(data);
       setAnimalWeights(prev => {
-        const index = prev.findIndex(w => w.animalTag.toLowerCase() === record.animalTag.toLowerCase() && w.year === record.year);
+        const index = prev.findIndex(w => w.animalTag.toLowerCase() === record.animalTag.toLowerCase() && Number(w.year) === Number(record.year));
         if (index >= 0) {
           const copy = [...prev];
           copy[index] = mapped;
@@ -2743,14 +2791,70 @@ export const FarmDataProvider: React.FC<{ children: ReactNode }> = ({ children }
 
   // C. PRODUCTION CALCULATIONS
   const YOUNG_STOCK_TYPES = ['Calve', 'Calf', 'Kid', 'Lamb', 'Piglet'];
+
+  const getAnimalAgeInMonths = (animal: any): number | null => {
+    if (!animal) return null;
+    const dobStr = animal.date_of_birth || animal.dateOfBirth;
+    if (dobStr) {
+      const dob = new Date(dobStr);
+      if (!isNaN(dob.getTime())) {
+        const now = new Date();
+        let months = (now.getFullYear() - dob.getFullYear()) * 12 + (now.getMonth() - dob.getMonth());
+        if (now.getDate() < dob.getDate()) months -= 1;
+        return Math.max(0, months);
+      }
+    }
+
+    const ageStr = animal.age || (typeof animal === 'string' ? animal : '');
+    if (ageStr) {
+      let totalMonths = 0;
+      let matched = false;
+      const yMatch = ageStr.match(/(\d+)\s*y/i);
+      const mMatch = ageStr.match(/(\d+)\s*m/i);
+      const dMatch = ageStr.match(/(\d+)\s*d/i);
+      if (yMatch) {
+        totalMonths += parseInt(yMatch[1], 10) * 12;
+        matched = true;
+      }
+      if (mMatch) {
+        totalMonths += parseInt(mMatch[1], 10);
+        matched = true;
+      }
+      if (dMatch && !yMatch && !mMatch) {
+        totalMonths += parseInt(dMatch[1], 10) / 30.4375;
+        matched = true;
+      }
+      if (matched) return totalMonths;
+    }
+
+    return null;
+  };
+
+  const determineAnimalStage = (animal: any): 'pre_weaning' | 'post_weaning' | 'adult' => {
+    if (!animal) return 'adult';
+    const ageMonths = getAnimalAgeInMonths(animal);
+    if (ageMonths !== null) {
+      if (ageMonths < 6) return 'pre_weaning';
+      if (ageMonths < 12) return 'post_weaning';
+      return 'adult';
+    }
+
+    const stockType = animal.stock_type || animal.stockType || '';
+    const isYoungStock = YOUNG_STOCK_TYPES.includes(stockType);
+    if (isYoungStock) {
+      const isWeaned = Boolean(animal.date_of_weaning || animal.dateOfWeaning) ||
+        animal.calf_status === 'Weaned' || animal.calfStatus === 'Weaned' ||
+        animal.calf_status === 'Replacement' || animal.calfStatus === 'Replacement' ||
+        animal.calf_status === 'Sold' || animal.calfStatus === 'Sold' ||
+        Number(animal.weaning_weight || animal.weaningWeight || 0) > 0;
+      return isWeaned ? 'post_weaning' : 'pre_weaning';
+    }
+
+    return 'adult';
+  };
+
   const isOffspringAnimal = (a: Animal) => {
-    if (a.stockType && YOUNG_STOCK_TYPES.includes(a.stockType)) return true;
-    if (!a.age) return false;
-    const match = a.age.match(/(\d+)\s*([ymd])/i);
-    if (!match) return false;
-    const [_, val, u] = match;
-    if (u.toLowerCase() === 'd') return true;
-    return (u.toLowerCase() === 'm' && parseInt(val) < 12) || (u.toLowerCase() === 'y' && parseInt(val) === 0);
+    return determineAnimalStage(a) === 'pre_weaning';
   };
 
   const calculateProductionMetrics = (aliveAnimals: Animal[], animalWeights: AnimalWeight[] = []) => {
@@ -2862,8 +2966,8 @@ export const FarmDataProvider: React.FC<{ children: ReactNode }> = ({ children }
 
     // c. Herd Mortality: number of deaths / (opening stock + number of newborns) x 100
     const totalDeaths = mortalityRecords.length;
-    const adultAnimalsInHerd = aliveAnimals.filter(a => !isOffspringAnimal(a)).length;
-    const adultDeaths = Math.max(0, totalDeaths - preWeaningMortCount);
+    const adultAnimalsInHerd = aliveAnimals.filter(a => determineAnimalStage(a) === 'adult').length;
+    const adultDeaths = Math.max(0, totalDeaths - preWeaningMortCount - postWeaningMortCount);
     const openingStock = adultAnimalsInHerd + adultDeaths;
     const totalOpeningStockAndNewborns = openingStock + totalCalvesBorn;
     const herdMortality = totalOpeningStockAndNewborns > 0 ? (totalDeaths / totalOpeningStockAndNewborns) * 100 : 0;
