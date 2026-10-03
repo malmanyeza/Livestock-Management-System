@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Privacy Policy | Zvipfuwo</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@500;700;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-color: #f8fafc;
+            --card-bg: #ffffff;
+            --border-color: #e2e8f0;
+            --text-main: #0f172a;
+            --text-muted: #64748b;
+            --primary: #10b981;
+            --primary-hover: #059669;
+            --primary-light: rgba(16, 185, 129, 0.08);
+            --accent: #22c55e;
+            --shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05);
+        }
+        [data-theme="dark"] {
+            --bg-color: #0b0f19;
+            --card-bg: #111827;
+            --border-color: #1f2937;
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+            --primary: #34d399;
+            --primary-hover: #10b981;
+            --primary-light: rgba(52, 211, 153, 0.12);
+            --shadow: 0 20px 30px -10px rgba(0, 0, 0, 0.3);
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; transition: background-color 0.2s, border-color 0.2s, color 0.2s; }
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            line-height: 1.6;
+            padding: 40px 20px;
+        }
+        .container { max-width: 800px; margin: 0 auto; }
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 40px;
+        }
+        .logo {
+            font-family: 'Outfit', sans-serif;
+            font-size: 28px;
+            font-weight: 800;
+            color: var(--text-main);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .logo span { color: var(--primary); }
+        .theme-btn {
+            background-color: var(--card-bg);
+            border: 1px solid var(--border-color);
+            color: var(--text-main);
+            padding: 8px 16px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 500;
+            box-shadow: var(--shadow);
+        }
+        .theme-btn:hover { border-color: var(--primary); background-color: var(--primary-light); }
+        .hero {
+            background-color: var(--card-bg);
+            border: 1px solid var(--border-color);
+            padding: 40px;
+            border-radius: 16px;
+            margin-bottom: 30px;
+            box-shadow: var(--shadow);
+        }
+        .hero h1 { font-family: 'Outfit', sans-serif; font-size: 36px; margin-bottom: 8px; }
+        .hero p { color: var(--text-muted); font-size: 16px; }
+        .search-box {
+            width: 100%;
+            padding: 12px 20px;
+            border-radius: 10px;
+            border: 1px solid var(--border-color);
+            background-color: var(--card-bg);
+            color: var(--text-main);
+            font-family: inherit;
+            font-size: 15px;
+            margin-bottom: 30px;
+            outline: none;
+        }
+        .search-box:focus { border-color: var(--primary); box-shadow: 0 0 0 3px var(--primary-light); }
+        .section {
+            background-color: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            padding: 30px;
+            margin-bottom: 20px;
+            box-shadow: var(--shadow);
+        }
+        .section h2 {
+            font-family: 'Outfit', sans-serif;
+            font-size: 22px;
+            margin-bottom: 15px;
+            color: var(--text-main);
+            border-bottom: 2px solid var(--primary-light);
+            padding-bottom: 8px;
+        }
+        .section p { margin-bottom: 12px; color: var(--text-muted); font-size: 15px; }
+        .section ul { list-style-position: inside; margin-bottom: 12px; color: var(--text-muted); }
+        .section li { margin-bottom: 6px; font-size: 15px; }
+        .accordion {
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            margin-top: 15px;
+            overflow: hidden;
+        }
+        .accordion-header {
+            width: 100%;
+            padding: 15px 20px;
+            background-color: var(--bg-color);
+            border: none;
+            color: var(--text-main);
+            font-weight: 600;
+            text-align: left;
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .accordion-content {
+            display: none;
+            padding: 20px;
+            border-top: 1px solid var(--border-color);
+            background-color: var(--card-bg);
+            color: var(--text-muted);
+            font-size: 14px;
+        }
+        .accordion-item.active .accordion-content { display: block; }
+        .accordion-item.active .accordion-header { background-color: var(--primary-light); color: var(--primary); }
+        footer {
+            text-align: center;
+            margin-top: 50px;
+            color: var(--text-muted);
+            font-size: 14px;
+            border-top: 1px solid var(--border-color);
+            padding-top: 20px;
+        }
+        .hidden { display: none !important; }
+        .highlight {
+            background-color: var(--primary-light);
+            border-left: 4px solid var(--primary);
+            padding: 15px;
+            border-radius: 0 8px 8px 0;
+            margin: 15px 0;
+        }
+        .highlight h4 { color: var(--primary); margin-bottom: 6px; }
+        .highlight p { margin-bottom: 0; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <div class="logo">Zvipfuwo<span>.</span></div>
+            <button class="theme-btn" id="themeToggle">Toggle Mode</button>
+        </header>
+
+        <div class="hero">
+            <h1>Privacy Policy</h1>
+            <p>Zvipfuwo Livestock Management System. Last Updated: June 15, 2026. Version 1.0.0</p>
+        </div>
+
+        <input type="text" id="search" class="search-box" placeholder="Search sections (e.g. Supabase, camera, delete)...">
+
+        <div id="content">
+            <div class="section" id="sec-1">
+                <h2>1. Introduction</h2>
+                <p>Welcome to Zvipfuwo, a Livestock Management System designed to help farmers organize and track their livestock records. We are committed to protecting your personal information and agricultural records.</p>
+                <p>By using Zvipfuwo, you consent to the data practices described in this policy.</p>
+            </div>
+
+            <div class="section" id="sec-2">
+                <h2>2. Information We Collect</h2>
+                <p>We collect information you directly provide when setting up and using the app:</p>
+                <div class="accordion">
+                    <div class="accordion-item">
+                        <button class="accordion-header">Account Details <span>+</span></button>
+                        <div class="accordion-content">
+                            When creating your account, we collect your email address, full name, password, and farm role (Farmer or Administrator) to set up your profile.
+                        </div>
+                    </div>
+                    <div class="accordion-item">
+                        <button class="accordion-header">Livestock Records <span>+</span></button>
+                        <div class="accordion-content">
+                            We store livestock profiles, health logs, weight/growth statistics, breeding/pregnancy records, feed inventories, transactions, and farm inspection details that you log in the app.
+                        </div>
+                    </div>
+                    <div class="accordion-item">
+                        <button class="accordion-header">Device Permissions <span>+</span></button>
+                        <div class="accordion-content">
+                            We request Camera permissions to scan ear tag barcodes/QR codes or take animal pictures, and Local Notifications to send task alarms.
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="section" id="sec-3">
+                <h2>3. Data Isolation & Security</h2>
+                <p>Your livestock data is highly sensitive. We apply the highest security standards:</p>
+                <div class="highlight">
+                    <h4>PostgreSQL Row-Level Security (RLS)</h4>
+                    <p>Zvipfuwo uses PostgreSQL RLS on all tables. This ensures your records are locked to your user account, preventing any other user from accessing or reading your farm data.</p>
+                </div>
+                <p>Furthermore, all network requests between the app and database are encrypted using SSL/HTTPS protocols, and passwords are salted and hashed cryptographically.</p>
+            </div>
+
+            <div class="section" id="sec-4">
+                <h2>4. Third-Party Services</h2>
+                <p>We do not sell or lease your personal data. We utilize trusted infrastructure to operate:</p>
+                <ul>
+                    <li><strong>Supabase:</strong> For database hosting, secure authentication, and file storage.</li>
+                    <li><strong>Expo:</strong> For build diagnostics and crash analytics.</li>
+                </ul>
+            </div>
+
+            <div class="section" id="sec-5">
+                <h2>5. Data Rights & Erasure</h2>
+                <p>You have full ownership of your data. You may:</p>
+                <ul>
+                    <li>Access and edit all your livestock and account data.</li>
+                    <li>Request full deletion of your account. Deleting your account triggers database cascades, permanently removing all of your records.</li>
+                </ul>
+            </div>
+
+            <div class="section" id="sec-6">
+                <h2>6. Contact Us</h2>
+                <p>For any questions or requests regarding your data, please reach out to:</p>
+                <p><strong>Email:</strong> <a href="mailto:support@zvipfuwo.co.zw">support@zvipfuwo.co.zw</a></p>
+                <p><strong>Repository:</strong> <a href="https://github.com/malmanyeza/Livestock-Management-System" target="_blank">malmanyeza/Livestock-Management-System</a></p>
+            </div>
+        </div>
+
+        <footer>
+            <p>&copy; 2026 Zvipfuwo. All rights reserved.</p>
+        </footer>
+    </div>
+
+    <script>
+        // Theme Toggle
+        const themeToggle = document.getElementById('themeToggle');
+        themeToggle.addEventListener('click', () => {
+            const currentTheme = document.documentElement.getAttribute('data-theme');
+            document.documentElement.setAttribute('data-theme', currentTheme === 'dark' ? 'light' : 'dark');
+        });
+
+        // Accordion
+        document.querySelectorAll('.accordion-header').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const item = btn.parentElement;
+                item.classList.toggle('active');
+                const span = btn.querySelector('span');
+                span.textContent = item.classList.contains('active') ? '-' : '+';
+            });
+        });
+
+        // Search
+        const searchInput = document.getElementById('search');
+        const sections = document.querySelectorAll('.section');
+        searchInput.addEventListener('input', (e) => {
+            const query = e.target.value.toLowerCase();
+            sections.forEach(sec => {
+                const text = sec.textContent.toLowerCase();
+                sec.classList.toggle('hidden', !text.includes(query));
+            });
+        });
+    </script>
+</body>
+</html>
