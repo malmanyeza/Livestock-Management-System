@@ -56,3 +56,4 @@ check_counts.js
 inspect_policies.js
 register_users.js
 run_db_migration.js
+*.xlsx
