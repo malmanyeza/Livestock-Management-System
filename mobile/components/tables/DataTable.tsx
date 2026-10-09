@@ -22,8 +22,12 @@ interface DataTableProps {
 export function DataTable({ columns, data, emptyText = 'No data available', emptyState, rowStyle }: DataTableProps) {
   return (
     <View style={styles.container}>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-        <View>
+      <ScrollView 
+        horizontal 
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.scrollContent}
+      >
+        <View style={styles.tableInner}>
           {/* Header Row */}
           <View style={styles.headerRow}>
             {columns.map((column) => (
@@ -31,11 +35,11 @@ export function DataTable({ columns, data, emptyText = 'No data available', empt
                 key={column.key}
                 style={[
                   styles.headerCell,
-                  column.width ? { width: column.width, minWidth: column.width, paddingHorizontal: 8 } : {},
+                  column.width ? { width: column.width, minWidth: column.width } : { flex: 1, minWidth: 100 },
                   column.align ? { justifyContent: getAlignment(column.align) } : {},
                 ]}
               >
-                <Text variant="caption" weight="bold" color="neutral.500">
+                <Text variant="caption" weight="bold" color="neutral.500" numberOfLines={1}>
                   {column.title}
                 </Text>
               </View>
@@ -59,14 +63,14 @@ export function DataTable({ columns, data, emptyText = 'No data available', empt
                       key={`${rowIndex}-${column.key}`}
                       style={[
                         styles.dataCell,
-                        column.width ? { width: column.width, minWidth: column.width, paddingHorizontal: 8 } : {},
+                        column.width ? { width: column.width, minWidth: column.width } : { flex: 1, minWidth: 100 },
                         column.align ? { justifyContent: getAlignment(column.align) } : {},
                       ]}
                     >
                       {column.render ? (
                         column.render(row[column.key], row)
                       ) : (
-                        <Text variant="body2">{row[column.key]}</Text>
+                        <Text variant="body2" numberOfLines={1}>{row[column.key]}</Text>
                       )}
                     </View>
                   ))}
@@ -108,17 +112,25 @@ const styles = StyleSheet.create({
     borderColor: Colors.neutral[200],
     borderRadius: 8,
     overflow: 'hidden',
+    backgroundColor: Colors.white,
+  },
+  scrollContent: {
+    minWidth: '100%',
+  },
+  tableInner: {
+    minWidth: '100%',
   },
   headerRow: {
     flexDirection: 'row',
     backgroundColor: Colors.neutral[100],
     borderBottomWidth: 1,
     borderBottomColor: Colors.neutral[200],
+    minWidth: '100%',
   },
   headerCell: {
     paddingVertical: 12,
-    paddingHorizontal: 16,
-    minWidth: 100,
+    paddingHorizontal: 10,
+    minWidth: 80,
     flexDirection: 'row',
     alignItems: 'center',
   },
@@ -129,14 +141,15 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     borderBottomWidth: 1,
     borderBottomColor: Colors.neutral[200],
+    minWidth: '100%',
   },
   lastDataRow: {
     borderBottomWidth: 0,
   },
   dataCell: {
     paddingVertical: 12,
-    paddingHorizontal: 16,
-    minWidth: 100,
+    paddingHorizontal: 10,
+    minWidth: 80,
     flexDirection: 'row',
     alignItems: 'center',
   },

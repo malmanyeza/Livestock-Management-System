@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, StyleSheet, ScrollView, TouchableOpacity, Image, TouchableWithoutFeedback } from 'react-native';
+import { View, StyleSheet, ScrollView, TouchableOpacity, Image, TouchableWithoutFeedback, useWindowDimensions } from 'react-native';
 import { Text } from '../../components/typography/Text';
 import { ScreenContainer } from '../../components/layout/ScreenContainer';
 import { Card } from '../../components/ui/Card';
@@ -189,6 +189,8 @@ export default function MarketplaceScreen() {
 }
 
 function MarketplaceContent() {
+  const { width } = useWindowDimensions();
+  const isTablet = width >= 768;
   const [activeTab, setActiveTab] = useState('buy');
   const [showBuyDropdown, setShowBuyDropdown] = useState(false);
   const [showSellDropdown, setShowSellDropdown] = useState(false);
@@ -201,7 +203,7 @@ function MarketplaceContent() {
   };
 
   const renderFeedCard = (listing: typeof feedListings[0]) => (
-    <Card key={listing.id} style={styles.listingCard}>
+    <Card key={listing.id} style={[styles.listingCard, isTablet && styles.tabletCard]}>
       <Image source={{ uri: listing.image }} style={styles.listingImage} />
       <View style={styles.listingContent}>
         <View style={styles.listingHeader}>
@@ -278,7 +280,7 @@ function MarketplaceContent() {
   );
 
   const renderMilkCard = (listing: typeof milkListings[0]) => (
-    <Card key={listing.id} style={styles.listingCard}>
+    <Card key={listing.id} style={[styles.listingCard, isTablet && styles.tabletCard]}>
       <Image source={{ uri: listing.image }} style={styles.listingImage} />
       <View style={styles.listingContent}>
         <View style={styles.listingHeader}>
@@ -344,7 +346,7 @@ function MarketplaceContent() {
   );
 
   const renderListingCard = (listing: typeof listings[0]) => (
-    <Card key={listing.id} style={styles.listingCard}>
+    <Card key={listing.id} style={[styles.listingCard, isTablet && styles.tabletCard]}>
       <Image source={{ uri: listing.image }} style={styles.listingImage} />
       <View style={styles.listingContent}>
         <View style={styles.listingHeader}>
@@ -410,7 +412,7 @@ function MarketplaceContent() {
   );
 
   const renderLostFoundCard = (item: typeof lostAndFound[0]) => (
-    <Card key={item.id} style={styles.lostFoundCard}>
+    <Card key={item.id} style={[styles.lostFoundCard, isTablet && styles.tabletCard]}>
       <View style={styles.lostFoundHeader}>
         <View
           style={[
@@ -588,11 +590,11 @@ function MarketplaceContent() {
           </View>
         )}
         {activeTab === 'buy' && (
-          <>
+          <View style={isTablet ? styles.tabletGrid : undefined}>
             {selectedBuyCategory === 'Livestock' && listings.map(renderListingCard)}
             {selectedBuyCategory === 'Milk' && milkListings.map(renderMilkCard)}
             {selectedBuyCategory === 'Feed Products' && feedListings.map(renderFeedCard)}
-          </>
+          </View>
         )}
         {activeTab === 'sell' && (
           <View style={styles.sectionHeader}>
@@ -628,7 +630,9 @@ function MarketplaceContent() {
                 Report Found
               </Button>
             </View>
-            {lostAndFound.map(renderLostFoundCard)}
+            <View style={isTablet ? styles.tabletGrid : undefined}>
+              {lostAndFound.map(renderLostFoundCard)}
+            </View>
           </>
         )}
       </ScrollView>
@@ -643,22 +647,29 @@ const styles = StyleSheet.create({
   },
   tabs: {
     flexDirection: 'row',
+    backgroundColor: Colors.white,
     borderBottomWidth: 1,
     borderBottomColor: Colors.neutral[200],
+    height: 50,
+    minHeight: 50,
+    flexShrink: 0,
     marginBottom: 16,
     position: 'relative',
-    zIndex: 1,
+    zIndex: 10,
   },
   tabContainer: {
     flex: 1,
+    height: 50,
     position: 'relative',
   },
   tab: {
     flex: 1,
-    paddingVertical: 12,
+    height: 50,
     alignItems: 'center',
     flexDirection: 'row',
     justifyContent: 'center',
+    borderBottomWidth: 3,
+    borderBottomColor: 'transparent',
   },
   tabContent: {
     flexDirection: 'row',
@@ -668,13 +679,20 @@ const styles = StyleSheet.create({
     marginLeft: 4,
   },
   sectionHeader: {
-    paddingHorizontal: 16,
+    paddingHorizontal: 4,
     paddingTop: 8,
     paddingBottom: 12,
   },
   activeTab: {
-    borderBottomWidth: 2,
     borderBottomColor: Colors.primary[500],
+  },
+  tabletGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+  },
+  tabletCard: {
+    width: '48.8%',
   },
   dropdown: {
     position: 'absolute',
@@ -708,7 +726,8 @@ const styles = StyleSheet.create({
   },
   listingImage: {
     width: '100%',
-    height: 200,
+    height: 220,
+    resizeMode: 'cover',
   },
   listingContent: {
     padding: 16,
@@ -753,6 +772,9 @@ const styles = StyleSheet.create({
   sellCard: {
     padding: 24,
     alignItems: 'center',
+    maxWidth: 600,
+    alignSelf: 'center',
+    width: '100%',
   },
   sellTitle: {
     marginBottom: 8,

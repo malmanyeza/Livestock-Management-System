@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, StyleSheet, ScrollView, Dimensions, Modal, TextInput, TouchableOpacity, Platform, KeyboardAvoidingView, Alert, TouchableWithoutFeedback, Switch } from 'react-native';
+import { View, StyleSheet, ScrollView, Dimensions, Modal, TextInput, TouchableOpacity, Platform, KeyboardAvoidingView, Alert, TouchableWithoutFeedback, Switch, useWindowDimensions } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { Calendar } from 'react-native-calendars';
 import { Text } from '../../components/typography/Text';
@@ -623,6 +623,8 @@ export default function RegisterScreen() {
 }
 
 function RegisterContent() {
+  const { width } = useWindowDimensions();
+  const isTablet = width >= 768;
   const { tab } = useLocalSearchParams<{ tab?: string }>();
   const {
     animals,
@@ -6824,8 +6826,8 @@ function RegisterContent() {
             </View>
           </View>
 
-          <View style={styles.chartsContainer}>
-            <View style={styles.chart}>
+          <View style={isTablet ? styles.chartsContainerTablet : styles.chartsContainer}>
+            <View style={isTablet ? styles.chartTablet : styles.chart}>
               <Text variant="h6" weight="medium" style={styles.chartTitle}>Breed Distribution</Text>
               <PieChart
                 data={breedDistribution}
@@ -6833,7 +6835,7 @@ function RegisterContent() {
                 width={300}
               />
             </View>
-            <View style={styles.chart}>
+            <View style={isTablet ? styles.chartTablet : styles.chart}>
               <Text variant="h6" weight="medium" style={styles.chartTitle}>Source Distribution</Text>
               <PieChart
                 data={sourceDistribution}
@@ -6841,7 +6843,7 @@ function RegisterContent() {
                 width={300}
               />
             </View>
-            <View style={styles.chart}>
+            <View style={isTablet ? styles.chartTablet : styles.chart}>
               <Text variant="h6" weight="medium" style={styles.chartTitle}>Age Distribution</Text>
               <PieChart
                 data={ageDistribution}
@@ -6849,7 +6851,7 @@ function RegisterContent() {
                 width={300}
               />
             </View>
-            <View style={styles.chart}>
+            <View style={isTablet ? styles.chartTablet : styles.chart}>
               <Text variant="h6" weight="medium" style={styles.chartTitle}>Stock Type Breakdown</Text>
               <PieChart
                 data={stockTypeBreakdown}
@@ -6943,31 +6945,31 @@ function RegisterContent() {
 
             <DataTable
               columns={[
-                { key: 'count', title: 'Count', width: 60 },
-                { key: 'tag', title: 'Tag', width: 100 },
-                { key: 'age', title: 'Age', width: 90 },
-                { key: 'breed', title: 'Breed', width: 120 },
+                { key: 'count', title: 'Count', width: isTablet ? 85 : 70 },
+                { key: 'tag', title: 'Tag', width: isTablet ? 130 : 100 },
+                { key: 'age', title: 'Age', width: isTablet ? 100 : 90 },
+                { key: 'breed', title: 'Breed', width: isTablet ? 140 : 120 },
                 {
                   key: 'sex',
                   title: 'Sex',
-                  width: 90,
+                  width: isTablet ? 110 : 95,
                   render: (value: string) => (
-                    <Text color={value === 'Male' ? 'primary.500' : 'accent.500'}>{value}</Text>
+                    <Text color={value === 'Male' ? 'primary.500' : 'accent.500'} numberOfLines={1}>{value}</Text>
                   )
                 },
-                { key: 'stockType', title: 'Type', width: 120 },
-                { key: 'bcs', title: 'BCS', width: 70, render: (v: any) => <Text>{v ? Number(v).toFixed(1) : '—'}</Text> },
-                { key: 'source', title: 'Source', width: 120 },
-                { key: 'sire', title: 'Sire', width: 100, render: (v: any) => <Text>{v || '—'}</Text> },
-                { key: 'dam', title: 'Dam', width: 100, render: (v: any) => <Text>{v || '—'}</Text> },
-                { key: 'birthWeight', title: 'Birth Wt', width: 90, render: (v: any) => <Text>{v ? `${v} kg` : '—'}</Text> },
-                { key: 'dateOfWeaning', title: 'Wean Date', width: 100, render: (v: any) => <Text>{v || '—'}</Text> },
-                { key: 'weaningWeight', title: 'Wean Wt', width: 90, render: (v: any) => <Text>{v ? `${v} kg` : '—'}</Text> },
-                { key: 'description', title: 'Description', width: 150, render: (v: any) => <Text numberOfLines={1}>{v || '—'}</Text> },
+                { key: 'stockType', title: 'Type', width: isTablet ? 130 : 120 },
+                { key: 'bcs', title: 'BCS', width: isTablet ? 85 : 70, render: (v: any) => <Text numberOfLines={1}>{v ? Number(v).toFixed(1) : '—'}</Text> },
+                { key: 'source', title: 'Source', width: isTablet ? 140 : 120 },
+                { key: 'sire', title: 'Sire', width: isTablet ? 120 : 100, render: (v: any) => <Text numberOfLines={1}>{v || '—'}</Text> },
+                { key: 'dam', title: 'Dam', width: isTablet ? 120 : 100, render: (v: any) => <Text numberOfLines={1}>{v || '—'}</Text> },
+                { key: 'birthWeight', title: 'Birth Wt', width: isTablet ? 110 : 90, render: (v: any) => <Text numberOfLines={1}>{v ? `${v} kg` : '—'}</Text> },
+                { key: 'dateOfWeaning', title: 'Wean Date', width: isTablet ? 120 : 100, render: (v: any) => <Text numberOfLines={1}>{v || '—'}</Text> },
+                { key: 'weaningWeight', title: 'Wean Wt', width: isTablet ? 110 : 90, render: (v: any) => <Text numberOfLines={1}>{v ? `${v} kg` : '—'}</Text> },
+                { key: 'description', title: 'Description', width: isTablet ? 200 : 150, render: (v: any) => <Text numberOfLines={1}>{v || '—'}</Text> },
                 {
                   key: 'actions',
                   title: 'Actions',
-                  width: 110,
+                  width: isTablet ? 120 : 110,
                   render: (_, row: any) => (
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 16 }}>
                       <TouchableOpacity 
@@ -7031,7 +7033,7 @@ function RegisterContent() {
                 },
                 { key: 'sire', title: 'Sire ID', width: 100, render: (value: string) => <Text>{value || '-'}</Text> },
                 { key: 'dam', title: 'Dam ID', width: 100, render: (value: string) => <Text>{value || '-'}</Text> },
-                { key: 'sex', title: 'Sex', width: 70, render: (value: string) => (
+                { key: 'sex', title: 'Sex', width: isTablet ? 100 : 85, render: (value: string) => (
                   <Text color={value === 'Male' ? 'primary.500' : 'accent.500'}>{value}</Text>
                 )},
                 { key: 'age', title: 'Age', width: 70, render: (value: string) => <Text>{value}</Text> },
@@ -7099,52 +7101,50 @@ function RegisterContent() {
               </Button>
             }
           >
-            <ScrollView horizontal showsHorizontalScrollIndicator={true}>
-              <DataTable
-                columns={[
-                  { key: 'date', title: 'Date', width: 100 },
-                  { key: 'animalId', title: 'Animal ID', width: 120, render: (value: string) => {
-                    const isAll = value?.toLowerCase() === 'all';
-                    if (isAll) {
-                      return (
-                        <View style={[styles.statusBadge, { backgroundColor: '#DCF7E8', borderColor: '#9FE4C1', borderWidth: 1, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 12 }]}>
-                          <Text variant="caption" style={{ color: Colors.success[700], fontWeight: 'bold' }}>👥 All Herd</Text>
-                        </View>
-                      );
-                    }
-                    return <Text style={{ fontFamily: 'monospace' }}>🏷️ {value}</Text>;
-                  }},
-                  { key: 'treatment', title: 'Treatment', width: 160 },
-                  { key: 'doneBy', title: 'Done By', width: 120 },
-                  { key: 'specialNotes', title: 'Special Notes', width: 180 },
-                  { key: 'status', title: 'Status', width: 100, render: (value: string) => (
-                    <View style={[styles.statusBadge, {
-                      backgroundColor: value === 'Completed' ? '#DCF7E8' : value === 'Scheduled' ? '#E0F2FE' : '#FEF3C7',
-                    }]}>
-                      <Text variant="caption" style={{
-                        color: value === 'Completed' ? Colors.success[700] : value === 'Scheduled' ? Colors.primary[700] : Colors.warning[700],
-                        fontWeight: '500',
-                      }}>{value}</Text>
-                    </View>
-                  )},
-                  {
-                    key: 'actions',
-                    title: 'Actions',
-                    width: 80,
-                    render: (_, row: any) => (
-                      <TouchableOpacity 
-                        onPress={() => handleEditHealthRecord(row)}
-                        hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
-                        style={{ padding: 4 }}
-                      >
-                        <Pencil size={18} color={Colors.primary[500]} />
-                      </TouchableOpacity>
-                    )
-                  },
-                ]}
-                data={healthRecords}
-              />
-            </ScrollView>
+            <DataTable
+              columns={[
+                { key: 'date', title: 'Date', width: 100 },
+                { key: 'animalId', title: 'Animal ID', width: 120, render: (value: string) => {
+                  const isAll = value?.toLowerCase() === 'all';
+                  if (isAll) {
+                    return (
+                      <View style={[styles.statusBadge, { backgroundColor: '#DCF7E8', borderColor: '#9FE4C1', borderWidth: 1, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 12 }]}>
+                        <Text variant="caption" style={{ color: Colors.success[700], fontWeight: 'bold' }}>👥 All Herd</Text>
+                      </View>
+                    );
+                  }
+                  return <Text style={{ fontFamily: 'monospace' }}>🏷️ {value}</Text>;
+                }},
+                { key: 'treatment', title: 'Treatment', width: 160 },
+                { key: 'doneBy', title: 'Done By', width: 120 },
+                { key: 'specialNotes', title: 'Special Notes', width: 180 },
+                { key: 'status', title: 'Status', width: 100, render: (value: string) => (
+                  <View style={[styles.statusBadge, {
+                    backgroundColor: value === 'Completed' ? '#DCF7E8' : value === 'Scheduled' ? '#E0F2FE' : '#FEF3C7',
+                  }]}>
+                    <Text variant="caption" style={{
+                      color: value === 'Completed' ? Colors.success[700] : value === 'Scheduled' ? Colors.primary[700] : Colors.warning[700],
+                      fontWeight: '500',
+                    }}>{value}</Text>
+                  </View>
+                )},
+                {
+                  key: 'actions',
+                  title: 'Actions',
+                  width: 80,
+                  render: (_, row: any) => (
+                    <TouchableOpacity 
+                      onPress={() => handleEditHealthRecord(row)}
+                      hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
+                      style={{ padding: 4 }}
+                    >
+                      <Pencil size={18} color={Colors.primary[500]} />
+                    </TouchableOpacity>
+                  )
+                },
+              ]}
+              data={healthRecords}
+            />
           </Card>
         )}
 
@@ -7159,51 +7159,49 @@ function RegisterContent() {
               </Button>
             }
           >
-            <ScrollView horizontal showsHorizontalScrollIndicator={true}>
-              <DataTable
-                columns={[
-                  { key: 'earTagNumber', title: 'Ear Tag', width: 90 },
-                  { key: 'stockType', title: 'Stock Type', width: 120 },
-                  { key: 'bodyConditionScore', title: 'BCS', width: 70, render: (value: number) => <Text>{value?.toFixed(1)}</Text> },
-                  { key: 'heatDetectionDate', title: 'Heat Detected', width: 100 },
-                  { key: 'observer', title: 'Observer', width: 100 },
-                  { key: 'servicedDate', title: 'Serviced Date', width: 100 },
-                  { key: 'breedingStatus', title: 'Status', width: 100, render: (value: string) => (
-                    <Text color={
-                      value === 'Confirmed Pregnant' ? 'success.500' :
-                      value === 'Bred' ? 'primary.500' :
-                      value === 'Open' ? 'warning.500' : 'error.500'
-                    }>{value}</Text>
-                  )},
-                  { key: 'breedingMethod', title: 'Method', width: 90 },
-                  { key: 'aiTechnician', title: 'AI Tech', width: 100 },
-                  { key: 'sireId', title: 'Sire/Straw ID', width: 120, render: (_: any, record: HeatBreedingRecord) => (
-                    <Text>{record.breedingMethod === 'AI' ? `${record.sireId || ''} / ${record.strawId || ''}` : record.sireId || ''}</Text>
-                  )},
-                  { key: 'semenViability', title: 'Viability %', width: 90, render: (value: number) => <Text>{value ? `${value}%` : 'N/A'}</Text> },
-                  { key: 'returnToHeatDate1', title: 'Return to Heat 1', width: 110 },
-                  { key: 'dateServed2', title: 'Date Served 2', width: 100 },
-                  { key: 'breedingMethod2', title: 'Method 2', width: 90 },
-                  { key: 'sireUsed2', title: 'Sire Used 2', width: 100 },
-                  { key: 'returnToHeatDate2', title: 'Return to Heat 2', width: 200 },
-                  {
-                    key: 'actions',
-                    title: 'Actions',
-                    width: 80,
-                    render: (_, row: any) => (
-                      <TouchableOpacity 
-                        onPress={() => handleEditBreedingRecord(row)}
-                        hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
-                        style={{ padding: 4 }}
-                      >
-                        <Pencil size={18} color={Colors.primary[500]} />
-                      </TouchableOpacity>
-                    )
-                  },
-                ]}
-                data={heatBreedingRecords}
-              />
-            </ScrollView>
+            <DataTable
+              columns={[
+                { key: 'earTagNumber', title: 'Ear Tag', width: 90 },
+                { key: 'stockType', title: 'Stock Type', width: 120 },
+                { key: 'bodyConditionScore', title: 'BCS', width: 70, render: (value: number) => <Text>{value?.toFixed(1)}</Text> },
+                { key: 'heatDetectionDate', title: 'Heat Detected', width: 100 },
+                { key: 'observer', title: 'Observer', width: 100 },
+                { key: 'servicedDate', title: 'Serviced Date', width: 100 },
+                { key: 'breedingStatus', title: 'Status', width: 100, render: (value: string) => (
+                  <Text color={
+                    value === 'Confirmed Pregnant' ? 'success.500' :
+                    value === 'Bred' ? 'primary.500' :
+                    value === 'Open' ? 'warning.500' : 'error.500'
+                  }>{value}</Text>
+                )},
+                { key: 'breedingMethod', title: 'Method', width: 90 },
+                { key: 'aiTechnician', title: 'AI Tech', width: 100 },
+                { key: 'sireId', title: 'Sire/Straw ID', width: 120, render: (_: any, record: HeatBreedingRecord) => (
+                  <Text>{record.breedingMethod === 'AI' ? `${record.sireId || ''} / ${record.strawId || ''}` : record.sireId || ''}</Text>
+                )},
+                { key: 'semenViability', title: 'Viability %', width: 90, render: (value: number) => <Text>{value ? `${value}%` : 'N/A'}</Text> },
+                { key: 'returnToHeatDate1', title: 'Return to Heat 1', width: 110 },
+                { key: 'dateServed2', title: 'Date Served 2', width: 100 },
+                { key: 'breedingMethod2', title: 'Method 2', width: 90 },
+                { key: 'sireUsed2', title: 'Sire Used 2', width: 100 },
+                { key: 'returnToHeatDate2', title: 'Return to Heat 2', width: 200 },
+                {
+                  key: 'actions',
+                  title: 'Actions',
+                  width: 80,
+                  render: (_, row: any) => (
+                    <TouchableOpacity 
+                      onPress={() => handleEditBreedingRecord(row)}
+                      hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
+                      style={{ padding: 4 }}
+                    >
+                      <Pencil size={18} color={Colors.primary[500]} />
+                    </TouchableOpacity>
+                  )
+                },
+              ]}
+              data={heatBreedingRecords}
+            />
           </Card>
         )}
 
@@ -7218,49 +7216,47 @@ function RegisterContent() {
               </Button>
             }
           >
-            <ScrollView horizontal showsHorizontalScrollIndicator={true}>
-              <DataTable
-                columns={[
-                  { key: 'cowEarTag', title: 'Cow Ear Tag', width: 100 },
-                  { key: 'bodyConditionScore', title: 'BCS at Service', width: 110 },
-                  { key: 'lastServiceDate', title: 'Last Service', width: 100 },
-                  { key: 'firstTrimesterPD', title: '1st Tri PD', width: 90, render: (value: string) => (
-                    <Text color={value === 'Positive' ? 'success.500' : value === 'Negative' ? 'error.500' : value === 'Inconclusive' ? 'warning.500' : 'neutral.500'}>{value}</Text>
-                  )},
-                  { key: 'secondTrimesterPD', title: '2nd Tri PD', width: 90, render: (value: string) => (
-                    <Text color={value === 'Positive' ? 'success.500' : value === 'Negative' ? 'error.500' : value === 'Inconclusive' ? 'warning.500' : 'neutral.500'}>{value}</Text>
-                  )},
-                  { key: 'thirdTrimesterPD', title: '3rd Tri PD', width: 90, render: (value: string) => (
-                    <Text color={value === 'Positive' ? 'success.500' : value === 'Negative' ? 'error.500' : value === 'Inconclusive' ? 'warning.500' : 'neutral.500'}>{value}</Text>
-                  )},
-                  { key: 'gestationPeriod', title: 'Gestation (days)', width: 100 },
-                  { key: 'expectedCalvingDate', title: 'Exp. Calving', width: 150 },
-                  { key: 'actualCalvingDate', title: 'Actual Calving', width: 200 },
-                  { key: 'calfId', title: 'Calf ID', width: 100 },
-                  { key: 'calfSex', title: 'Calf Sex', width: 90 },
-                  { key: 'deliveryType', title: 'Delivery', width: 110 },
-                  { key: 'averageBCS', title: 'BCS at Calving', width: 110, render: (value: number) => (
-                    <Text>{value !== null && value !== undefined ? value.toFixed(1) : '-'}</Text>
-                  )},
-                  { key: 'expectedReturnToHeatDate', title: 'Exp. Return to Heat', width: 160 },
-                  {
-                    key: 'actions',
-                    title: 'Actions',
-                    width: 80,
-                    render: (_, row: any) => (
-                      <TouchableOpacity 
-                        onPress={() => handleEditPregnancyRecord(row)}
-                        hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
-                        style={{ padding: 4 }}
-                      >
-                        <Pencil size={18} color={Colors.primary[500]} />
-                      </TouchableOpacity>
-                    )
-                  },
-                ]}
-                data={pregnancyCalvingRecords}
-              />
-            </ScrollView>
+            <DataTable
+              columns={[
+                { key: 'cowEarTag', title: 'Cow Ear Tag', width: 100 },
+                { key: 'bodyConditionScore', title: 'BCS at Service', width: 110 },
+                { key: 'lastServiceDate', title: 'Last Service', width: 100 },
+                { key: 'firstTrimesterPD', title: '1st Tri PD', width: 90, render: (value: string) => (
+                  <Text color={value === 'Positive' ? 'success.500' : value === 'Negative' ? 'error.500' : value === 'Inconclusive' ? 'warning.500' : 'neutral.500'}>{value}</Text>
+                )},
+                { key: 'secondTrimesterPD', title: '2nd Tri PD', width: 90, render: (value: string) => (
+                  <Text color={value === 'Positive' ? 'success.500' : value === 'Negative' ? 'error.500' : value === 'Inconclusive' ? 'warning.500' : 'neutral.500'}>{value}</Text>
+                )},
+                { key: 'thirdTrimesterPD', title: '3rd Tri PD', width: 90, render: (value: string) => (
+                  <Text color={value === 'Positive' ? 'success.500' : value === 'Negative' ? 'error.500' : value === 'Inconclusive' ? 'warning.500' : 'neutral.500'}>{value}</Text>
+                )},
+                { key: 'gestationPeriod', title: 'Gestation (days)', width: 100 },
+                { key: 'expectedCalvingDate', title: 'Exp. Calving', width: 150 },
+                { key: 'actualCalvingDate', title: 'Actual Calving', width: 200 },
+                { key: 'calfId', title: 'Calf ID', width: 100 },
+                { key: 'calfSex', title: 'Calf Sex', width: 90 },
+                { key: 'deliveryType', title: 'Delivery', width: 110 },
+                { key: 'averageBCS', title: 'BCS at Calving', width: 110, render: (value: number) => (
+                  <Text>{value !== null && value !== undefined ? value.toFixed(1) : '-'}</Text>
+                )},
+                { key: 'expectedReturnToHeatDate', title: 'Exp. Return to Heat', width: 160 },
+                {
+                  key: 'actions',
+                  title: 'Actions',
+                  width: 80,
+                  render: (_, row: any) => (
+                    <TouchableOpacity 
+                      onPress={() => handleEditPregnancyRecord(row)}
+                      hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
+                      style={{ padding: 4 }}
+                    >
+                      <Pencil size={18} color={Colors.primary[500]} />
+                    </TouchableOpacity>
+                  )
+                },
+              ]}
+              data={pregnancyCalvingRecords}
+            />
           </Card>
         )}
 
@@ -7328,42 +7324,40 @@ function RegisterContent() {
               </Button>
             }
           >
-            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-              <DataTable
-                columns={[
-                  { key: 'id', title: 'ID', width: 80 },
-                  { key: 'stockType', title: 'Type', width: 80 },
-                  { key: 'age', title: 'Age', width: 80 },
-                  { key: 'jan', title: 'Jan', width: 70 },
-                  { key: 'feb', title: 'Feb', width: 70 },
-                  { key: 'mar', title: 'Mar', width: 70 },
-                  { key: 'apr', title: 'Apr', width: 70 },
-                  { key: 'may', title: 'May', width: 70 },
-                  { key: 'jun', title: 'Jun', width: 70 },
-                  { key: 'jul', title: 'Jul', width: 70 },
-                  { key: 'aug', title: 'Aug', width: 70 },
-                  { key: 'sep', title: 'Sep', width: 70 },
-                  { key: 'oct', title: 'Oct', width: 70 },
-                  { key: 'nov', title: 'Nov', width: 70 },
-                  { key: 'dec', title: 'Dec', width: 70 },
-                  {
-                    key: 'actions',
-                    title: 'Actions',
-                    width: 80,
-                    render: (_, row: any) => (
-                      <TouchableOpacity 
-                        onPress={() => handleEditWeightRecord(row)}
-                        hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
-                        style={{ padding: 4 }}
-                      >
-                        <Pencil size={18} color={Colors.primary[500]} />
-                      </TouchableOpacity>
-                    )
-                  },
-                ]}
-                data={weightRecords}
-              />
-            </ScrollView>
+            <DataTable
+              columns={[
+                { key: 'id', title: 'ID', width: 80 },
+                { key: 'stockType', title: 'Type', width: 80 },
+                { key: 'age', title: 'Age', width: 80 },
+                { key: 'jan', title: 'Jan', width: 70 },
+                { key: 'feb', title: 'Feb', width: 70 },
+                { key: 'mar', title: 'Mar', width: 70 },
+                { key: 'apr', title: 'Apr', width: 70 },
+                { key: 'may', title: 'May', width: 70 },
+                { key: 'jun', title: 'Jun', width: 70 },
+                { key: 'jul', title: 'Jul', width: 70 },
+                { key: 'aug', title: 'Aug', width: 70 },
+                { key: 'sep', title: 'Sep', width: 70 },
+                { key: 'oct', title: 'Oct', width: 70 },
+                { key: 'nov', title: 'Nov', width: 70 },
+                { key: 'dec', title: 'Dec', width: 70 },
+                {
+                  key: 'actions',
+                  title: 'Actions',
+                  width: 80,
+                  render: (_, row: any) => (
+                    <TouchableOpacity 
+                      onPress={() => handleEditWeightRecord(row)}
+                      hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
+                      style={{ padding: 4 }}
+                    >
+                      <Pencil size={18} color={Colors.primary[500]} />
+                    </TouchableOpacity>
+                  )
+                },
+              ]}
+              data={weightRecords}
+            />
           </Card>
         )}
 
@@ -7838,8 +7832,18 @@ const styles = StyleSheet.create({
     gap: 16,
     width: '100%',
   },
+  chartsContainerTablet: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 16,
+    width: '100%',
+  },
   chart: {
     width: '100%',
+    alignItems: 'center',
+  },
+  chartTablet: {
+    width: '48.5%',
     alignItems: 'center',
   },
   chartTitle: {
@@ -7877,19 +7881,23 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.white,
     borderBottomWidth: 1,
     borderBottomColor: Colors.neutral[200],
-    maxHeight: 48,
+    height: 50,
+    minHeight: 50,
     flexGrow: 0,
     flexShrink: 0,
   },
   tabBarContent: {
     paddingHorizontal: 8,
     alignItems: 'center',
+    height: 50,
   },
   tab: {
     paddingHorizontal: 16,
-    paddingVertical: 12,
+    height: 50,
+    justifyContent: 'center',
+    alignItems: 'center',
     marginRight: 4,
-    borderBottomWidth: 2,
+    borderBottomWidth: 3,
     borderBottomColor: 'transparent',
   },
   activeTab: {
