@@ -1,0 +1,24 @@
+# Ignore dependencies and builds
+node_modules/
+.expo/
+dist/
+web-build/
+*.tsbuildinfo
+
+# Ignore non-mobile folders and store assets from build tarball
+../dashboard/
+../docs/
+../playstore_assets/
+../appstore_assets/
+dashboard/
+docs/
+playstore_assets/
+appstore_assets/
+
+# Ignore local keys and env
+.env
+.env*.local
+*.pem
+
+# macOS
+.DS_Store
