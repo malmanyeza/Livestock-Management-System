@@ -957,33 +957,46 @@ export const FarmDataProvider: React.FC<{ children: ReactNode }> = ({ children }
     const loadSession = async () => {
       setLoadingAuth(true);
       try {
-        const { data: { session: currentSession } } = await client.auth.getSession();
+        // Enforce a 3.5s timeout on getSession so slow network never hangs auth initialization
+        const sessionPromise = client.auth.getSession();
+        const timeoutPromise = new Promise<{ data: { session: null } }>((resolve) =>
+          setTimeout(() => resolve({ data: { session: null } }), 3500)
+        );
+        const { data: { session: currentSession } } = await Promise.race([sessionPromise, timeoutPromise]);
+
         setSession(currentSession);
         setUser(currentSession?.user ?? null);
         
+        // Unblock auth loading immediately so the screen can render and redirect without freezing
+        setLoadingAuth(false);
+        
         if (currentSession?.user) {
-          const { data: prof, error } = await client
-            .from('profiles')
-            .select('*')
-            .eq('id', currentSession.user.id)
-            .maybeSingle();
-          
-          if (prof) {
-            const profWithExtras = await loadProfileWithExtras(prof);
-            setProfile(profWithExtras);
-            if (prof.current_production_year) {
-              setSelectedProductionYear(prof.current_production_year);
-            }
-            if (prof.role === 'admin') {
-              const { data: farmersData } = await client
-                .from('profiles')
-                .select('*')
-                .eq('role', 'farmer');
-              setFarmers((farmersData as Profile[]) || []);
-              if (farmersData && farmersData.length > 0) {
-                setSelectedFarmer(farmersData[0] as Profile);
+          try {
+            const { data: prof, error } = await client
+              .from('profiles')
+              .select('*')
+              .eq('id', currentSession.user.id)
+              .maybeSingle();
+            
+            if (prof) {
+              const profWithExtras = await loadProfileWithExtras(prof);
+              setProfile(profWithExtras);
+              if (prof.current_production_year) {
+                setSelectedProductionYear(prof.current_production_year);
+              }
+              if (prof.role === 'admin') {
+                const { data: farmersData } = await client
+                  .from('profiles')
+                  .select('*')
+                  .eq('role', 'farmer');
+                setFarmers((farmersData as Profile[]) || []);
+                if (farmersData && farmersData.length > 0) {
+                  setSelectedFarmer(farmersData[0] as Profile);
+                }
               }
             }
+          } catch (profileErr) {
+            console.error("Error loading profile in loadSession:", profileErr);
           }
         }
       } catch (err) {

@@ -30,39 +30,64 @@ SplashScreen.preventAutoHideAsync().catch(() => {
   /* Catch and ignore reload errors in development mode */
 });
 
-function AuthGuard({ children }: { children: React.ReactNode }) {
+function RootNavigation() {
   const { user, loadingAuth } = useFarmData();
   const segments = useSegments();
 
+  // Failsafe timeout to prevent splash screen from ever staying frozen indefinitely
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      SplashScreen.hideAsync().catch(() => {});
+    }, 2000);
+    return () => clearTimeout(timer);
+  }, []);
+
+  // Hide splash screen as soon as auth initialization resolves
   useEffect(() => {
     if (!loadingAuth) {
-      SplashScreen.hideAsync().catch(() => {
-        /* Catch and ignore hide errors */
-      });
+      SplashScreen.hideAsync().catch(() => {});
     }
   }, [loadingAuth]);
 
-  if (loadingAuth) {
-    return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: Colors.white }}>
-        <ActivityIndicator size="large" color={Colors.primary[500]} />
-      </View>
-    );
-  }
+  // Handle protected route navigation without unmounting the Stack navigator
+  useEffect(() => {
+    if (loadingAuth) return;
 
-  const inAuthGroup = segments[0] === '(auth)';
+    const inAuthGroup = segments[0] === '(auth)';
 
-  if (!user && !inAuthGroup) {
-    // Not logged in and trying to access protected screens → redirect to login
-    return <Redirect href="/(auth)/login" />;
-  }
+    if (!user && !inAuthGroup) {
+      router.replace('/(auth)/login');
+    } else if (user && inAuthGroup) {
+      router.replace('/(tabs)');
+    }
+  }, [user, loadingAuth, segments]);
 
-  if (user && inAuthGroup) {
-    // Already logged in but on auth screens → redirect to app
-    return <Redirect href="/(tabs)" />;
-  }
-
-  return <>{children}</>;
+  return (
+    <Stack
+      screenOptions={{
+        header: (props) => <CustomHeader {...props} />,
+        headerTitleStyle: {
+          fontFamily: 'System',
+          fontSize: 18,
+          fontWeight: '600',
+        },
+        headerShadowVisible: false,
+        headerTintColor: Colors.neutral[900],
+        headerBackTitle: 'Back',
+        headerStyle: {
+          backgroundColor: Colors.white,
+        },
+        contentStyle: {
+          backgroundColor: Colors.neutral[50],
+        },
+      }}
+    >
+      <Stack.Screen name="index" options={{ headerShown: false }} />
+      <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+      <Stack.Screen name="(auth)" options={{ headerShown: false }} />
+      <Stack.Screen name="+not-found" options={{ presentation: 'modal' }} />
+    </Stack>
+  );
 }
 
 // Custom Header component to resolve status bar overlapping
@@ -122,31 +147,7 @@ export default function RootLayout() {
   return (
     <SafeAreaProvider>
       <FarmDataProvider>
-        <AuthGuard>
-          <Stack
-            screenOptions={{
-              header: (props) => <CustomHeader {...props} />,
-              headerTitleStyle: {
-                fontFamily: 'System',
-                fontSize: 18,
-                fontWeight: '600',
-              },
-              headerShadowVisible: false,
-              headerTintColor: Colors.neutral[900],
-              headerBackTitle: 'Back',
-              headerStyle: {
-                backgroundColor: Colors.white,
-              },
-              contentStyle: {
-                backgroundColor: Colors.neutral[50],
-              },
-            }}
-          >
-            <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-            <Stack.Screen name="(auth)" options={{ headerShown: false }} />
-            <Stack.Screen name="+not-found" options={{ presentation: 'modal' }} />
-          </Stack>
-        </AuthGuard>
+        <RootNavigation />
         <StatusBar style="dark" />
       </FarmDataProvider>
     </SafeAreaProvider>

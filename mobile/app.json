@@ -2,7 +2,7 @@
   "expo": {
     "name": "Zvipfuwo",
     "slug": "zvipfuwo",
-    "version": "1.1.0",
+    "version": "1.1.1",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "myapp",
@@ -16,7 +16,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.app.zvipfuwo",
-      "buildNumber": "26",
+      "buildNumber": "27",
       "appleTeamId": "7VMDNCDD9H",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
@@ -44,7 +44,7 @@
     },
     "android": {
       "package": "com.app.zvipfuwo",
-      "versionCode": 18
+      "versionCode": 19
     }
   }
 }
