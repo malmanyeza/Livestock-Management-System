@@ -1,21 +1,23 @@
-# Ignore dependencies and builds
+# Dependencies & caches
 node_modules/
 .expo/
 dist/
 web-build/
 *.tsbuildinfo
 
+# Ignore heavy iOS Pods and build folders
+ios/Pods/
+ios/build/
+**/Pods/
+**/build/
+
 # Ignore non-mobile folders and store assets from build tarball
-../dashboard/
-../docs/
-../playstore_assets/
-../appstore_assets/
 dashboard/
 docs/
 playstore_assets/
 appstore_assets/
 
-# Ignore local keys and env
+# Local env & keys
 .env
 .env*.local
 *.pem
