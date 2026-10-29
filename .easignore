@@ -1,0 +1,25 @@
+# Ignore web dashboard and documentation
+dashboard/
+docs/
+
+# Ignore marketing and store submission screenshots/assets
+appstore_assets/
+playstore_assets/
+
+# Ignore node_modules
+**/node_modules/
+node_modules/
+
+# Ignore build artifacts
+.expo/
+dist/
+web-build/
+*.tsbuildinfo
+
+# Ignore local env and keys
+.env
+.env*.local
+*.pem
+
+# macOS
+.DS_Store
