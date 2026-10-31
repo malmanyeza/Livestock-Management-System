@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { View, StyleSheet, TouchableOpacity, ScrollView, Dimensions, Platform, Text as RNText, Modal, TextInput } from 'react-native';
 
 import { router } from 'expo-router';
-import { Heart, Dna, Wheat, BarChart3, ClipboardList, FileEdit, ShoppingCart, User, TrendingUp, TrendingDown, ShieldCheck, ChevronDown, ChevronLeft, ChevronRight, Search, X, Check, Settings, Users } from 'lucide-react-native';
+import { Heart, Dna, Wheat, BarChart3, ClipboardList, FileEdit, ShoppingCart, User, TrendingUp, TrendingDown, ShieldCheck, ChevronDown, ChevronLeft, ChevronRight, Search, X, Check, Settings, Users, WifiOff, RefreshCw } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Text } from '../../components/typography/Text';
 import { ScreenContainer } from '../../components/layout/ScreenContainer';
@@ -225,7 +225,7 @@ function CustomBarChart({ data, width, height }: { data: any; width: number; hei
 }
 
 export default function HomeScreen() {
-  const { metrics, animals, profile, farmers, selectedFarmer, setSelectedFarmer, todoList, mortalityRecords, selectedProductionYear, setSelectedProductionYear } = useFarmData();
+  const { metrics, animals, profile, farmers, selectedFarmer, setSelectedFarmer, todoList, mortalityRecords, selectedProductionYear, setSelectedProductionYear, isOffline, lastSyncTime, refreshData } = useFarmData();
   const aliveAnimals = React.useMemo(() => {
     if (!animals) return [];
     const deadTags = new Set(mortalityRecords ? mortalityRecords.map(m => m.animalId).filter(Boolean) : []);
@@ -472,6 +472,41 @@ export default function HomeScreen() {
           </View>
           <View style={styles.headerIcons} />
         </View>
+
+        {/* Offline Banner */}
+        {isOffline && (
+          <View style={styles.offlineBanner}>
+            <View style={styles.offlineBannerLeft}>
+              <View style={styles.offlineIconContainer}>
+                <WifiOff size={16} color="#D97706" />
+              </View>
+              <View style={{ marginLeft: 10, flex: 1 }}>
+                <Text variant="caption" weight="bold" style={{ color: '#92400E' }}>
+                  Offline Mode • Local Cache
+                </Text>
+                {lastSyncTime ? (
+                  <Text variant="caption" style={{ color: '#B45309', fontSize: 11 }}>
+                    Last collected: {new Date(lastSyncTime).toLocaleDateString()} at {new Date(lastSyncTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                  </Text>
+                ) : (
+                  <Text variant="caption" style={{ color: '#B45309', fontSize: 11 }}>
+                    Viewing locally saved data
+                  </Text>
+                )}
+              </View>
+            </View>
+            <TouchableOpacity 
+              style={styles.syncButton}
+              onPress={() => refreshData()}
+              activeOpacity={0.7}
+            >
+              <RefreshCw size={13} color="#92400E" />
+              <Text variant="caption" weight="bold" style={{ color: '#92400E', marginLeft: 4 }}>
+                Sync
+              </Text>
+            </TouchableOpacity>
+          </View>
+        )}
 
         {/* Admin Farmer Selector Panel */}
         {isAdmin && (
@@ -1238,5 +1273,39 @@ const styles = StyleSheet.create({
     paddingVertical: 20,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  offlineBanner: {
+    marginHorizontal: 16,
+    marginBottom: 12,
+    padding: 12,
+    backgroundColor: '#FEF3C7',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#FDE68A',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  offlineBannerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+    marginRight: 8,
+  },
+  offlineIconContainer: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#FDE68A',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  syncButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FDE68A',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
   },
 });

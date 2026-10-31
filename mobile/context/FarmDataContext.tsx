@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef, ReactNode } from 'react';
 import { supabase } from '../utils/supabase';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
@@ -378,6 +378,11 @@ interface FarmDataContextProps {
   logout: () => Promise<void>;
   deleteAccount: () => Promise<void>;
   updateProfile: (updates: Partial<Profile>) => Promise<void>;
+  
+  // Offline & Local Cache States
+  isOffline: boolean;
+  lastSyncTime: string | null;
+  refreshData: () => Promise<void>;
   
   // Actions
   addAnimal: (animal: Omit<Animal, 'id'>) => Promise<void>;
@@ -910,6 +915,9 @@ export const FarmDataProvider: React.FC<{ children: ReactNode }> = ({ children }
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loadingAuth, setLoadingAuth] = useState(true);
   const [loadingData, setLoadingData] = useState(false);
+  const [isOffline, setIsOffline] = useState(false);
+  const [lastSyncTime, setLastSyncTime] = useState<string | null>(null);
+  const isDataLoadedRef = useRef(false);
   const [farmers, setFarmers] = useState<Profile[]>([]);
   const [selectedFarmer, setSelectedFarmer] = useState<Profile | null>(null);
   const [selectedProductionYear, setSelectedProductionYear] = useState<number>(2026);
@@ -971,16 +979,61 @@ export const FarmDataProvider: React.FC<{ children: ReactNode }> = ({ children }
         setLoadingAuth(false);
         
         if (currentSession?.user) {
+          const userId = currentSession.user.id;
+
+          // 1. First, instantly read cached profile & farmers from AsyncStorage for offline resilience
           try {
-            const { data: prof, error } = await client
+            const [cachedProfileStr, cachedFarmersStr, cachedFarmerIdStr, cachedYearStr] = await Promise.all([
+              AsyncStorage.getItem(`@farm_cache_profile_${userId}`),
+              AsyncStorage.getItem(`@farm_cache_farmers_${userId}`),
+              AsyncStorage.getItem(`@farm_cache_selected_farmer_id_${userId}`),
+              AsyncStorage.getItem(`@farm_cache_selected_year_${userId}`)
+            ]);
+
+            if (cachedProfileStr) {
+              const cachedProf = JSON.parse(cachedProfileStr);
+              setProfile(cachedProf);
+              if (cachedProf.current_production_year) {
+                setSelectedProductionYear(cachedProf.current_production_year);
+              }
+            }
+            if (cachedYearStr) {
+              setSelectedProductionYear(Number(cachedYearStr));
+            }
+            if (cachedFarmersStr) {
+              const parsedFarmers = JSON.parse(cachedFarmersStr);
+              setFarmers(parsedFarmers || []);
+              if (parsedFarmers && parsedFarmers.length > 0) {
+                if (cachedFarmerIdStr) {
+                  const matched = parsedFarmers.find((f: any) => f.id === cachedFarmerIdStr);
+                  setSelectedFarmer(matched || parsedFarmers[0]);
+                } else {
+                  setSelectedFarmer(parsedFarmers[0]);
+                }
+              }
+            }
+          } catch (cacheErr) {
+            console.error("Error loading cached profile from AsyncStorage:", cacheErr);
+          }
+
+          // 2. In the background, fetch fresh profile from Supabase (with 4s timeout)
+          try {
+            const profilePromise = client
               .from('profiles')
               .select('*')
-              .eq('id', currentSession.user.id)
+              .eq('id', userId)
               .maybeSingle();
+            const profileTimeout = new Promise<never>((_, reject) =>
+              setTimeout(() => reject(new Error('Profile fetch timeout')), 4000)
+            );
+
+            const { data: prof } = await Promise.race([profilePromise, profileTimeout]);
             
             if (prof) {
               const profWithExtras = await loadProfileWithExtras(prof);
               setProfile(profWithExtras);
+              AsyncStorage.setItem(`@farm_cache_profile_${userId}`, JSON.stringify(profWithExtras)).catch(() => {});
+
               if (prof.current_production_year) {
                 setSelectedProductionYear(prof.current_production_year);
               }
@@ -989,14 +1042,20 @@ export const FarmDataProvider: React.FC<{ children: ReactNode }> = ({ children }
                   .from('profiles')
                   .select('*')
                   .eq('role', 'farmer');
-                setFarmers((farmersData as Profile[]) || []);
-                if (farmersData && farmersData.length > 0) {
-                  setSelectedFarmer(farmersData[0] as Profile);
+                const loadedFarmers = (farmersData as Profile[]) || [];
+                setFarmers(loadedFarmers);
+                AsyncStorage.setItem(`@farm_cache_farmers_${userId}`, JSON.stringify(loadedFarmers)).catch(() => {});
+
+                if (loadedFarmers.length > 0) {
+                  const cachedFarmerId = await AsyncStorage.getItem(`@farm_cache_selected_farmer_id_${userId}`);
+                  const matched = cachedFarmerId ? loadedFarmers.find(f => f.id === cachedFarmerId) : null;
+                  setSelectedFarmer(matched || loadedFarmers[0]);
                 }
               }
             }
           } catch (profileErr) {
-            console.error("Error loading profile in loadSession:", profileErr);
+            console.warn("[FarmDataContext] Remote profile fetch failed/offline, using cached profile:", profileErr);
+            setIsOffline(true);
           }
         }
       } catch (err) {
@@ -1012,15 +1071,17 @@ export const FarmDataProvider: React.FC<{ children: ReactNode }> = ({ children }
       setSession(currentSession);
       setUser(currentSession?.user ?? null);
       if (currentSession?.user) {
+        const userId = currentSession.user.id;
         try {
           const { data: prof } = await client
             .from('profiles')
             .select('*')
-            .eq('id', currentSession.user.id)
+            .eq('id', userId)
             .maybeSingle();
           if (prof) {
             const profWithExtras = await loadProfileWithExtras(prof);
             setProfile(profWithExtras);
+            AsyncStorage.setItem(`@farm_cache_profile_${userId}`, JSON.stringify(profWithExtras)).catch(() => {});
             if (prof.current_production_year) {
               setSelectedProductionYear(prof.current_production_year);
             }
@@ -1029,10 +1090,12 @@ export const FarmDataProvider: React.FC<{ children: ReactNode }> = ({ children }
                 .from('profiles')
                 .select('*')
                 .eq('role', 'farmer');
-              setFarmers((farmersData as Profile[]) || []);
+              const loadedFarmers = (farmersData as Profile[]) || [];
+              setFarmers(loadedFarmers);
+              AsyncStorage.setItem(`@farm_cache_farmers_${userId}`, JSON.stringify(loadedFarmers)).catch(() => {});
               setSelectedFarmer(prev => {
                 if (prev) return prev;
-                return (farmersData && farmersData.length > 0) ? (farmersData[0] as Profile) : null;
+                return (loadedFarmers.length > 0) ? loadedFarmers[0] : null;
               });
             } else {
               setFarmers([]);
@@ -1061,6 +1124,9 @@ export const FarmDataProvider: React.FC<{ children: ReactNode }> = ({ children }
     setProfile(null);
     setFarmers([]);
     setSelectedFarmer(null);
+    setIsOffline(false);
+    setLastSyncTime(null);
+    isDataLoadedRef.current = false;
 
     if (supabase) {
       supabase.auth.signOut().catch(err => {
@@ -1080,153 +1146,302 @@ export const FarmDataProvider: React.FC<{ children: ReactNode }> = ({ children }
     await logout();
   };
 
+  const handleSetSelectedFarmer = (farmer: Profile | null) => {
+    setSelectedFarmer(farmer);
+    if (user?.id) {
+      if (farmer?.id) {
+        AsyncStorage.setItem(`@farm_cache_selected_farmer_id_${user.id}`, farmer.id).catch(() => {});
+      } else {
+        AsyncStorage.removeItem(`@farm_cache_selected_farmer_id_${user.id}`).catch(() => {});
+      }
+    }
+  };
+
+  const handleSetSelectedProductionYear = (year: number) => {
+    setSelectedProductionYear(year);
+    if (targetUserId) {
+      AsyncStorage.setItem(`@farm_cache_selected_year_${targetUserId}`, String(year)).catch(() => {});
+    }
+  };
+
   const targetUserId = profile?.role === 'admin' ? selectedFarmer?.id : (profile?.role === 'worker' ? profile?.farmer_id : user?.id);
 
-  // --- FETCH SCORING RECORDS BY USER_ID ---
+  // --- FETCH SCORING RECORDS BY USER_ID (WITH OFFLINE CACHING) ---
+
+  const loadData = async () => {
+    if (!supabase) return;
+
+    if (!targetUserId) {
+      setLoadingData(false);
+      return;
+    }
+
+    const yearlyKey = `@farm_cache_yearly_${targetUserId}_${selectedProductionYear}`;
+    const generalKey = `@farm_cache_general_${targetUserId}`;
+
+    // 1. Immediately read local cache from AsyncStorage so data appears with zero lag
+    let foundCachedData = false;
+    try {
+      const [cachedYearlyStr, cachedGeneralStr] = await Promise.all([
+        AsyncStorage.getItem(yearlyKey),
+        AsyncStorage.getItem(generalKey)
+      ]);
+
+      if (cachedYearlyStr) {
+        const yData = JSON.parse(cachedYearlyStr);
+        if (Array.isArray(yData.animals)) setAnimals(yData.animals);
+        if (Array.isArray(yData.healthRecords)) setHealthRecords(yData.healthRecords);
+        if (Array.isArray(yData.breedingRecords)) setBreedingRecords(yData.breedingRecords);
+        if (Array.isArray(yData.pregnancyRecords)) setPregnancyRecords(yData.pregnancyRecords);
+        if (Array.isArray(yData.feedRecords)) setFeedRecords(yData.feedRecords);
+        if (Array.isArray(yData.productionRecords)) setProductionRecords(yData.productionRecords);
+        if (Array.isArray(yData.mortalityRecords)) setMortalityRecords(yData.mortalityRecords);
+        if (Array.isArray(yData.transactions)) setTransactions(yData.transactions);
+        if (Array.isArray(yData.bullBreedingRecords)) setBullBreedingRecords(yData.bullBreedingRecords);
+        if (Array.isArray(yData.animalWeights)) setAnimalWeights(yData.animalWeights);
+        if (yData.timestamp) setLastSyncTime(yData.timestamp);
+        foundCachedData = true;
+      }
+
+      if (cachedGeneralStr) {
+        const gData = JSON.parse(cachedGeneralStr);
+        if (gData.farmInspection) setFarmInspection(gData.farmInspection);
+        if (Array.isArray(gData.drugs)) setDrugs(gData.drugs);
+        if (Array.isArray(gData.feedInventory)) setFeedInventory(gData.feedInventory);
+        if (Array.isArray(gData.farmEvents)) setFarmEvents(gData.farmEvents);
+        if (Array.isArray(gData.todoList)) setTodoList(gData.todoList);
+        if (Array.isArray(gData.observations)) setObservations(gData.observations);
+        if (gData.timestamp && !cachedYearlyStr) setLastSyncTime(gData.timestamp);
+        foundCachedData = true;
+      }
+    } catch (readErr) {
+      console.error("[FarmDataContext] Error reading local cache:", readErr);
+    }
+
+    if (foundCachedData) {
+      setLoadingData(false);
+      isDataLoadedRef.current = true;
+    } else {
+      setLoadingData(true);
+    }
+
+    // 2. Fetch fresh data from Supabase in background (with 8s timeout)
+    try {
+      console.log(`[FarmDataContext] Fetching remote tables for user_id: ${targetUserId}...`);
+      
+      const fetchPromise = Promise.all([
+        supabase.from('animals').select('*').eq('user_id', targetUserId).eq('production_year', selectedProductionYear),
+        supabase.from('health_records').select('*').eq('user_id', targetUserId).eq('production_year', selectedProductionYear),
+        supabase.from('breeding_records').select('*').eq('user_id', targetUserId).eq('production_year', selectedProductionYear),
+        supabase.from('pregnancy_records').select('*').eq('user_id', targetUserId).eq('production_year', selectedProductionYear),
+        supabase.from('feed_records').select('*').eq('user_id', targetUserId).eq('production_year', selectedProductionYear),
+        supabase.from('production_records').select('*').eq('user_id', targetUserId).eq('production_year', selectedProductionYear),
+        supabase.from('mortality_records').select('*').eq('user_id', targetUserId).eq('production_year', selectedProductionYear),
+        supabase.from('transaction_records').select('*').eq('user_id', targetUserId).eq('production_year', selectedProductionYear),
+        supabase.from('farm_inspections').select('*').eq('user_id', targetUserId).maybeSingle(),
+        supabase.from('bull_breeding_records').select('*').eq('user_id', targetUserId).eq('production_year', selectedProductionYear),
+        supabase.from('animal_weights').select('*').eq('user_id', targetUserId).eq('production_year', selectedProductionYear),
+        supabase.from('drugs').select('*').eq('user_id', targetUserId),
+        supabase.from('feed_inventory').select('*').eq('user_id', targetUserId),
+        supabase.from('farm_events').select('*').eq('user_id', targetUserId),
+        supabase.from('todo_tasks').select('*').eq('user_id', targetUserId),
+        supabase.from('observations').select('*').eq('user_id', targetUserId)
+      ]);
+
+      const timeoutPromise = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error('Network request timed out')), 8000)
+      );
+
+      const [
+        { data: ani, error: aniErr },
+        { data: hlth, error: hlthErr },
+        { data: breed, error: breedErr },
+        { data: preg, error: pregErr },
+        { data: feed, error: feedErr },
+        { data: prod, error: prodErr },
+        { data: mort, error: mortErr },
+        { data: txs, error: txsErr },
+        { data: insp, error: inspErr },
+        { data: bBreed, error: bBreedErr },
+        { data: weights, error: weightsErr },
+        { data: drgs, error: drgsErr },
+        { data: feedInv, error: feedInvErr },
+        { data: fEvts, error: fEvtsErr },
+        { data: tTasks, error: tTasksErr },
+        { data: obsvs, error: obsvsErr }
+      ] = await Promise.race([fetchPromise, timeoutPromise]);
+
+      const mappedAnimals = ani ? ani.map(mapAnimalFromDb) : [];
+      const mappedHealth = hlth ? hlth.map(mapHealthFromDb) : [];
+      const mappedBreeding = breed ? breed.map(mapBreedingFromDb) : [];
+      const mappedPregnancy = preg ? preg.map(mapPregnancyFromDb) : [];
+      const mappedFeed = feed ? feed.map(mapFeedFromDb) : [];
+      const mappedProduction = prod ? prod.map(mapProductionFromDb) : [];
+      const mappedMortality = mort ? mort.map(mapMortalityFromDb) : [];
+      const mappedTransactions = txs ? txs.map(mapTransactionFromDb) : [];
+      const mappedBullBreeding = bBreed ? bBreed.map(mapBullBreedingFromDb) : [];
+      const mappedWeights = weights ? weights.map(mapWeightFromDb) : [];
+
+      const isDemo = targetUserId === '76408c11-021a-4fdd-a17c-6b90065182b7';
+      const defaultInspection = isDemo ? initialFarmInspection : emptyFarmInspection;
+      let finalInspection = defaultInspection;
+      if (insp && insp.data) {
+        finalInspection = {
+          ...(insp.data as FarmInspection),
+          updatedAt: insp.updated_at || insp.created_at
+        };
+      } else if (!inspErr) {
+        Promise.resolve(
+          supabase.from('farm_inspections').insert({
+            user_id: targetUserId,
+            data: defaultInspection
+          })
+        ).catch((e: any) => console.error("Error inserting default farm inspection:", e));
+      }
+
+      const mappedDrugs = drgs ? drgs.map(mapDrugFromDb) : [];
+      const mappedFeedInv = feedInv ? feedInv.map(mapFeedInventoryFromDb) : [];
+      const mappedFarmEvents = fEvts ? fEvts.map(mapFarmEventFromDb) : [];
+      const mappedTodoList = tTasks ? tTasks.map(mapTodoFromDb) : [];
+      const mappedObservations = obsvs ? obsvs.map(mapObservationFromDb) : [];
+
+      // Update state with fresh DB data
+      if (!aniErr && ani) setAnimals(mappedAnimals);
+      if (!hlthErr && hlth) setHealthRecords(mappedHealth);
+      if (!breedErr && breed) setBreedingRecords(mappedBreeding);
+      if (!pregErr && preg) setPregnancyRecords(mappedPregnancy);
+      if (!feedErr && feed) setFeedRecords(mappedFeed);
+      if (!prodErr && prod) setProductionRecords(mappedProduction);
+      if (!mortErr && mort) setMortalityRecords(mappedMortality);
+      if (!txsErr && txs) setTransactions(mappedTransactions);
+      if (!bBreedErr && bBreed) setBullBreedingRecords(mappedBullBreeding);
+      if (!weightsErr && weights) setAnimalWeights(mappedWeights);
+      if (!inspErr) setFarmInspection(finalInspection);
+      if (!drgsErr && drgs) setDrugs(mappedDrugs);
+      if (!feedInvErr && feedInv) setFeedInventory(mappedFeedInv);
+      if (!fEvtsErr && fEvts) setFarmEvents(mappedFarmEvents);
+      if (!tTasksErr && tTasks) setTodoList(mappedTodoList);
+      if (!obsvsErr && obsvs) setObservations(mappedObservations);
+
+      const nowIso = new Date().toISOString();
+      setLastSyncTime(nowIso);
+      setIsOffline(false);
+      isDataLoadedRef.current = true;
+
+      // Save fresh data to local AsyncStorage cache
+      const yearlyPayload = {
+        animals: mappedAnimals,
+        healthRecords: mappedHealth,
+        breedingRecords: mappedBreeding,
+        pregnancyRecords: mappedPregnancy,
+        feedRecords: mappedFeed,
+        productionRecords: mappedProduction,
+        mortalityRecords: mappedMortality,
+        transactions: mappedTransactions,
+        bullBreedingRecords: mappedBullBreeding,
+        animalWeights: mappedWeights,
+        timestamp: nowIso
+      };
+
+      const generalPayload = {
+        farmInspection: finalInspection,
+        drugs: mappedDrugs,
+        feedInventory: mappedFeedInv,
+        farmEvents: mappedFarmEvents,
+        todoList: mappedTodoList,
+        observations: mappedObservations,
+        timestamp: nowIso
+      };
+
+      await Promise.all([
+        AsyncStorage.setItem(yearlyKey, JSON.stringify(yearlyPayload)),
+        AsyncStorage.setItem(generalKey, JSON.stringify(generalPayload))
+      ]);
+
+      console.log(`[FarmDataContext] Local cache updated successfully for ${targetUserId}`);
+    } catch (netErr) {
+      console.warn("[FarmDataContext] Network request failed or device offline. Working with local cache:", netErr);
+      setIsOffline(true);
+      isDataLoadedRef.current = true;
+    } finally {
+      setLoadingData(false);
+    }
+  };
 
   useEffect(() => {
-    const loadData = async () => {
-      if (!supabase) return;
-
-      setLoadingData(true);
-
-      // Instantly clear data to prevent rendering stale records from previous users while loading
-      setAnimals([]);
-      setHealthRecords([]);
-      setBreedingRecords([]);
-      setPregnancyRecords([]);
-      setFeedRecords([]);
-      setProductionRecords([]);
-      setMortalityRecords([]);
-      setTransactions([]);
-      setFarmInspection(emptyFarmInspection);
-      setBullBreedingRecords([]);
-      setAnimalWeights([]);
-      setDrugs([]);
-      setFeedInventory([]);
-      setFarmEvents([]);
-      setTodoList([]);
-      setObservations([]);
-
-      if (!targetUserId) {
-        setLoadingData(false);
-        return;
-      }
-
-      try {
-        console.log(`[FarmDataContext] Fetching tables for user_id: ${targetUserId}...`);
-        const [
-          { data: ani, error: aniErr },
-          { data: hlth, error: hlthErr },
-          { data: breed, error: breedErr },
-          { data: preg, error: pregErr },
-          { data: feed, error: feedErr },
-          { data: prod, error: prodErr },
-          { data: mort, error: mortErr },
-          { data: txs, error: txsErr },
-          { data: insp, error: inspErr },
-          { data: bBreed, error: bBreedErr },
-          { data: weights, error: weightsErr },
-          { data: drgs, error: drgsErr },
-          { data: feedInv, error: feedInvErr },
-          { data: fEvts, error: fEvtsErr },
-          { data: tTasks, error: tTasksErr },
-          { data: obsvs, error: obsvsErr }
-        ] = await Promise.all([
-          supabase.from('animals').select('*').eq('user_id', targetUserId).eq('production_year', selectedProductionYear),
-          supabase.from('health_records').select('*').eq('user_id', targetUserId).eq('production_year', selectedProductionYear),
-          supabase.from('breeding_records').select('*').eq('user_id', targetUserId).eq('production_year', selectedProductionYear),
-          supabase.from('pregnancy_records').select('*').eq('user_id', targetUserId).eq('production_year', selectedProductionYear),
-          supabase.from('feed_records').select('*').eq('user_id', targetUserId).eq('production_year', selectedProductionYear),
-          supabase.from('production_records').select('*').eq('user_id', targetUserId).eq('production_year', selectedProductionYear),
-          supabase.from('mortality_records').select('*').eq('user_id', targetUserId).eq('production_year', selectedProductionYear),
-          supabase.from('transaction_records').select('*').eq('user_id', targetUserId).eq('production_year', selectedProductionYear),
-          supabase.from('farm_inspections').select('*').eq('user_id', targetUserId).maybeSingle(),
-          supabase.from('bull_breeding_records').select('*').eq('user_id', targetUserId).eq('production_year', selectedProductionYear),
-          supabase.from('animal_weights').select('*').eq('user_id', targetUserId).eq('production_year', selectedProductionYear),
-          supabase.from('drugs').select('*').eq('user_id', targetUserId),
-          supabase.from('feed_inventory').select('*').eq('user_id', targetUserId),
-          supabase.from('farm_events').select('*').eq('user_id', targetUserId),
-          supabase.from('todo_tasks').select('*').eq('user_id', targetUserId),
-          supabase.from('observations').select('*').eq('user_id', targetUserId)
-        ]);
-
-        if (aniErr) console.warn("Supabase animals fetch error:", aniErr);
-        else if (ani) setAnimals(ani.map(mapAnimalFromDb));
-
-        if (hlthErr) console.warn("Supabase health_records fetch error:", hlthErr);
-        else if (hlth) setHealthRecords(hlth.map(mapHealthFromDb));
-
-        if (breedErr) console.warn("Supabase breeding_records fetch error:", breedErr);
-        else if (breed) setBreedingRecords(breed.map(mapBreedingFromDb));
-
-        if (pregErr) console.warn("Supabase pregnancy_records fetch error:", pregErr);
-        else if (preg) setPregnancyRecords(preg.map(mapPregnancyFromDb));
-
-        if (feedErr) console.warn("Supabase feed_records fetch error:", feedErr);
-        else if (feed) setFeedRecords(feed.map(mapFeedFromDb));
-
-        if (prodErr) console.warn("Supabase production_records fetch error:", prodErr);
-        else if (prod) setProductionRecords(prod.map(mapProductionFromDb));
-
-        if (mortErr) console.warn("Supabase mortality_records fetch error:", mortErr);
-        else if (mort) setMortalityRecords(mort.map(mapMortalityFromDb));
-
-        if (txsErr) console.warn("Supabase transaction_records fetch error:", txsErr);
-        else if (txs) setTransactions(txs.map(mapTransactionFromDb));
-
-        const isDemo = targetUserId === '76408c11-021a-4fdd-a17c-6b90065182b7';
-        const defaultInspection = isDemo ? initialFarmInspection : emptyFarmInspection;
-
-        if (inspErr) console.warn("Supabase farm_inspections fetch error:", inspErr);
-        else if (insp && insp.data) {
-          setFarmInspection({
-            ...(insp.data as FarmInspection),
-            updatedAt: insp.updated_at || insp.created_at
-          });
-        } else {
-          // No inspection yet. Seed the default one.
-          setFarmInspection(defaultInspection);
-          try {
-            await supabase.from('farm_inspections').insert({
-              user_id: targetUserId,
-              data: defaultInspection
-            });
-          } catch (e) {
-            console.error("Error inserting default farm inspection:", e);
-          }
-        }
-
-        if (bBreedErr) console.warn("Supabase bull_breeding_records fetch error:", bBreedErr);
-        else if (bBreed) setBullBreedingRecords(bBreed.map(mapBullBreedingFromDb));
-
-        if (weightsErr) console.warn("Supabase animal_weights fetch error:", weightsErr);
-        else if (weights) setAnimalWeights(weights.map(mapWeightFromDb));
-
-        if (drgsErr) console.warn("Supabase drugs fetch error:", drgsErr);
-        else if (drgs) setDrugs(drgs.map(mapDrugFromDb));
-
-        if (feedInvErr) console.warn("Supabase feed_inventory fetch error:", feedInvErr);
-        else if (feedInv) setFeedInventory(feedInv.map(mapFeedInventoryFromDb));
-
-        if (fEvtsErr) console.warn("Supabase farm_events fetch error:", fEvtsErr);
-        else if (fEvts) setFarmEvents(fEvts.map(mapFarmEventFromDb));
-
-        if (tTasksErr) console.warn("Supabase todo_tasks fetch error:", tTasksErr);
-        else if (tTasks) setTodoList(tTasks.map(mapTodoFromDb));
-
-        if (obsvsErr) console.warn("Supabase observations fetch error:", obsvsErr);
-        else if (obsvs) setObservations(obsvs.map(mapObservationFromDb));
-
-      } catch (err) {
-        console.error("Failed to fetch data from Supabase:", err);
-      } finally {
-        setLoadingData(false);
-      }
-    };
-
     loadData();
   }, [targetUserId, selectedProductionYear]);
+
+  // Debounced auto-save to AsyncStorage whenever collections are modified locally
+  useEffect(() => {
+    if (!targetUserId || !isDataLoadedRef.current) return;
+
+    const timeout = setTimeout(() => {
+      const yearlyKey = `@farm_cache_yearly_${targetUserId}_${selectedProductionYear}`;
+      const payload = {
+        animals,
+        healthRecords,
+        breedingRecords,
+        pregnancyRecords,
+        feedRecords,
+        productionRecords,
+        mortalityRecords,
+        transactions,
+        bullBreedingRecords,
+        animalWeights,
+        timestamp: lastSyncTime || new Date().toISOString()
+      };
+      AsyncStorage.setItem(yearlyKey, JSON.stringify(payload)).catch(err => {
+        console.error("Error auto-saving yearly cache:", err);
+      });
+    }, 500);
+
+    return () => clearTimeout(timeout);
+  }, [
+    animals,
+    healthRecords,
+    breedingRecords,
+    pregnancyRecords,
+    feedRecords,
+    productionRecords,
+    mortalityRecords,
+    transactions,
+    bullBreedingRecords,
+    animalWeights
+  ]);
+
+  useEffect(() => {
+    if (!targetUserId || !isDataLoadedRef.current) return;
+
+    const timeout = setTimeout(() => {
+      const generalKey = `@farm_cache_general_${targetUserId}`;
+      const payload = {
+        farmInspection,
+        drugs,
+        feedInventory,
+        farmEvents,
+        todoList,
+        observations,
+        timestamp: lastSyncTime || new Date().toISOString()
+      };
+      AsyncStorage.setItem(generalKey, JSON.stringify(payload)).catch(err => {
+        console.error("Error auto-saving general cache:", err);
+      });
+    }, 500);
+
+    return () => clearTimeout(timeout);
+  }, [
+    farmInspection,
+    drugs,
+    feedInventory,
+    farmEvents,
+    todoList,
+    observations
+  ]);
+
+  const refreshData = async () => {
+    await loadData();
+  };
 
   // --- ADD ACTIONS ---
 
@@ -1265,47 +1480,62 @@ export const FarmDataProvider: React.FC<{ children: ReactNode }> = ({ children }
       user_id: targetUserId,
       production_year: selectedProductionYear,
     };
-    const { data: existing } = await supabase
-      .from('animals')
-      .select('id')
-      .eq('user_id', targetUserId)
-      .eq('production_year', selectedProductionYear)
-      .ilike('tag', animal.tag.trim())
-      .limit(1)
-      .maybeSingle();
+    try {
+      const { data: existing } = await supabase
+        .from('animals')
+        .select('id')
+        .eq('user_id', targetUserId)
+        .eq('production_year', selectedProductionYear)
+        .ilike('tag', animal.tag.trim())
+        .limit(1)
+        .maybeSingle();
 
-    if (existing) {
-      // Animal already exists in DB, perform update instead
+      if (existing) {
+        // Animal already exists in DB, perform update instead
+        const { data, error } = await supabase
+          .from('animals')
+          .update(dbData)
+          .eq('id', existing.id)
+          .select()
+          .single();
+        
+        if (error) throw error;
+        if (data) {
+          setAnimals(prev => {
+            const existsInLocal = prev.some(a => a.id === data.id);
+            if (existsInLocal) {
+              return prev.map(a => a.id === data.id ? mapAnimalFromDb(data) : a);
+            } else {
+              return [...prev, mapAnimalFromDb(data)];
+            }
+          });
+        }
+        return;
+      }
+
       const { data, error } = await supabase
         .from('animals')
-        .update(dbData)
-        .eq('id', existing.id)
+        .insert(dbData)
         .select()
         .single();
-      
+
       if (error) throw error;
       if (data) {
-        setAnimals(prev => {
-          const existsInLocal = prev.some(a => a.id === data.id);
-          if (existsInLocal) {
-            return prev.map(a => a.id === data.id ? mapAnimalFromDb(data) : a);
-          } else {
-            return [...prev, mapAnimalFromDb(data)];
-          }
-        });
+        setAnimals(prev => [...prev, mapAnimalFromDb(data)]);
       }
-      return;
-    }
-
-    const { data, error } = await supabase
-      .from('animals')
-      .insert(dbData)
-      .select()
-      .single();
-
-    if (error) throw error;
-    if (data) {
-      setAnimals(prev => [...prev, mapAnimalFromDb(data)]);
+    } catch (err) {
+      console.warn("[FarmDataContext] Network error in addAnimal, saving locally:", err);
+      setIsOffline(true);
+      const fallbackId = `offline_${Date.now()}`;
+      setAnimals(prev => {
+        const idx = prev.findIndex(a => a.tag.toLowerCase() === animal.tag.toLowerCase());
+        if (idx >= 0) {
+          const list = [...prev];
+          list[idx] = { ...list[idx], ...animal };
+          return list;
+        }
+        return [...prev, { ...animal, id: fallbackId }];
+      });
     }
   };
 
@@ -1348,15 +1578,22 @@ export const FarmDataProvider: React.FC<{ children: ReactNode }> = ({ children }
       done_by: record.doneBy || null,
       production_year: selectedProductionYear,
     };
-    const { data, error } = await supabase
-      .from('health_records')
-      .insert(dbData)
-      .select()
-      .single();
+    try {
+      const { data, error } = await supabase
+        .from('health_records')
+        .insert(dbData)
+        .select()
+        .single();
 
-    if (error) throw error;
-    if (data) {
-      setHealthRecords(prev => [...prev, mapHealthFromDb(data)]);
+      if (error) throw error;
+      if (data) {
+        setHealthRecords(prev => [...prev, mapHealthFromDb(data)]);
+      }
+    } catch (err) {
+      console.warn("[FarmDataContext] Network error in addHealthRecord, saving locally:", err);
+      setIsOffline(true);
+      const fallbackId = `offline_${Date.now()}`;
+      setHealthRecords(prev => [...prev, { ...record, id: fallbackId }]);
     }
   };
 
@@ -1420,19 +1657,26 @@ export const FarmDataProvider: React.FC<{ children: ReactNode }> = ({ children }
       user_id: targetUserId,
       production_year: selectedProductionYear,
     };
-    const { data, error } = await supabase
-      .from('breeding_records')
-      .insert(dbData)
-      .select()
-      .single();
+    try {
+      const { data, error } = await supabase
+        .from('breeding_records')
+        .insert(dbData)
+        .select()
+        .single();
 
-    if (error) throw error;
-    if (data) {
-      setBreedingRecords(prev => [...prev, mapBreedingFromDb(data)]);
-    }
+      if (error) throw error;
+      if (data) {
+        setBreedingRecords(prev => [...prev, mapBreedingFromDb(data)]);
+      }
 
-    if (record.breedingStatus === 'Confirmed Pregnant') {
-      await syncPregnancyRecord(record);
+      if (record.breedingStatus === 'Confirmed Pregnant') {
+        await syncPregnancyRecord(record);
+      }
+    } catch (err) {
+      console.warn("[FarmDataContext] Network error in addBreedingRecord, saving locally:", err);
+      setIsOffline(true);
+      const fallbackId = `offline_${Date.now()}`;
+      setBreedingRecords(prev => [...prev, { ...record, id: fallbackId }]);
     }
   };
 
@@ -1464,15 +1708,22 @@ export const FarmDataProvider: React.FC<{ children: ReactNode }> = ({ children }
       user_id: targetUserId,
       production_year: selectedProductionYear,
     };
-    const { data, error } = await supabase
-      .from('pregnancy_records')
-      .insert(dbData)
-      .select()
-      .single();
+    try {
+      const { data, error } = await supabase
+        .from('pregnancy_records')
+        .insert(dbData)
+        .select()
+        .single();
 
-    if (error) throw error;
-    if (data) {
-      setPregnancyRecords(prev => [...prev, mapPregnancyFromDb(data)]);
+      if (error) throw error;
+      if (data) {
+        setPregnancyRecords(prev => [...prev, mapPregnancyFromDb(data)]);
+      }
+    } catch (err) {
+      console.warn("[FarmDataContext] Network error in addPregnancyRecord, saving locally:", err);
+      setIsOffline(true);
+      const fallbackId = `offline_${Date.now()}`;
+      setPregnancyRecords(prev => [...prev, { ...record, id: fallbackId }]);
     }
   };
 
@@ -1492,15 +1743,22 @@ export const FarmDataProvider: React.FC<{ children: ReactNode }> = ({ children }
       user_id: targetUserId,
       production_year: selectedProductionYear,
     };
-    const { data, error } = await supabase
-      .from('feed_records')
-      .insert(dbData)
-      .select()
-      .single();
+    try {
+      const { data, error } = await supabase
+        .from('feed_records')
+        .insert(dbData)
+        .select()
+        .single();
 
-    if (error) throw error;
-    if (data) {
-      setFeedRecords(prev => [...prev, mapFeedFromDb(data)]);
+      if (error) throw error;
+      if (data) {
+        setFeedRecords(prev => [...prev, mapFeedFromDb(data)]);
+      }
+    } catch (err) {
+      console.warn("[FarmDataContext] Network error in addFeedRecord, saving locally:", err);
+      setIsOffline(true);
+      const fallbackId = `offline_${Date.now()}`;
+      setFeedRecords(prev => [...prev, { ...record, id: fallbackId }]);
     }
   };
 
@@ -1519,15 +1777,22 @@ export const FarmDataProvider: React.FC<{ children: ReactNode }> = ({ children }
       user_id: targetUserId,
       production_year: selectedProductionYear,
     };
-    const { data, error } = await supabase
-      .from('production_records')
-      .insert(dbData)
-      .select()
-      .single();
+    try {
+      const { data, error } = await supabase
+        .from('production_records')
+        .insert(dbData)
+        .select()
+        .single();
 
-    if (error) throw error;
-    if (data) {
-      setProductionRecords(prev => [...prev, mapProductionFromDb(data)]);
+      if (error) throw error;
+      if (data) {
+        setProductionRecords(prev => [...prev, mapProductionFromDb(data)]);
+      }
+    } catch (err) {
+      console.warn("[FarmDataContext] Network error in addProductionRecord, saving locally:", err);
+      setIsOffline(true);
+      const fallbackId = `offline_${Date.now()}`;
+      setProductionRecords(prev => [...prev, { ...record, id: fallbackId }]);
     }
   };
 
@@ -1549,26 +1814,34 @@ export const FarmDataProvider: React.FC<{ children: ReactNode }> = ({ children }
       user_id: targetUserId,
       production_year: selectedProductionYear,
     };
-    const { data, error } = await supabase
-      .from('mortality_records')
-      .insert(dbData)
-      .select()
-      .single();
+    try {
+      const { data, error } = await supabase
+        .from('mortality_records')
+        .insert(dbData)
+        .select()
+        .single();
 
-    if (error) throw error;
-    if (data) {
-      setMortalityRecords(prev => [...prev, mapMortalityFromDb(data)]);
+      if (error) throw error;
+      if (data) {
+        setMortalityRecords(prev => [...prev, mapMortalityFromDb(data)]);
 
-      // Delete from supabase animals table
-      const { error: delErr } = await supabase
-        .from('animals')
-        .delete()
-        .eq('tag', record.animalId)
-        .eq('user_id', targetUserId)
-        .eq('production_year', selectedProductionYear);
-      if (delErr) console.warn("Error deleting dead animal from database:", delErr);
+        // Delete from supabase animals table
+        const { error: delErr } = await supabase
+          .from('animals')
+          .delete()
+          .eq('tag', record.animalId)
+          .eq('user_id', targetUserId)
+          .eq('production_year', selectedProductionYear);
+        if (delErr) console.warn("Error deleting dead animal from database:", delErr);
 
-      // Delete from local state
+        // Delete from local state
+        setAnimals(prev => prev.filter(a => a.tag.toLowerCase() !== record.animalId.toLowerCase()));
+      }
+    } catch (err) {
+      console.warn("[FarmDataContext] Network error in addMortalityRecord, saving locally:", err);
+      setIsOffline(true);
+      const fallbackId = `offline_${Date.now()}`;
+      setMortalityRecords(prev => [...prev, { ...record, id: fallbackId }]);
       setAnimals(prev => prev.filter(a => a.tag.toLowerCase() !== record.animalId.toLowerCase()));
     }
   };
@@ -1588,15 +1861,22 @@ export const FarmDataProvider: React.FC<{ children: ReactNode }> = ({ children }
       user_id: targetUserId,
       production_year: selectedProductionYear,
     };
-    const { data, error } = await supabase
-      .from('transaction_records')
-      .insert(dbData)
-      .select()
-      .single();
+    try {
+      const { data, error } = await supabase
+        .from('transaction_records')
+        .insert(dbData)
+        .select()
+        .single();
 
-    if (error) throw error;
-    if (data) {
-      setTransactions(prev => [...prev, mapTransactionFromDb(data)]);
+      if (error) throw error;
+      if (data) {
+        setTransactions(prev => [...prev, mapTransactionFromDb(data)]);
+      }
+    } catch (err) {
+      console.warn("[FarmDataContext] Network error in addTransaction, saving locally:", err);
+      setIsOffline(true);
+      const fallbackId = `offline_${Date.now()}`;
+      setTransactions(prev => [...prev, { ...record, id: fallbackId }]);
     }
   };
 
@@ -1621,15 +1901,22 @@ export const FarmDataProvider: React.FC<{ children: ReactNode }> = ({ children }
       user_id: targetUserId,
       production_year: selectedProductionYear,
     };
-    const { data, error } = await supabase
-      .from('bull_breeding_records')
-      .insert(dbData)
-      .select()
-      .single();
+    try {
+      const { data, error } = await supabase
+        .from('bull_breeding_records')
+        .insert(dbData)
+        .select()
+        .single();
 
-    if (error) throw error;
-    if (data) {
-      setBullBreedingRecords(prev => [...prev, mapBullBreedingFromDb(data)]);
+      if (error) throw error;
+      if (data) {
+        setBullBreedingRecords(prev => [...prev, mapBullBreedingFromDb(data)]);
+      }
+    } catch (err) {
+      console.warn("[FarmDataContext] Network error in addBullBreedingRecord, saving locally:", err);
+      setIsOffline(true);
+      const fallbackId = `offline_${Date.now()}`;
+      setBullBreedingRecords(prev => [...prev, { ...record, id: fallbackId }]);
     }
   };
 
@@ -1650,16 +1937,22 @@ export const FarmDataProvider: React.FC<{ children: ReactNode }> = ({ children }
     if (record.score !== undefined) dbData.score = record.score;
     if (record.classification !== undefined) dbData.classification = record.classification;
 
-    const { data, error } = await supabase
-      .from('bull_breeding_records')
-      .update(dbData)
-      .eq('id', id)
-      .select()
-      .single();
+    try {
+      const { data, error } = await supabase
+        .from('bull_breeding_records')
+        .update(dbData)
+        .eq('id', id)
+        .select()
+        .single();
 
-    if (error) throw error;
-    if (data) {
-      setBullBreedingRecords(prev => prev.map(r => r.id === id ? mapBullBreedingFromDb(data) : r));
+      if (error) throw error;
+      if (data) {
+        setBullBreedingRecords(prev => prev.map(r => r.id === id ? mapBullBreedingFromDb(data) : r));
+      }
+    } catch (error) {
+      console.error('Error updating bull breeding record in Supabase:', error);
+      // Fallback: update local state only
+      setBullBreedingRecords(prev => prev.map(r => r.id === id ? { ...r, ...record } as BullBreedingRecord : r));
     }
   };
 
@@ -1668,13 +1961,19 @@ export const FarmDataProvider: React.FC<{ children: ReactNode }> = ({ children }
       setBullBreedingRecords(prev => prev.filter(r => r.id !== id));
       return;
     }
-    const { error } = await supabase
-      .from('bull_breeding_records')
-      .delete()
-      .eq('id', id);
+    try {
+      const { error } = await supabase
+        .from('bull_breeding_records')
+        .delete()
+        .eq('id', id);
 
-    if (error) throw error;
-    setBullBreedingRecords(prev => prev.filter(r => r.id !== id));
+      if (error) throw error;
+      setBullBreedingRecords(prev => prev.filter(r => r.id !== id));
+    } catch (error) {
+      console.error('Error deleting bull breeding record:', error);
+      // Fallback
+      setBullBreedingRecords(prev => prev.filter(r => r.id !== id));
+    }
   };
 
   const addDrug = async (record: Omit<Drug, 'id'>) => {
@@ -1695,16 +1994,23 @@ export const FarmDataProvider: React.FC<{ children: ReactNode }> = ({ children }
       expiry_date: record.expiryDate,
       user_id: targetUserId,
     };
-    const { data, error } = await supabase
-      .from('drugs')
-      .insert(dbData)
-      .select()
-      .single();
+    try {
+      const { data, error } = await supabase
+        .from('drugs')
+        .insert(dbData)
+        .select()
+        .single();
 
-    if (error) throw error;
-    if (data) {
-      // Inject today's date as lastUpdated since DB may not have the column yet
-      setDrugs(prev => [...prev, { ...mapDrugFromDb(data), lastUpdated: today }]);
+      if (error) throw error;
+      if (data) {
+        // Inject today's date as lastUpdated since DB may not have the column yet
+        setDrugs(prev => [...prev, { ...mapDrugFromDb(data), lastUpdated: today }]);
+      }
+    } catch (err) {
+      console.warn("[FarmDataContext] Network error in addDrug, saving locally:", err);
+      setIsOffline(true);
+      const fallbackId = `offline_${Date.now()}`;
+      setDrugs(prev => [...prev, { ...record, id: fallbackId, lastUpdated: today }]);
     }
   };
 
@@ -1774,15 +2080,22 @@ export const FarmDataProvider: React.FC<{ children: ReactNode }> = ({ children }
       status: record.status,
       user_id: targetUserId,
     };
-    const { data, error } = await supabase
-      .from('feed_inventory')
-      .insert(dbData)
-      .select()
-      .single();
+    try {
+      const { data, error } = await supabase
+        .from('feed_inventory')
+        .insert(dbData)
+        .select()
+        .single();
 
-    if (error) throw error;
-    if (data) {
-      setFeedInventory(prev => [...prev, mapFeedInventoryFromDb(data)]);
+      if (error) throw error;
+      if (data) {
+        setFeedInventory(prev => [...prev, mapFeedInventoryFromDb(data)]);
+      }
+    } catch (err) {
+      console.warn("[FarmDataContext] Network error in addFeedInventoryItem, saving locally:", err);
+      setIsOffline(true);
+      const fallbackId = `offline_${Date.now()}`;
+      setFeedInventory(prev => [...prev, { ...record, id: fallbackId }]);
     }
   };
 
@@ -2056,15 +2369,22 @@ export const FarmDataProvider: React.FC<{ children: ReactNode }> = ({ children }
       status: event.status,
       user_id: targetUserId,
     };
-    const { data, error } = await supabase
-      .from('farm_events')
-      .insert(dbData)
-      .select()
-      .single();
+    try {
+      const { data, error } = await supabase
+        .from('farm_events')
+        .insert(dbData)
+        .select()
+        .single();
 
-    if (error) throw error;
-    if (data) {
-      setFarmEvents(prev => [...prev, mapFarmEventFromDb(data)]);
+      if (error) throw error;
+      if (data) {
+        setFarmEvents(prev => [...prev, mapFarmEventFromDb(data)]);
+      }
+    } catch (err) {
+      console.warn("[FarmDataContext] Network error in addFarmEvent, saving locally:", err);
+      setIsOffline(true);
+      const fallbackId = `offline_${Date.now()}`;
+      setFarmEvents(prev => [...prev, { ...event, id: fallbackId }]);
     }
   };
 
@@ -2084,15 +2404,22 @@ export const FarmDataProvider: React.FC<{ children: ReactNode }> = ({ children }
       priority: todo.priority,
       user_id: targetUserId,
     };
-    const { data, error } = await supabase
-      .from('todo_tasks')
-      .insert(dbData)
-      .select()
-      .single();
+    try {
+      const { data, error } = await supabase
+        .from('todo_tasks')
+        .insert(dbData)
+        .select()
+        .single();
 
-    if (error) throw error;
-    if (data) {
-      setTodoList(prev => [...prev, mapTodoFromDb(data)]);
+      if (error) throw error;
+      if (data) {
+        setTodoList(prev => [...prev, mapTodoFromDb(data)]);
+      }
+    } catch (err) {
+      console.warn("[FarmDataContext] Network error in addTodoTask, saving locally:", err);
+      setIsOffline(true);
+      const fallbackId = `offline_${Date.now()}`;
+      setTodoList(prev => [...prev, { ...todo, id: fallbackId }]);
     }
   };
 
@@ -3260,6 +3587,11 @@ export const FarmDataProvider: React.FC<{ children: ReactNode }> = ({ children }
         verifyObservation,
         updateTodoTask,
 
+        // Offline & Sync values
+        isOffline,
+        lastSyncTime,
+        refreshData,
+
         // Auth values
         user,
         session,
@@ -3267,12 +3599,12 @@ export const FarmDataProvider: React.FC<{ children: ReactNode }> = ({ children }
         loadingAuth,
         farmers,
         selectedFarmer,
-        setSelectedFarmer,
+        setSelectedFarmer: handleSetSelectedFarmer,
         logout,
         deleteAccount,
         updateProfile,
         selectedProductionYear,
-        setSelectedProductionYear,
+        setSelectedProductionYear: handleSetSelectedProductionYear,
 
         metrics: {
           adg,
