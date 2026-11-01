@@ -16,7 +16,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.app.zvipfuwo",
-      "buildNumber": "31",
+      "buildNumber": "32",
       "appleTeamId": "7VMDNCDD9H",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
