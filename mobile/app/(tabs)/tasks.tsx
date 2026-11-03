@@ -1334,6 +1334,7 @@ const styles = StyleSheet.create({
   },
   listContainer: {
     padding: 16,
+    paddingBottom: 130,
   },
   separator: {
     height: 1,

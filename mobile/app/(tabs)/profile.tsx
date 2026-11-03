@@ -298,7 +298,7 @@ function ProfileContent() {
     <ScreenContainer 
       style={styles.container} 
       scrollable={true}
-      contentContainerStyle={{ paddingBottom: 100 }}
+      contentContainerStyle={{ paddingBottom: 130 }}
     >
       <View style={styles.header}>
         <View style={styles.profileInfo}>

@@ -154,6 +154,7 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     padding: 16,
+    paddingBottom: 130,
     gap: 16,
   },
   stepCard: {

@@ -1197,7 +1197,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     paddingHorizontal: 12,
-    marginBottom: 100, // Add padding for the tab bar
+    marginBottom: 130, // Add padding for the elevated tab bar
   },
   navCardContainer: {
     width: '50%',
