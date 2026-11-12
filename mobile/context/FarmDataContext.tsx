@@ -1,6 +1,9 @@
 import React, { createContext, useContext, useState, useEffect, useRef, ReactNode } from 'react';
 import { supabase } from '../utils/supabase';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { RecurrenceRule } from '../utils/recurrence';
+
+export type { RecurrenceRule };
 
 // --- TYPE DEFINITIONS ---
 
@@ -314,6 +317,7 @@ export interface FarmEvent {
   notes: string;
   doneBy: string;
   status: 'pending' | 'completed' | 'overdue';
+  repeat?: RecurrenceRule;
 }
 
 export interface TodoTask {
@@ -324,6 +328,7 @@ export interface TodoTask {
   createdBy: string;
   lastEdited: string;
   priority: 'high' | 'medium' | 'low';
+  repeat?: RecurrenceRule;
 }
 
 export interface Observation {
@@ -338,6 +343,7 @@ export interface Observation {
   observer: string;
   severity: 'high' | 'medium' | 'low';
   status: 'resolved' | 'unresolved';
+  repeat?: RecurrenceRule;
 }
 
 interface FarmDataContextProps {
@@ -640,6 +646,7 @@ const mapFarmEventFromDb = (row: any): FarmEvent => ({
   notes: row.notes,
   doneBy: row.done_by,
   status: row.status,
+  repeat: row.repeat_rule || undefined,
 });
 
 const mapTodoFromDb = (row: any): TodoTask => ({
@@ -650,6 +657,7 @@ const mapTodoFromDb = (row: any): TodoTask => ({
   createdBy: row.created_by,
   lastEdited: row.last_edited,
   priority: row.priority,
+  repeat: row.repeat_rule || undefined,
 });
 
 const mapObservationFromDb = (row: any): Observation => {
@@ -669,6 +677,7 @@ const mapObservationFromDb = (row: any): Observation => {
     severity: row.severity,
     observer: row.observer,
     status: row.status || 'unresolved',
+    repeat: row.repeat_rule || undefined,
   };
 };
 
@@ -2351,6 +2360,64 @@ export const FarmDataProvider: React.FC<{ children: ReactNode }> = ({ children }
     }
   };
 
+  const isMissingRepeatColumnError = (err: any) => {
+    const msg = String(err?.message || '').toLowerCase();
+    return msg.includes('repeat_rule');
+  };
+
+  const insertWithRepeatFallback = async (
+    table: 'farm_events' | 'todo_tasks' | 'observations',
+    dbData: Record<string, any>,
+    repeat?: RecurrenceRule
+  ) => {
+    const payload =
+      repeat && repeat.frequency !== 'none'
+        ? { ...dbData, repeat_rule: repeat }
+        : dbData;
+
+    const { data, error } = await supabase!.from(table).insert(payload).select().single();
+    if (!error) return { data, repeatPersisted: true };
+
+    if (payload.repeat_rule !== undefined && isMissingRepeatColumnError(error)) {
+      console.warn(`[FarmDataContext] ${table}.repeat_rule missing in DB; saving without repeat_rule.`);
+      const retry = await supabase!.from(table).insert(dbData).select().single();
+      if (retry.error) throw retry.error;
+      return { data: retry.data, repeatPersisted: false };
+    }
+    throw error;
+  };
+
+  const updateWithRepeatFallback = async (
+    table: 'farm_events' | 'todo_tasks' | 'observations',
+    id: string,
+    dbUpdates: Record<string, any>,
+    repeat?: RecurrenceRule
+  ) => {
+    const payload =
+      repeat !== undefined
+        ? { ...dbUpdates, repeat_rule: repeat.frequency === 'none' ? null : repeat }
+        : dbUpdates;
+
+    const { data, error } = await supabase!
+      .from(table)
+      .update(payload)
+      .eq('id', id)
+      .select()
+      .single();
+    if (!error) return { data, repeatPersisted: true };
+
+    if (payload.repeat_rule !== undefined && isMissingRepeatColumnError(error)) {
+      console.warn(`[FarmDataContext] ${table}.repeat_rule missing in DB; updating without repeat_rule.`);
+      if (Object.keys(dbUpdates).length === 0) {
+        return { data: null, repeatPersisted: false };
+      }
+      const retry = await supabase!.from(table).update(dbUpdates).eq('id', id).select().single();
+      if (retry.error) throw retry.error;
+      return { data: retry.data, repeatPersisted: false };
+    }
+    throw error;
+  };
+
   const addFarmEvent = async (event: Omit<FarmEvent, 'id'>) => {
     if (!supabase) {
       const newId = (farmEvents.length + 1).toString();
@@ -2370,15 +2437,11 @@ export const FarmDataProvider: React.FC<{ children: ReactNode }> = ({ children }
       user_id: targetUserId,
     };
     try {
-      const { data, error } = await supabase
-        .from('farm_events')
-        .insert(dbData)
-        .select()
-        .single();
-
-      if (error) throw error;
+      const { data, repeatPersisted } = await insertWithRepeatFallback('farm_events', dbData, event.repeat);
       if (data) {
-        setFarmEvents(prev => [...prev, mapFarmEventFromDb(data)]);
+        const mapped = mapFarmEventFromDb(data);
+        if (!repeatPersisted && event.repeat) mapped.repeat = event.repeat;
+        setFarmEvents(prev => [...prev, mapped]);
       }
     } catch (err) {
       console.warn("[FarmDataContext] Network error in addFarmEvent, saving locally:", err);
@@ -2405,15 +2468,11 @@ export const FarmDataProvider: React.FC<{ children: ReactNode }> = ({ children }
       user_id: targetUserId,
     };
     try {
-      const { data, error } = await supabase
-        .from('todo_tasks')
-        .insert(dbData)
-        .select()
-        .single();
-
-      if (error) throw error;
+      const { data, repeatPersisted } = await insertWithRepeatFallback('todo_tasks', dbData, todo.repeat);
       if (data) {
-        setTodoList(prev => [...prev, mapTodoFromDb(data)]);
+        const mapped = mapTodoFromDb(data);
+        if (!repeatPersisted && todo.repeat) mapped.repeat = todo.repeat;
+        setTodoList(prev => [...prev, mapped]);
       }
     } catch (err) {
       console.warn("[FarmDataContext] Network error in addTodoTask, saving locally:", err);
@@ -2444,15 +2503,11 @@ export const FarmDataProvider: React.FC<{ children: ReactNode }> = ({ children }
       user_id: targetUserId,
     };
     try {
-      const { data, error } = await supabase
-        .from('observations')
-        .insert(dbData)
-        .select()
-        .single();
-
-      if (error) throw error;
+      const { data, repeatPersisted } = await insertWithRepeatFallback('observations', dbData, obs.repeat);
       if (data) {
-        setObservations(prev => [...prev, mapObservationFromDb(data)]);
+        const mapped = mapObservationFromDb(data);
+        if (!repeatPersisted && obs.repeat) mapped.repeat = obs.repeat;
+        setObservations(prev => [...prev, mapped]);
       }
     } catch (e: any) {
       console.warn("DB Insert Failed. If column doesn't exist, you must run the SQL migration script:", e.message);
@@ -2510,16 +2565,13 @@ export const FarmDataProvider: React.FC<{ children: ReactNode }> = ({ children }
     if (updates.doneBy !== undefined) dbUpdates.done_by = updates.doneBy;
     if (updates.status !== undefined) dbUpdates.status = updates.status;
 
-    const { data, error } = await supabase
-      .from('farm_events')
-      .update(dbUpdates)
-      .eq('id', id)
-      .select()
-      .single();
-
-    if (error) throw error;
+    const { data, repeatPersisted } = await updateWithRepeatFallback('farm_events', id, dbUpdates, updates.repeat);
     if (data) {
-      setFarmEvents(prev => prev.map(e => e.id === id ? mapFarmEventFromDb(data) : e));
+      const mapped = mapFarmEventFromDb(data);
+      if (!repeatPersisted && updates.repeat !== undefined) mapped.repeat = updates.repeat;
+      setFarmEvents(prev => prev.map(e => e.id === id ? mapped : e));
+    } else if (!repeatPersisted && updates.repeat !== undefined) {
+      setFarmEvents(prev => prev.map(e => e.id === id ? { ...e, repeat: updates.repeat } : e));
     }
   };
 
@@ -2544,16 +2596,13 @@ export const FarmDataProvider: React.FC<{ children: ReactNode }> = ({ children }
       dbUpdates.observation = updates.observation;
     }
 
-    const { data, error } = await supabase
-      .from('observations')
-      .update(dbUpdates)
-      .eq('id', id)
-      .select()
-      .single();
-
-    if (error) throw error;
+    const { data, repeatPersisted } = await updateWithRepeatFallback('observations', id, dbUpdates, updates.repeat);
     if (data) {
-      setObservations(prev => prev.map(o => o.id === id ? mapObservationFromDb(data) : o));
+      const mapped = mapObservationFromDb(data);
+      if (!repeatPersisted && updates.repeat !== undefined) mapped.repeat = updates.repeat;
+      setObservations(prev => prev.map(o => o.id === id ? mapped : o));
+    } else if (!repeatPersisted && updates.repeat !== undefined) {
+      setObservations(prev => prev.map(o => o.id === id ? { ...o, repeat: updates.repeat } : o));
     }
   };
 
@@ -2570,16 +2619,13 @@ export const FarmDataProvider: React.FC<{ children: ReactNode }> = ({ children }
     if (updates.lastEdited !== undefined) dbUpdates.last_edited = updates.lastEdited;
     if (updates.priority !== undefined) dbUpdates.priority = updates.priority;
 
-    const { data, error } = await supabase
-      .from('todo_tasks')
-      .update(dbUpdates)
-      .eq('id', id)
-      .select()
-      .single();
-
-    if (error) throw error;
+    const { data, repeatPersisted } = await updateWithRepeatFallback('todo_tasks', id, dbUpdates, updates.repeat);
     if (data) {
-      setTodoList(prev => prev.map(t => t.id === id ? mapTodoFromDb(data) : t));
+      const mapped = mapTodoFromDb(data);
+      if (!repeatPersisted && updates.repeat !== undefined) mapped.repeat = updates.repeat;
+      setTodoList(prev => prev.map(t => t.id === id ? mapped : t));
+    } else if (!repeatPersisted && updates.repeat !== undefined) {
+      setTodoList(prev => prev.map(t => t.id === id ? { ...t, repeat: updates.repeat } : t));
     }
   };
 

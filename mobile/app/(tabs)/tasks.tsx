@@ -1,18 +1,26 @@
 import React, { useState, useCallback, useMemo } from 'react';
 import { View, StyleSheet, ScrollView, TouchableOpacity, FlatList, Modal, Pressable, KeyboardAvoidingView, Platform } from 'react-native';
 import { Calendar } from 'react-native-calendars';
-import { format, parseISO, isSameDay, isSameWeek, isSameMonth, isSameYear, addDays, subDays, addMonths, subMonths, addYears, subYears, startOfWeek, endOfWeek, eachDayOfInterval, getDay } from 'date-fns';
+import { format, parseISO, isSameDay, isSameWeek, isSameMonth, isSameYear, addDays, subDays, addMonths, subMonths, addYears, subYears, startOfWeek, endOfWeek, startOfMonth, endOfMonth, eachDayOfInterval, getDay } from 'date-fns';
 import { Text } from '../../components/typography/Text';
 import { ScreenContainer } from '../../components/layout/ScreenContainer';
 import { Card } from '../../components/ui/Card';
 import { DataTable } from '../../components/tables/DataTable';
 import { Button } from '../../components/ui/Button';
-import { Plus, Check, X, CircleAlert as AlertCircle } from 'lucide-react-native';
+import { Plus, Check, X, CircleAlert as AlertCircle, Repeat } from 'lucide-react-native';
 import Colors from '../../constants/Colors';
 import { Stack } from 'expo-router';
 import { useFarmData, FarmEvent as Event, TodoTask as Todo, Observation } from '../../context/FarmDataContext';
 import { TextField } from '../../components/inputs/TextField';
 import { Picker } from '../../components/inputs/Picker';
+import { RepeatPicker } from '../../components/inputs/RepeatPicker';
+import {
+  RecurrenceRule,
+  DEFAULT_RECURRENCE,
+  doesOccurOnDate,
+  getOccurrencesInRange,
+  formatRecurrenceLabel,
+} from '../../utils/recurrence';
 
 const OBSERVATION_CATEGORIES: Record<string, { points: number, subCategories: string[] }> = {
   'Growth & Routine (Standard Maintenance)': {
@@ -144,6 +152,9 @@ function TasksContent() {
   const [customObsObserver, setCustomObsObserver] = useState('');
   const [obsStatus, setObsStatus] = useState<'resolved' | 'unresolved'>('unresolved');
 
+  // Shared Repeat / Recurrence State
+  const [repeatRule, setRepeatRule] = useState<RecurrenceRule>(DEFAULT_RECURRENCE);
+
   // Edit Permissions
   const hasEditPermission = useMemo(() => {
     return profile?.role === 'farmer' || profile?.role === 'admin';
@@ -214,6 +225,7 @@ function TasksContent() {
     setObsObserver(observations.length > 0 && observations[0].observer ? observations[0].observer : 'Other');
     setCustomObsObserver('');
     setObsStatus('unresolved');
+    setRepeatRule(DEFAULT_RECURRENCE);
 
     setModalVisible(true);
   };
@@ -250,6 +262,7 @@ function TasksContent() {
       
       setObsStatus(item.status === 'resolved' ? 'resolved' : 'unresolved');
     }
+    setRepeatRule(item.repeat || DEFAULT_RECURRENCE);
     setModalVisible(true);
   };
 
@@ -284,6 +297,7 @@ function TasksContent() {
             notes: eventNotes || 'No notes',
             doneBy: eventDoneBy,
             status: eventStatus,
+            repeat: repeatRule,
           });
         } else {
           await addFarmEvent({
@@ -295,6 +309,7 @@ function TasksContent() {
             notes: eventNotes || 'No notes',
             doneBy: eventDoneBy,
             status: 'pending',
+            repeat: repeatRule,
           });
         }
       } else if (activeTab === 'todo') {
@@ -310,6 +325,7 @@ function TasksContent() {
             createdBy: todoCreatedBy,
             status: todoStatus,
             lastEdited: dateStr,
+            repeat: repeatRule,
           });
         } else {
           await addTodoTask({
@@ -319,6 +335,7 @@ function TasksContent() {
             createdBy: todoCreatedBy,
             lastEdited: dateStr,
             priority: todoPriority,
+            repeat: repeatRule,
           });
         }
       } else if (activeTab === 'observations') {
@@ -353,6 +370,7 @@ function TasksContent() {
             severity: obsSeverity,
             observer: finalObserver,
             status: obsStatus,
+            repeat: repeatRule,
           });
         } else {
           await addObservation({
@@ -366,6 +384,7 @@ function TasksContent() {
             severity: obsSeverity,
             observer: finalObserver,
             status: obsStatus,
+            repeat: repeatRule,
           });
         }
       }
@@ -379,29 +398,37 @@ function TasksContent() {
 
   const markedDates = useMemo(() => {
     const marked: { [date: string]: any } = {};
+    const rangeStart = subMonths(startOfMonth(selectedDate), 1);
+    const rangeEnd = addMonths(endOfMonth(selectedDate), 2);
     
     // Count events by type for each date
     const eventsByDate: { [date: string]: { farm: number; todo: number; observation: number } } = {};
     
-    // Count farm events
+    // Count farm events (including recurring)
     farmEvents.forEach(event => {
-      const date = event.date;
-      if (!eventsByDate[date]) eventsByDate[date] = { farm: 0, todo: 0, observation: 0 };
-      eventsByDate[date].farm++;
+      const dates = getOccurrencesInRange(event.date, event.repeat, rangeStart, rangeEnd);
+      dates.forEach(date => {
+        if (!eventsByDate[date]) eventsByDate[date] = { farm: 0, todo: 0, observation: 0 };
+        eventsByDate[date].farm++;
+      });
     });
     
-    // Count todo items
+    // Count todo items (including recurring)
     todoList.forEach(todo => {
-      const date = todo.date;
-      if (!eventsByDate[date]) eventsByDate[date] = { farm: 0, todo: 0, observation: 0 };
-      eventsByDate[date].todo++;
+      const dates = getOccurrencesInRange(todo.date, todo.repeat, rangeStart, rangeEnd);
+      dates.forEach(date => {
+        if (!eventsByDate[date]) eventsByDate[date] = { farm: 0, todo: 0, observation: 0 };
+        eventsByDate[date].todo++;
+      });
     });
     
-    // Count observations
+    // Count observations (including recurring)
     observations.forEach(obs => {
-      const date = obs.date;
-      if (!eventsByDate[date]) eventsByDate[date] = { farm: 0, todo: 0, observation: 0 };
-      eventsByDate[date].observation++;
+      const dates = getOccurrencesInRange(obs.date, obs.repeat, rangeStart, rangeEnd);
+      dates.forEach(date => {
+        if (!eventsByDate[date]) eventsByDate[date] = { farm: 0, todo: 0, observation: 0 };
+        eventsByDate[date].observation++;
+      });
     });
     
     // Create marked dates with custom markers
@@ -434,64 +461,69 @@ function TasksContent() {
   }, [farmEvents, todoList, observations, selectedDate]);
 
   const getEventsForDate = (date: Date): CalendarEvent[] => {
-    const dateStr = format(date, 'yyyy-MM-dd');
-    
     switch (activeTab) {
       case 'events':
-        return farmEvents.filter(event => event.date === dateStr);
+        return farmEvents.filter(event => doesOccurOnDate(event.date, event.repeat, date));
       case 'todo':
-        return todoList.filter(todo => todo.date === dateStr);
+        return todoList.filter(todo => doesOccurOnDate(todo.date, todo.repeat, date));
       case 'observations':
-        return observations.filter(obs => obs.date === dateStr);
+        return observations.filter(obs => doesOccurOnDate(obs.date, obs.repeat, date));
       default:
         return [];
     }
   };
 
-  const getEventsForView = (): CalendarEvent[] => {
+  const getEventsForView = (): Array<{ item: CalendarEvent; occurrenceDate: string }> => {
     switch (viewType) {
-      case 'day':
-        return getEventsForDate(selectedDate);
+      case 'day': {
+        const occDate = format(selectedDate, 'yyyy-MM-dd');
+        return getEventsForDate(selectedDate).map(item => ({ item, occurrenceDate: occDate }));
+      }
       case 'week': {
         const start = startOfWeek(selectedDate, { weekStartsOn: 1 });
         const end = endOfWeek(selectedDate, { weekStartsOn: 1 });
         const days = eachDayOfInterval({ start, end });
-        return days.flatMap(day => getEventsForDate(day));
+        return days.flatMap(day => {
+          const occDate = format(day, 'yyyy-MM-dd');
+          return getEventsForDate(day).map(item => ({ item, occurrenceDate: occDate }));
+        });
       }
       case 'month': {
-        const yearMonthPrefix = format(selectedDate, 'yyyy-MM');
-        switch (activeTab) {
-          case 'events':
-            return farmEvents.filter(e => e.date.startsWith(yearMonthPrefix));
-          case 'todo':
-            return todoList.filter(t => t.date.startsWith(yearMonthPrefix));
-          case 'observations':
-            return observations.filter(o => o.date.startsWith(yearMonthPrefix));
-          default:
-            return [];
-        }
+        const start = startOfMonth(selectedDate);
+        const end = endOfMonth(selectedDate);
+        const days = eachDayOfInterval({ start, end });
+        return days.flatMap(day => {
+          const occDate = format(day, 'yyyy-MM-dd');
+          return getEventsForDate(day).map(item => ({ item, occurrenceDate: occDate }));
+        });
       }
       case 'year': {
-        const yearPrefix = selectedDate.getFullYear().toString();
-        switch (activeTab) {
-          case 'events':
-            return farmEvents.filter(e => e.date.startsWith(yearPrefix));
-          case 'todo':
-            return todoList.filter(t => t.date.startsWith(yearPrefix));
-          case 'observations':
-            return observations.filter(o => o.date.startsWith(yearPrefix));
-          default:
-            return [];
-        }
+        const year = selectedDate.getFullYear();
+        const start = new Date(year, 0, 1);
+        const end = new Date(year, 11, 31);
+        const activeItems: CalendarEvent[] =
+          activeTab === 'events' ? farmEvents : activeTab === 'todo' ? todoList : observations;
+        const entries: Array<{ item: CalendarEvent; occurrenceDate: string }> = [];
+        activeItems.forEach(item => {
+          const dates = getOccurrencesInRange(item.date, item.repeat, start, end);
+          dates.forEach(occurrenceDate => entries.push({ item, occurrenceDate }));
+        });
+        return entries.sort((a, b) => a.occurrenceDate.localeCompare(b.occurrenceDate));
       }
       case 'list':
         switch (activeTab) {
           case 'events':
-            return [...farmEvents].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+            return [...farmEvents]
+              .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+              .map(item => ({ item, occurrenceDate: item.date }));
           case 'todo':
-            return [...todoList].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+            return [...todoList]
+              .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+              .map(item => ({ item, occurrenceDate: item.date }));
           case 'observations':
-            return [...observations].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+            return [...observations]
+              .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+              .map(item => ({ item, occurrenceDate: item.date }));
           default:
             return [];
         }
@@ -524,7 +556,20 @@ function TasksContent() {
     }
   };
 
-  const renderEventItem = (item: CalendarEvent) => {
+  const renderRepeatBadge = (repeat?: RecurrenceRule) => {
+    if (!repeat || repeat.frequency === 'none') return null;
+    return (
+      <View style={styles.repeatBadge}>
+        <Repeat size={11} color={Colors.primary[600]} />
+        <Text variant="caption" color="primary.600" style={styles.repeatBadgeText}>
+          {formatRecurrenceLabel(repeat)}
+        </Text>
+      </View>
+    );
+  };
+
+  const renderEventItem = (item: CalendarEvent, occurrenceDate?: string) => {
+    const displayDate = occurrenceDate || item.date;
     if ('event' in item) {
       // Farm Event
       return (
@@ -553,9 +598,10 @@ function TasksContent() {
               {item.event}
             </Text>
             <Text variant="caption" color="neutral.600">{item.type} • {item.tag}</Text>
+            {renderRepeatBadge(item.repeat)}
           </View>
           <View style={styles.eventTime}>
-            <Text variant="caption">{format(parseISO(item.date), 'MMM d, yyyy')}</Text>
+            <Text variant="caption">{format(parseISO(displayDate), 'MMM d, yyyy')}</Text>
             {renderStatusBadge(item.status)}
           </View>
         </TouchableOpacity>
@@ -587,9 +633,10 @@ function TasksContent() {
               {item.description}
             </Text>
             <Text variant="caption" color="neutral.600">Priority: {item.priority}</Text>
+            {renderRepeatBadge(item.repeat)}
           </View>
           <View style={styles.eventTime}>
-            <Text variant="caption">{format(parseISO(item.date), 'MMM d, yyyy')}</Text>
+            <Text variant="caption">{format(parseISO(displayDate), 'MMM d, yyyy')}</Text>
             {renderStatusBadge(item.status)}
           </View>
         </TouchableOpacity>
@@ -623,6 +670,7 @@ function TasksContent() {
             </Text>
             <Text variant="caption" color="neutral.600">Tag: {item.tag}</Text>
             {item.category && <Text variant="caption" color="neutral.500">{item.category}{item.subCategory ? ` - ${item.subCategory}` : ''}</Text>}
+            {renderRepeatBadge(item.repeat)}
             {(item.points || 0) > 0 && (
                <Text variant="caption" color={item.verificationStatus === 'verified' ? 'success.600' : 'warning.600'}>
                  +{item.points} pts ({item.verificationStatus})
@@ -640,7 +688,7 @@ function TasksContent() {
             )}
           </View>
           <View style={styles.eventTime}>
-            <Text variant="caption">{format(parseISO(item.date), 'MMM d, yyyy')}</Text>
+            <Text variant="caption">{format(parseISO(displayDate), 'MMM d, yyyy')}</Text>
             {renderStatusBadge(item.status || 'unresolved')}
           </View>
         </TouchableOpacity>
@@ -725,17 +773,20 @@ function TasksContent() {
 
   const monthCounts = useMemo(() => {
     const counts = Array(12).fill(0);
-    const yearStr = selectedDate.getFullYear().toString();
+    const year = selectedDate.getFullYear();
+    const yearStart = new Date(year, 0, 1);
+    const yearEnd = new Date(year, 11, 31);
     const activeItems = activeTab === 'events' ? farmEvents :
                         activeTab === 'todo' ? todoList : observations;
     
     activeItems.forEach(item => {
-      if (item.date.startsWith(yearStr)) {
-        const monthIndex = parseInt(item.date.split('-')[1], 10) - 1;
+      const dates = getOccurrencesInRange(item.date, item.repeat, yearStart, yearEnd);
+      dates.forEach(dateStr => {
+        const monthIndex = parseInt(dateStr.split('-')[1], 10) - 1;
         if (monthIndex >= 0 && monthIndex < 12) {
           counts[monthIndex]++;
         }
-      }
+      });
     });
     return counts;
   }, [farmEvents, todoList, observations, selectedDate, activeTab]);
@@ -968,8 +1019,8 @@ function TasksContent() {
         {viewType === 'list' ? (
           <FlatList
             data={getEventsForView()}
-            keyExtractor={(item) => item.id}
-            renderItem={({ item }) => renderEventItem(item)}
+            keyExtractor={(entry) => `${entry.item.id}-${entry.occurrenceDate}`}
+            renderItem={({ item: entry }) => renderEventItem(entry.item, entry.occurrenceDate)}
             ItemSeparatorComponent={() => <View style={styles.separator} />}
             scrollEnabled={false}
             contentContainerStyle={styles.listContainer}
@@ -977,9 +1028,9 @@ function TasksContent() {
         ) : (
           <View style={styles.eventsList}>
             {getEventsForView().length > 0 ? (
-              getEventsForView().map((event) => (
-                <View key={event.id} style={styles.eventItemWrapper}>
-                  {renderEventItem(event)}
+              getEventsForView().map((entry) => (
+                <View key={`${entry.item.id}-${entry.occurrenceDate}`} style={styles.eventItemWrapper}>
+                  {renderEventItem(entry.item, entry.occurrenceDate)}
                 </View>
               ))
             ) : (
@@ -1193,6 +1244,12 @@ function TasksContent() {
                     />
                   </>
                 )}
+
+                <RepeatPicker
+                  label="Repeat"
+                  value={repeatRule}
+                  onChange={setRepeatRule}
+                />
               </ScrollView>
 
               <View style={styles.modalFooter}>
@@ -1582,5 +1639,19 @@ const styles = StyleSheet.create({
     lineHeight: 24,
     color: Colors.primary[500],
     fontWeight: 'bold',
+  },
+  repeatBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginTop: 4,
+    alignSelf: 'flex-start',
+    backgroundColor: Colors.primary[50],
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  repeatBadgeText: {
+    fontSize: 11,
   },
 });

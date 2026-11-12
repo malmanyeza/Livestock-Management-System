@@ -139,7 +139,7 @@ const navigationCards: NavigationCard[] = [
     title: 'Workers',
     icon: <Users size={24} color={Colors.white} />,
     description: 'Manage farm workers and access',
-    route: '/profile',
+    route: '/screens/workers',
     color: '#8E44AD',
     gradient: ['#9B59B6', '#8E44AD'],
   },

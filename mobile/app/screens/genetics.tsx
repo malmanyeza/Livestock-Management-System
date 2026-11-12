@@ -232,11 +232,17 @@ function GeneticsContent() {
     },
   ];
 
-  // 2. Breed Distribution
+  // 2. Breed Distribution (case-insensitive grouping)
   const breedCounts: Record<string, number> = {};
   animals.forEach(a => {
-    const b = a.breed || 'Unknown';
-    breedCounts[b] = (breedCounts[b] || 0) + 1;
+    const normalized = (a.breed || '').trim().replace(/\s+/g, ' ').toLowerCase();
+    const label = normalized
+      ? normalized
+          .split(' ')
+          .map(w => (w ? w[0].toUpperCase() + w.slice(1) : ''))
+          .join(' ')
+      : 'Unknown';
+    breedCounts[label] = (breedCounts[label] || 0) + 1;
   });
   const chartColors = [Colors.primary[500], Colors.secondary[500], Colors.accent[500], Colors.success[500], Colors.neutral[500]];
   const breedDistributionData = animals.length > 0 ? Object.keys(breedCounts).map((breed, idx) => ({

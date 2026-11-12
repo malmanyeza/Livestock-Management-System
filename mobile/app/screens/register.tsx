@@ -838,10 +838,26 @@ function RegisterContent() {
     return animals.filter(a => !deadTags.has(a.tag));
   }, [animals, ctxMortalityRecords]);
 
-  // Dynamic breed options based on actual data
+  const normalizeBreedKey = (breed?: string) =>
+    (breed || '').trim().replace(/\s+/g, ' ').toLowerCase();
+
+  const formatBreedLabel = (key: string) =>
+    key
+      .split(' ')
+      .map(word => (word ? word[0].toUpperCase() + word.slice(1) : ''))
+      .join(' ');
+
+  // Dynamic breed options based on actual data (case-insensitive deduplication)
   const breedOptions = React.useMemo(() => {
     if (!aliveAnimals) return [{ label: 'All', value: 'All' }];
-    const uniqueBreeds = Array.from(new Set(aliveAnimals.map(a => a.breed).filter(Boolean))).sort();
+    const breedMap = new Map<string, string>();
+    aliveAnimals.forEach(a => {
+      const key = normalizeBreedKey(a.breed);
+      if (key && !breedMap.has(key)) {
+        breedMap.set(key, formatBreedLabel(key));
+      }
+    });
+    const uniqueBreeds = Array.from(breedMap.values()).sort((a, b) => a.localeCompare(b));
     return [
       { label: 'All', value: 'All' },
       ...uniqueBreeds.map(b => ({ label: b, value: b }))
@@ -1314,7 +1330,7 @@ function RegisterContent() {
 
   const displayedHerdData = React.useMemo(() => {
     return herdRegisterData.filter(a => {
-      const matchBreed = tableFilterBreed === 'All' || a.breed === tableFilterBreed;
+      const matchBreed = tableFilterBreed === 'All' || normalizeBreedKey(a.breed) === normalizeBreedKey(tableFilterBreed);
       const matchSource = tableFilterSource === 'All' || a.source === tableFilterSource;
       const matchStockType = tableFilterStockType === 'All' || 
                              (tableFilterStockType === 'Calve' ? (a.stockType === 'Calf' || a.stockType === 'Calve') : a.stockType === tableFilterStockType);
@@ -1331,7 +1347,7 @@ function RegisterContent() {
   const herdTotals = React.useMemo(() => {
     if (!aliveAnimals) return { cows: 0, bulls: 0, heifers: 0, steers: 0, maleCalves: 0, femaleCalves: 0 };
     const filteredAnimals = aliveAnimals.filter(a => {
-      const matchBreed = selectedBreed.toLowerCase() === 'all' || a.breed.toLowerCase() === selectedBreed.toLowerCase();
+      const matchBreed = selectedBreed.toLowerCase() === 'all' || normalizeBreedKey(a.breed) === normalizeBreedKey(selectedBreed);
       const matchSource = selectedSource.toLowerCase() === 'all' || a.source.toLowerCase() === selectedSource.toLowerCase();
       return matchBreed && matchSource;
     });
@@ -1356,7 +1372,9 @@ function RegisterContent() {
 
     const counts: { [key: string]: number } = {};
     filteredAnimals.forEach(a => {
-      counts[a.breed] = (counts[a.breed] || 0) + 1;
+      const key = normalizeBreedKey(a.breed);
+      const label = key ? formatBreedLabel(key) : 'Unknown';
+      counts[label] = (counts[label] || 0) + 1;
     });
     
     const chartColors = [
@@ -1380,7 +1398,7 @@ function RegisterContent() {
   const sourceDistribution = React.useMemo(() => {
     if (!aliveAnimals) return [];
     const filteredAnimals = aliveAnimals.filter(a => {
-      const matchBreed = selectedBreed.toLowerCase() === 'all' || a.breed.toLowerCase() === selectedBreed.toLowerCase();
+      const matchBreed = selectedBreed.toLowerCase() === 'all' || normalizeBreedKey(a.breed) === normalizeBreedKey(selectedBreed);
       return matchBreed;
     });
 
@@ -7102,8 +7120,9 @@ function RegisterContent() {
             }
           >
             <DataTable
+              frozenColumnsCount={2}
               columns={[
-                { key: 'date', title: 'Date', width: 100 },
+                { key: 'date', title: 'Date', width: 115 },
                 { key: 'animalId', title: 'Animal ID', width: 120, render: (value: string) => {
                   const isAll = value?.toLowerCase() === 'all';
                   if (isAll) {
@@ -7160,11 +7179,12 @@ function RegisterContent() {
             }
           >
             <DataTable
+              frozenColumnsCount={2}
               columns={[
-                { key: 'earTagNumber', title: 'Ear Tag', width: 90 },
+                { key: 'heatDetectionDate', title: 'Heat Detected', width: 115 },
+                { key: 'earTagNumber', title: 'Ear Tag', width: 95 },
                 { key: 'stockType', title: 'Stock Type', width: 120 },
                 { key: 'bodyConditionScore', title: 'BCS', width: 70, render: (value: number) => <Text>{value?.toFixed(1)}</Text> },
-                { key: 'heatDetectionDate', title: 'Heat Detected', width: 100 },
                 { key: 'observer', title: 'Observer', width: 100 },
                 { key: 'servicedDate', title: 'Serviced Date', width: 100 },
                 { key: 'breedingStatus', title: 'Status', width: 100, render: (value: string) => (
@@ -7217,10 +7237,11 @@ function RegisterContent() {
             }
           >
             <DataTable
+              frozenColumnsCount={2}
               columns={[
-                { key: 'cowEarTag', title: 'Cow Ear Tag', width: 100 },
+                { key: 'lastServiceDate', title: 'Last Service', width: 115 },
+                { key: 'cowEarTag', title: 'Cow Ear Tag', width: 105 },
                 { key: 'bodyConditionScore', title: 'BCS at Service', width: 110 },
-                { key: 'lastServiceDate', title: 'Last Service', width: 100 },
                 { key: 'firstTrimesterPD', title: '1st Tri PD', width: 90, render: (value: string) => (
                   <Text color={value === 'Positive' ? 'success.500' : value === 'Negative' ? 'error.500' : value === 'Inconclusive' ? 'warning.500' : 'neutral.500'}>{value}</Text>
                 )},
@@ -7274,8 +7295,9 @@ function RegisterContent() {
             }
           >
             <DataTable
+              frozenColumnsCount={2}
               columns={[
-                { key: 'date', title: 'Date', width: 80 },
+                { key: 'date', title: 'Date', width: 115 },
                 { key: 'bullId', title: 'Animal ID', width: 100 },
                 { key: 'age', title: 'Age', width: 80 },
                 { key: 'pe', title: 'PE', width: 100, render: (value: string) => (
@@ -7325,8 +7347,9 @@ function RegisterContent() {
             }
           >
             <DataTable
+              frozenColumnsCount={1}
               columns={[
-                { key: 'id', title: 'ID', width: 80 },
+                { key: 'id', title: 'ID', width: 85 },
                 { key: 'stockType', title: 'Type', width: 80 },
                 { key: 'age', title: 'Age', width: 80 },
                 { key: 'jan', title: 'Jan', width: 70 },
@@ -7373,19 +7396,20 @@ function RegisterContent() {
             }
           >
             <DataTable
+              frozenColumnsCount={2}
               columns={[
-                { key: 'drugClass', title: 'Class', width: 100 },
-                { key: 'type', title: 'Type', width: 80 },
-                { key: 'name', title: 'Name', width: 120 },
-                { key: 'pregnancySafe', title: 'Preg. Safe', width: 80, render: (value: string) => (
-                  <Text color={value === 'Yes' ? 'success.500' : 'error.500'}>{value}</Text>
-                )},
-                { key: 'withdrawalPeriod', title: 'Withdrawal', width: 120 },
-                { key: 'lastUpdated', title: 'Last Updated', width: 110, render: (value: string) => (
+                { key: 'lastUpdated', title: 'Last Updated', width: 115, render: (value: string) => (
                   <Text variant="caption" style={{ color: value ? Colors.neutral[700] : Colors.neutral[400] }}>
                     {value || 'Not recorded'}
                   </Text>
                 )},
+                { key: 'name', title: 'Name', width: 115 },
+                { key: 'drugClass', title: 'Class', width: 100 },
+                { key: 'type', title: 'Type', width: 80 },
+                { key: 'pregnancySafe', title: 'Preg. Safe', width: 80, render: (value: string) => (
+                  <Text color={value === 'Yes' ? 'success.500' : 'error.500'}>{value}</Text>
+                )},
+                { key: 'withdrawalPeriod', title: 'Withdrawal', width: 120 },
                 { key: 'stockStatus', title: 'Stock Status', width: 120, render: (value: string) => (
                   <View style={{ padding: 4, borderRadius: 4, backgroundColor:
                     value === 'In Stock' ? 'rgba(34, 197, 94, 0.1)' :
@@ -7439,8 +7463,9 @@ function RegisterContent() {
             }
           >
             <DataTable
+              frozenColumnsCount={2}
               columns={[
-                { key: 'date', title: 'Date', width: 100 },
+                { key: 'date', title: 'Date', width: 115 },
                 { key: 'animalId', title: 'Animal ID', width: 100 },
                 { key: 'cause', title: 'Cause', width: 120, render: (value: string) => (
                   <Text style={{ color: value === 'Disease' ? Colors.error[500] : Colors.warning[600] }}>{value}</Text>
@@ -7513,8 +7538,9 @@ function RegisterContent() {
               }
             >
               <DataTable
+                frozenColumnsCount={1}
                 columns={[
-                  { key: 'date', title: 'Date', width: 100 },
+                  { key: 'date', title: 'Date', width: 115 },
                   { key: 'description', title: 'Description', width: 200 },
                   { key: 'amount', title: 'Amount', width: 100, render: (value: number) => (
                     <Text color={value >= 0 ? 'success.500' : 'error.500'}>{value >= 0 ? '+' : ''}{value}</Text>
@@ -7584,8 +7610,10 @@ function RegisterContent() {
             }
           >
             <DataTable
+              frozenColumnsCount={2}
               columns={[
-                { key: 'id', title: 'ID', width: 70, render: (value: string) => <Text numberOfLines={1} style={{ fontSize: 11 }}>{value ? value.substring(0, 5) : '-'}</Text> },
+                { key: 'lastUpdated', title: 'Last Updated', width: 115 },
+                { key: 'id', title: 'ID', width: 75, render: (value: string) => <Text numberOfLines={1} style={{ fontSize: 11 }}>{value ? value.substring(0, 5) : '-'}</Text> },
                 { key: 'name', title: 'Feed Name', width: 120 },
                 { key: 'type', title: 'Type', width: 100 },
                 { key: 'quantity', title: 'Quantity', width: 90, render: (value: string, row: any) => (
@@ -7595,7 +7623,6 @@ function RegisterContent() {
                   </View>
                 )},
                 { key: 'supplier', title: 'Supplier', width: 100 },
-                { key: 'lastUpdated', title: 'Last Updated', width: 100 },
                 { key: 'status', title: 'Status', width: 150, render: (value: string) => (
                   <View style={[styles.statusBadge, {
                     backgroundColor: value === 'In Stock' ? 'rgba(34, 197, 94, 0.1)' : value === 'Low Stock' ? 'rgba(234, 179, 8, 0.1)' : 'rgba(239, 68, 68, 0.1)',

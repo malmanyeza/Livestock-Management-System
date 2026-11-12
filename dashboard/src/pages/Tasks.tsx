@@ -3,8 +3,10 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import { 
   Plus, Edit, Trash2, CheckSquare, Clock, AlertTriangle, 
-  Search, X, CheckCircle, HelpCircle, ChevronDown, Check
+  Search, X, CheckCircle, HelpCircle, ChevronDown, Check, Repeat
 } from 'lucide-react'
+import { RepeatPicker } from '../components/RepeatPicker'
+import { DEFAULT_RECURRENCE, formatRecurrenceLabel, RecurrenceRule } from '../utils/recurrence'
 
 // ─── Colors Constants ────────────────────────────────────────────────────────
 const C = {
@@ -146,6 +148,37 @@ export default function Tasks() {
   const activeTodosCount = useMemo(() => todos.filter(t => t.status === 'pending' || t.status === 'overdue').length, [todos])
   const unresolvedObsCount = useMemo(() => observations.filter(o => o.status === 'unresolved' || !o.status).length, [observations])
 
+  const saveWithRepeatFallback = async (
+    table: 'farm_events' | 'todo_tasks' | 'observations',
+    basePayload: Record<string, any>,
+    repeat: RecurrenceRule | undefined,
+    editId?: string
+  ) => {
+    const repeatValue = repeat && repeat.frequency !== 'none' ? repeat : null
+    const payload = editId
+      ? { ...basePayload, repeat_rule: repeatValue }
+      : repeatValue
+        ? { ...basePayload, repeat_rule: repeatValue }
+        : basePayload
+
+    const query = editId
+      ? supabase.from(table).update(payload).eq('id', editId).select().single()
+      : supabase.from(table).insert(payload).select().single()
+
+    const { data, error } = await query
+    if (!error) return data
+
+    if (String(error.message || '').toLowerCase().includes('repeat_rule')) {
+      const retryQuery = editId
+        ? supabase.from(table).update(basePayload).eq('id', editId).select().single()
+        : supabase.from(table).insert(basePayload).select().single()
+      const retry = await retryQuery
+      if (retry.error) throw retry.error
+      return { ...retry.data, repeat_rule: repeatValue }
+    }
+    throw error
+  }
+
   // ─── Event handlers ─────────────────────────────────────────────────────────
   const handleSaveEvent = async (form: any) => {
     if (!targetUserId) return
@@ -162,22 +195,11 @@ export default function Tasks() {
     }
 
     if (editingEvent) {
-      const { data, error } = await supabase
-        .from('farm_events')
-        .update(payload)
-        .eq('id', editingEvent.id)
-        .select()
-        .single()
-      if (error) throw error
+      const data = await saveWithRepeatFallback('farm_events', payload, form.repeat, editingEvent.id)
       setEvents(prev => prev.map(e => e.id === editingEvent.id ? data : e))
       setEditingEvent(null)
     } else {
-      const { data, error } = await supabase
-        .from('farm_events')
-        .insert(payload)
-        .select()
-        .single()
-      if (error) throw error
+      const data = await saveWithRepeatFallback('farm_events', payload, form.repeat)
       setEvents(prev => [data, ...prev])
       setShowAddEvent(false)
     }
@@ -224,22 +246,11 @@ export default function Tasks() {
     }
 
     if (editingTodo) {
-      const { data, error } = await supabase
-        .from('todo_tasks')
-        .update(payload)
-        .eq('id', editingTodo.id)
-        .select()
-        .single()
-      if (error) throw error
+      const data = await saveWithRepeatFallback('todo_tasks', payload, form.repeat, editingTodo.id)
       setTodos(prev => prev.map(t => t.id === editingTodo.id ? data : t))
       setEditingTodo(null)
     } else {
-      const { data, error } = await supabase
-        .from('todo_tasks')
-        .insert(payload)
-        .select()
-        .single()
-      if (error) throw error
+      const data = await saveWithRepeatFallback('todo_tasks', payload, form.repeat)
       setTodos(prev => [data, ...prev])
       setShowAddTodo(false)
     }
@@ -312,13 +323,7 @@ export default function Tasks() {
 
     if (editingObs) {
       try {
-        const { data, error } = await supabase
-          .from('observations')
-          .update(payload)
-          .eq('id', editingObs.id)
-          .select()
-          .single()
-        if (error) throw error
+        const data = await saveWithRepeatFallback('observations', payload, form.repeat, editingObs.id)
         setObservations(prev => prev.map(o => o.id === editingObs.id ? data : o))
         setEditingObs(null)
       } catch (err: any) {
@@ -329,12 +334,7 @@ export default function Tasks() {
       }
     } else {
       try {
-        const { data, error } = await supabase
-          .from('observations')
-          .insert(payload)
-          .select()
-          .single()
-        if (error) throw error
+        const data = await saveWithRepeatFallback('observations', payload, form.repeat)
         setObservations(prev => [data, ...prev])
         setShowAddObs(false)
       } catch (err: any) {
@@ -542,6 +542,12 @@ export default function Tasks() {
                       <div>
                         <p className="font-semibold">{item.event}</p>
                         {item.notes && <p className="text-xs font-normal text-neutral-500 mt-0.5">{item.notes}</p>}
+                        {item.repeat_rule?.frequency && item.repeat_rule.frequency !== 'none' && (
+                          <span className="inline-flex items-center gap-1 mt-1 px-2 py-0.5 rounded-md text-xs font-medium bg-[#F0F9EB] text-[#639A34]">
+                            <Repeat size={11} />
+                            {formatRecurrenceLabel(item.repeat_rule)}
+                          </span>
+                        )}
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-neutral-700">{item.tag}</td>
@@ -587,7 +593,17 @@ export default function Tasks() {
                 ) : filteredTodos.map(item => (
                   <tr key={item.id} className="hover:bg-neutral-50/30 transition-colors">
                     <td className="px-6 py-4 whitespace-nowrap text-neutral-700">{item.date}</td>
-                    <td className="px-6 py-4 text-neutral-900 font-semibold">{item.description}</td>
+                    <td className="px-6 py-4 text-neutral-900 font-semibold">
+                      <div>
+                        <p>{item.description}</p>
+                        {item.repeat_rule?.frequency && item.repeat_rule.frequency !== 'none' && (
+                          <span className="inline-flex items-center gap-1 mt-1 px-2 py-0.5 rounded-md text-xs font-medium bg-[#F0F9EB] text-[#639A34]">
+                            <Repeat size={11} />
+                            {formatRecurrenceLabel(item.repeat_rule)}
+                          </span>
+                        )}
+                      </div>
+                    </td>
                     <td className="px-6 py-4 whitespace-nowrap text-neutral-600">{item.created_by || '—'}</td>
                     <td className="px-6 py-4 whitespace-nowrap text-center">{priorityBadge(item.priority)}</td>
                     <td className="px-6 py-4 whitespace-nowrap text-center">
@@ -639,7 +655,17 @@ export default function Tasks() {
                         <span className="text-xs text-neutral-400">{item.sub_category}</span>
                       </div>
                     </td>
-                    <td className="px-6 py-4 text-neutral-900 font-semibold">{item.observation}</td>
+                    <td className="px-6 py-4 text-neutral-900 font-semibold">
+                      <div>
+                        <p>{item.observation}</p>
+                        {item.repeat_rule?.frequency && item.repeat_rule.frequency !== 'none' && (
+                          <span className="inline-flex items-center gap-1 mt-1 px-2 py-0.5 rounded-md text-xs font-medium bg-[#F0F9EB] text-[#639A34]">
+                            <Repeat size={11} />
+                            {formatRecurrenceLabel(item.repeat_rule)}
+                          </span>
+                        )}
+                      </div>
+                    </td>
                     <td className="px-6 py-4">
                       {item.points !== undefined && item.points !== null ? (
                         <div className="flex flex-col gap-1 items-start">
@@ -719,7 +745,8 @@ function EventModal({ animals, editingItem, onClose, onSave }: { animals: any[];
     diagnosis: editingItem?.diagnosis || '',
     notes: editingItem?.notes || '',
     doneBy: editingItem?.done_by || '',
-    status: editingItem?.status || 'pending'
+    status: editingItem?.status || 'pending',
+    repeat: (editingItem?.repeat_rule as RecurrenceRule) || DEFAULT_RECURRENCE
   })
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
@@ -835,6 +862,11 @@ function EventModal({ animals, editingItem, onClose, onSave }: { animals: any[];
               className="w-full rounded-xl px-4 py-2.5 text-sm outline-none resize-none border transition-colors focus:border-[#7AC142]"
               style={{ borderColor: C.neutral200, color: C.neutral900, backgroundColor: C.neutral50 }} />
           </div>
+
+          <RepeatPicker
+            value={form.repeat}
+            onChange={(repeat) => setForm(p => ({ ...p, repeat }))}
+          />
         </div>
         
         <div className="flex gap-3 px-6 py-4 border-t" style={{ borderColor: C.neutral100 }}>
@@ -856,7 +888,8 @@ function TodoModal({ editingItem, onClose, onSave }: { editingItem?: any; onClos
     description: editingItem?.description || '',
     priority: editingItem?.priority || 'medium',
     status: editingItem?.status || 'pending',
-    createdBy: editingItem?.created_by || ''
+    createdBy: editingItem?.created_by || '',
+    repeat: (editingItem?.repeat_rule as RecurrenceRule) || DEFAULT_RECURRENCE
   })
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
@@ -938,6 +971,11 @@ function TodoModal({ editingItem, onClose, onSave }: { editingItem?: any; onClos
               </label>
             </div>
           </div>
+
+          <RepeatPicker
+            value={form.repeat}
+            onChange={(repeat) => setForm(p => ({ ...p, repeat }))}
+          />
         </div>
         
         <div className="flex gap-3 px-6 py-4 border-t" style={{ borderColor: C.neutral100 }}>
@@ -962,7 +1000,8 @@ function ObsModal({ animals, editingItem, onClose, onSave }: { animals: any[]; e
     tag: editingItem?.tag || 'Whole Herd',
     severity: editingItem?.severity || 'medium',
     observer: editingItem?.observer || '',
-    status: editingItem?.status || 'unresolved'
+    status: editingItem?.status || 'unresolved',
+    repeat: (editingItem?.repeat_rule as RecurrenceRule) || DEFAULT_RECURRENCE
   })
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
@@ -1089,6 +1128,11 @@ function ObsModal({ animals, editingItem, onClose, onSave }: { animals: any[]; e
               </label>
             </div>
           </div>
+
+          <RepeatPicker
+            value={form.repeat}
+            onChange={(repeat) => setForm(p => ({ ...p, repeat }))}
+          />
         </div>
         
         <div className="flex gap-3 px-6 py-4 border-t" style={{ borderColor: C.neutral100 }}>
