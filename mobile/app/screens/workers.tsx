@@ -78,10 +78,10 @@ export default function WorkersScreen() {
     setAddingWorker(true);
     try {
       const supabaseUrl =
-        process.env.EXPO_PUBLIC_SUPABASE_URL || 'https://odtlbpsjwhlmiwgmkrxa.supabase.co';
+        process.env.EXPO_PUBLIC_SUPABASE_URL || 'https://butvnybdghgzkiapitop.supabase.co';
       const supabaseAnonKey =
         process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ||
-        'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9kdGxicHNqd2hsbWl3Z21rcnhhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODExNjIyMDEsImV4cCI6MjA5NjczODIwMX0.owMEl-lvuaRE8stDdCoAH0q3ln4EDxNZ5PhJy0trozA';
+        'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJ1dHZueWJkZ2hnemtpYXBpdG9wIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTU0ODM1ODksImV4cCI6MjExMTA1OTU4OX0.eCqGLQzPb468cscyDYAPmQkBnbbtw20DtYpacY8QOS0';
 
       const workerAuthClient = createClient(supabaseUrl, supabaseAnonKey, {
         auth: { persistSession: false, autoRefreshToken: false },

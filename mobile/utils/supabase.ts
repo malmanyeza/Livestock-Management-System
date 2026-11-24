@@ -2,8 +2,8 @@ import 'react-native-url-polyfill/auto';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createClient } from '@supabase/supabase-js';
 
-const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL || 'https://odtlbpsjwhlmiwgmkrxa.supabase.co';
-const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9kdGxicHNqd2hsbWl3Z21rcnhhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODExNjIyMDEsImV4cCI6MjA5NjczODIwMX0.owMEl-lvuaRE8stDdCoAH0q3ln4EDxNZ5PhJy0trozA';
+const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL || 'https://butvnybdghgzkiapitop.supabase.co';
+const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJ1dHZueWJkZ2hnemtpYXBpdG9wIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTU0ODM1ODksImV4cCI6MjExMTA1OTU4OX0.eCqGLQzPb468cscyDYAPmQkBnbbtw20DtYpacY8QOS0';
 
 console.log("[supabase.ts] url:", supabaseUrl);
 console.log("[supabase.ts] key prefix:", supabaseAnonKey ? supabaseAnonKey.substring(0, 15) : "none");
